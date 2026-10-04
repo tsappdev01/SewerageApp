@@ -25,6 +25,10 @@ abstract class MeterRepository {
      */
     val signInNeeded = MutableStateFlow(false)
 
+    /** The server's words when it refused (e.g. "This phone has been blocked"), for the start screen. */
+    @Volatile
+    var signInReason: String? = null
+
     /** Sample data, not a server: the sign-in screen shows the "no signal" demo switch. */
     open val isDemo: Boolean = false
 

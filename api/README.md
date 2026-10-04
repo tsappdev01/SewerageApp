@@ -20,6 +20,8 @@ The API reads five `vw_MR_*` views in `PropertyManagementSystem` (plus an option
 | `005_reading_tenant_and_export.sql` | Adds the source readings-table fields to readings (RowId, PropertyId, PropertyCode, MeterNumber, TenantCode, Type, SubTenant, Posted, Transferred, TransferredToBaan) and the view `mr.vw_MeterReading` in `MaintainMeterReading`'s column names. See `docs/readings-table.md`. Re-runnable. | Any environment |
 | `006_pms_transfer.sql` | Adds the columns that track the copy into `MaintainMeterReading` (`PmsRowId`, `PmsCopiedAtUtc`, `PmsCopyAttempts`, `PmsCopyError`). Re-runnable. | Any environment |
 | `007_reading_image_data.sql` | Creates `mr.ReadingImageData`, which holds the photos when `ImageStore:Kind` is `Database` (the default). Re-runnable. | Any environment |
+| `009_device_keys.sql` | Registered phones: `mr.Device` key hash, label, revoke time; `mr.DeviceRegistrationCode` for one-time codes. Re-runnable. | Any environment |
+| `ops/new_device_code.sql`, `ops/list_devices.sql`, `ops/revoke_device.sql` | IT's tasks: make a one-time registration code, list phones, block a lost phone (`docs/deployment.md` 2.11). | Any environment, as needed |
 | `008_create_api_login.sql` | Creates the API's login `mr_api` (set `@Password` first) and grants what it needs in the `mr` database and in the views' database (SELECT on the views, SELECT/INSERT/UPDATE on `mr`, optional INSERT on `MaintainMeterReading`). Re-runnable. | Any environment |
 | `003_meter_id_as_text.sql` | Brings an `mr` schema from an earlier `002` in line: `MeterId` as text (barcode), readings to 4 decimals. Does nothing on a fresh install. | Any environment |
 | `dev/000_create_dev_source_views.sql` | Test stand-ins shaped like the real views (barcode ids, Status 1, every month OPEN, ISNULL zeros), with sample data. | Development only |
@@ -35,6 +37,7 @@ Errors are RFC 9457 problem details with a `code` (e.g. `READER_NOT_FOUND`, `NO_
 
 | Endpoint | Returns |
 |---|---|
+| `POST /devices/register` | No sign-in. A phone exchanges a one-time code (`REGISTRATION_CODE_INVALID` if wrong, used or expired) for its id and secret key. Rate limited. |
 | `GET /me` | Reader name and the open reading period |
 | `GET /sync/meters?zone=` | Zones, properties and meters to read, with last reading, expected range and state (`PENDING`, `SENT`, `CHECKING`, `READ_AGAIN`, `REVISIT`) |
 | `GET /properties/search?q=&zone=&done=&type=` | Find a Property: matches code, name or meter number, ignoring case, spaces and dashes |
@@ -110,7 +113,8 @@ Photos are stored once, never overwritten, in `mr.ReadingImageData` under the na
 | `PmsTransfer:TargetTable` | `dbo.MaintainMeterReading`, or `PropertyManagementSystem.dbo.MaintainMeterReading` when `mr` is in another database on the same server. |
 | `PmsTransfer:IntervalSeconds`, `BatchSize`, `MaxAttempts` | Every 60 s, up to 100 readings; a reading that failed 10 times is left for someone to look at. |
 | `PmsTransfer:ReadingDateFormat`, `TimeZone`, `MeterStatusMap` | How `ReadingDate` and `MeterStatus` are written (default `yyyy-MM-dd HH:mm:ss` in UAE time; condition codes as they are unless mapped, e.g. `{"WORKING": "Working"}`). |
-| `Auth:Mode` | `Entra` (production) or `Development` (trusts `X-Dev-User` header; refused outside Development). |
+| `Auth:Mode` | `Device` (production for the phone app: headers `X-Device-Id`, `X-Device-Key` and `X-Reader`; refusals `DEVICE_NOT_REGISTERED`, `DEVICE_REVOKED`), `Entra`, or `Development` (trusts `X-Dev-User` or `X-Reader`; refused outside Development). |
+| `Devices:RegisterPerMinute` | Registration tries per address per minute (default 10). |
 | `AzureAd:*` | Entra tenant and API app registration. |
 
 Use a SQL login or managed identity with **SELECT only** on the views and read/write on schema `mr`.
@@ -134,7 +138,7 @@ dotnet test                                          # all tests; integration te
 - **Views are read-only** and may be in another database, so view data and `mr` data are queried
   separately and joined in memory. Lists of meter ids go to SQL as one XML parameter (`Data/SqlList.cs`),
   which avoids SQL Server's 2,100-parameter limit and, unlike `OPENJSON`, works at any database
-  compatibility level (UAT's `PropertyManagementSystem` is below 130).
+  compatibility level (`PropertyManagementSystem` on UATWEB01 (the development server) is below 130).
 - **Every view column is CAST** (TRY_CAST for optional numbers) to a fixed type, so the views'
   own types and codes pass through: `MeterType` by first letter, `Status` as 1/True/ACTIVE, the
   period code built from `StartDate`, and 0 read as "never read" / "no average".

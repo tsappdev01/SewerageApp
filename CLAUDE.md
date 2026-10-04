@@ -12,7 +12,9 @@ never run outside development.
 
 ## API (`api/`)
 
-- .NET 10 minimal API, Dapper on Microsoft.Data.SqlClient, Entra ID auth.
+- .NET 10 minimal API, Dapper on Microsoft.Data.SqlClient. The phone app authenticates as a registered
+  phone (`Auth:Mode` `Device`: device key + reader, FR-002); Entra ID is still supported for other clients.
+  Only hashes of registration codes and device keys are stored.
 - Master data comes from the customer's `vw_MR_*` views (`docs/source-views.md`). **Never write
   to them** and never hard-code their schema: use `SqlConnectionFactory.Views`. CAST every view
   column to the row type in SQL.

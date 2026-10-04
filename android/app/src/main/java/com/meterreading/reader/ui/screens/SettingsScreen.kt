@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.meterreading.reader.BuildConfig
 import com.meterreading.reader.R
 import com.meterreading.reader.api.ApiClient
+import com.meterreading.reader.api.ApiException
 import com.meterreading.reader.auth.DeviceLock
 import com.meterreading.reader.data.AppGraph
 import com.meterreading.reader.data.AppSettings
@@ -47,6 +48,34 @@ fun SettingsScreen(onSaved: () -> Unit, onBack: () -> Unit) {
     var changingPin by remember { mutableStateOf(false) }
     var pinChanged by remember { mutableStateOf(false) }
     val phoneHasLock = remember { DeviceLock.isSetUp(context) }
+    var code by rememberSaveable { mutableStateOf("") }
+    var registering by remember { mutableStateOf(false) }
+    var registerError by remember { mutableStateOf<String?>(null) }
+    val saveServerFirst = stringResource(R.string.device_save_server_first)
+    val noConnection = stringResource(R.string.device_no_connection)
+
+    /** Registers against the saved server; the app then opens again with the phone's key. */
+    fun register() {
+        if (registering) return
+        if (SettingsRules.normalizeUrl(url, AppServices.allowHttp) != current.apiBaseUrl) {
+            registerError = saveServerFirst
+            return
+        }
+        registering = true
+        registerError = null
+        scope.launch {
+            try {
+                AppServices.registerDevice(current.apiBaseUrl, code)
+                code = ""
+                onSaved()
+            } catch (e: ApiException) {
+                registerError = e.title
+            } catch (e: java.io.IOException) {
+                registerError = noConnection
+            }
+            registering = false
+        }
+    }
 
     fun edited() = AppSettings(url, reader, lockOn)
 
@@ -106,6 +135,33 @@ fun SettingsScreen(onSaved: () -> Unit, onBack: () -> Unit) {
                     null -> {}
                 }
             }
+
+            HorizontalDivider()
+            // FR-002: this phone's registration. The key itself is never shown.
+            Text(stringResource(R.string.device_title), style = MaterialTheme.typography.titleLarge)
+            val device = AppServices.device
+            if (device != null) {
+                Pill(stringResource(R.string.device_registered, device.label.ifBlank { device.deviceId.take(8) }), AppColors.Ok, AppColors.OkTint, Icons.Rounded.VerifiedUser)
+            } else {
+                Pill(stringResource(R.string.device_not_registered), AppColors.Warn, AppColors.WarnTint, Icons.Rounded.Warning)
+            }
+            OutlinedTextField(
+                value = code,
+                onValueChange = { text -> code = text.uppercase().filter { it.isLetterOrDigit() || it == '-' }.take(14) },
+                label = { Text(stringResource(R.string.device_code_label)) },
+                supportingText = { Text(stringResource(if (device == null) R.string.device_code_hint else R.string.device_code_hint_again)) },
+                placeholder = { Text("ABCD-EFGH-JKLM") },
+                singleLine = true,
+                enabled = !registering,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedButton(onClick = ::register, enabled = !registering && code.count { it.isLetterOrDigit() } == 12, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+                Icon(Icons.Rounded.PhonelinkLock, null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(if (registering) R.string.device_registering else R.string.device_register))
+            }
+            registerError?.let { Banner(it, Icons.Rounded.Warning, AppColors.Bad, AppColors.BadTint) }
 
             HorizontalDivider()
             Text(stringResource(R.string.settings_reader), style = MaterialTheme.typography.titleLarge)

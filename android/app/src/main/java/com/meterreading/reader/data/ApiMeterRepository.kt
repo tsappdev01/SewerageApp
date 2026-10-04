@@ -28,11 +28,16 @@ import java.time.ZoneId
  * from the phone once the server has them (FR-008.6). A photo that cannot be sent waits too; the
  * reading is not held up by its photos.
  *
- * TODO(FR-020): keep the queue in an encrypted Room database so it survives the app being closed.
+ * The queue is saved, encrypted, after every change ([store], FR-020) and reloaded at start, so it
+ * survives the app being closed; photos of saved readings are encrypted on disk ([vault], FR-008.6).
+ * [onWaiting] is told whenever something waits, so the phone can send it in the background.
  */
 class ApiMeterRepository(
     private val api: ApiClient,
     private val zone: ZoneId = ZoneId.systemDefault(),
+    private val store: QueueStore? = null,
+    private val vault: PhotoVault = PhotoVault(null),
+    private val onWaiting: (() -> Unit)? = null,
 ) : MeterRepository() {
     private val _readerName = MutableStateFlow("")
     override val readerName: StateFlow<String> = _readerName.asStateFlow()
@@ -51,11 +56,26 @@ class ApiMeterRepository(
     private val _photosWaiting = MutableStateFlow(0)
     override val photosWaiting: StateFlow<Int> = _photosWaiting.asStateFlow()
 
-    private data class PendingPhoto(val transactionId: String, val photo: DraftPhoto, val capturedAt: LocalDateTime)
-
     private val queue = ArrayDeque<ReadingDraft>()
-    private val photoQueue = ArrayDeque<PendingPhoto>()
+    private val photoQueue = ArrayDeque<QueueStore.WaitingPhoto>()
     private val lock = Mutex()
+
+    init {
+        // What was waiting when the app last closed.
+        store?.load()?.let { saved ->
+            queue.addAll(saved.readings)
+            photoQueue.addAll(saved.photos)
+            _readings.value = queue.reversed().map { it.toQueuedReading() }
+            _photosWaiting.value = photoQueue.size
+            if (hasWaiting()) onWaiting?.invoke()
+        }
+    }
+
+    /** Saves the queue after a change, and asks for a background send while anything waits. */
+    private fun persist() {
+        store?.save(QueueStore.Snapshot(queue.toList(), photoQueue.toList()))
+        if (queue.isNotEmpty() || photoQueue.isNotEmpty()) onWaiting?.invoke()
+    }
 
     override suspend fun signIn(login: String): SignInResult {
         api.devUser = login.trim().ifEmpty { null }
@@ -66,6 +86,7 @@ class ApiMeterRepository(
                 SignInResult.Failed("There is no open reading period. Ask your supervisor.")
             } else {
                 signInNeeded.value = false
+                signInReason = null
                 refresh()
                 SignInResult.Success
             }
@@ -99,13 +120,14 @@ class ApiMeterRepository(
             online.value = false
             false
         } catch (e: ApiException) {
-            if (e.needsSignIn) signInNeeded.value = true
+            if (e.needsSignIn) { signInReason = e.title; signInNeeded.value = true }
             false
         }
     }
 
     override suspend fun submit(draft: ReadingDraft): SubmitResult = lock.withLock {
         tenantRefusal(draft)?.let { return@withLock SubmitResult(SubmitOutcome.REJECTED, it) } // never saved or queued
+        draft.photos.forEach { vault.seal(it.path) }
         try {
             val response = api.submit(draft.toRequest())
             online.value = true
@@ -119,7 +141,7 @@ class ApiMeterRepository(
         } catch (e: ApiException) {
             if (e.isRetryable || e.needsSignIn) {
                 // Not accepted as this reader: keep the reading on the phone; it goes up after signing in again.
-                if (e.needsSignIn) signInNeeded.value = true
+                if (e.needsSignIn) { signInReason = e.title; signInNeeded.value = true }
                 enqueue(draft)
                 SubmitResult(SubmitOutcome.QUEUED)
             } else {
@@ -137,16 +159,17 @@ class ApiMeterRepository(
                 try {
                     val response = api.submit(draft.toRequest())
                     queue.removeFirst()
-                    applyStored(draft, response)
+                    applyStored(draft, response) // saves the queue
                     sent++
                 } catch (e: IOException) {
                     online.value = false
                     break
                 } catch (e: ApiException) {
-                    if (e.needsSignIn) signInNeeded.value = true
+                    if (e.needsSignIn) { signInReason = e.title; signInNeeded.value = true }
                     if (e.isRetryable || e.needsSignIn) break
                     // Final refusal (e.g. already read by someone else): show it as "read again" with the reason.
                     queue.removeFirst()
+                    persist()
                     deletePhotos(draft)
                     _readings.update { list -> list.filterNot { it.transactionId == draft.transactionId } }
                     updateMeter(draft.meterId) { it.copy(state = ReadingState.READ_AGAIN, supervisorNote = e.title) }
@@ -167,9 +190,10 @@ class ApiMeterRepository(
             val file = File(pending.photo.path)
             if (!file.exists()) {
                 photoQueue.removeFirst()
+                persist()
                 continue
             }
-            val bytes = file.readBytes()
+            val bytes = vault.read(file.path)
             try {
                 api.uploadPhoto(
                     transactionId = pending.transactionId,
@@ -181,15 +205,17 @@ class ApiMeterRepository(
                 )
                 photoQueue.removeFirst()
                 file.delete()
+                persist()
                 uploaded++
             } catch (e: IOException) {
                 online.value = false
                 break
             } catch (e: ApiException) {
                 // A photo damaged on the way is sent again later; any other refusal is final, the file is kept.
-                if (e.needsSignIn) signInNeeded.value = true
+                if (e.needsSignIn) { signInReason = e.title; signInNeeded.value = true }
                 if (e.isRetryable || e.needsSignIn || e.code == "IMAGE_HASH_MISMATCH") break
                 photoQueue.removeFirst()
+                persist()
             }
         }
         _photosWaiting.value = photoQueue.size
@@ -202,6 +228,7 @@ class ApiMeterRepository(
 
     private fun enqueue(draft: ReadingDraft) {
         if (queue.none { it.transactionId == draft.transactionId }) queue.addLast(draft)
+        persist()
         _readings.update { list -> listOf(draft.toQueuedReading()) + list.filterNot { it.transactionId == draft.transactionId } }
         updateMeter(draft.meterId) { it.copy(state = ReadingState.QUEUED) }
     }
@@ -223,8 +250,9 @@ class ApiMeterRepository(
         }
         updateMeter(draft.meterId) { it.copy(state = state, supervisorNote = null) }
         draft.photos.forEach { photo ->
-            if (photoQueue.none { it.photo.imageId == photo.imageId }) photoQueue.addLast(PendingPhoto(response.transactionId, photo, draft.capturedAt))
+            if (photoQueue.none { it.photo.imageId == photo.imageId }) photoQueue.addLast(QueueStore.WaitingPhoto(response.transactionId, photo, draft.capturedAt))
         }
+        persist()
         _photosWaiting.value = photoQueue.size
     }
 

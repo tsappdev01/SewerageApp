@@ -2,9 +2,15 @@ package com.meterreading.reader.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
 import com.meterreading.reader.BuildConfig
 import com.meterreading.reader.api.ApiClient
+import com.meterreading.reader.api.DeviceCredentials
+import com.meterreading.reader.data.AesGcmSealer
 import com.meterreading.reader.data.ApiMeterRepository
+import com.meterreading.reader.data.PhotoVault
+import com.meterreading.reader.data.QueueStore
+import java.io.File
 import com.meterreading.reader.data.AppGraph
 import com.meterreading.reader.data.AppSettings
 import com.meterreading.reader.data.FakeMeterRepository
@@ -20,7 +26,15 @@ import kotlinx.coroutines.flow.asStateFlow
  * The build's values (gradle -PapiBaseUrl, -PreaderLogin, -PsettingsPin) are only first values.
  */
 object AppServices {
+    private lateinit var appContext: Context
     private lateinit var prefs: SharedPreferences
+    private lateinit var deviceStore: DeviceKeyStore
+    private lateinit var queueStore: QueueStore
+    private lateinit var photoVault: PhotoVault
+
+    /** This phone's registration (FR-002), or null until a supervisor registers it in Settings. */
+    var device: DeviceCredentials? = null
+        private set
 
     /** Plain http only in debug builds; release builds need https. */
     val allowHttp: Boolean = BuildConfig.DEBUG
@@ -34,9 +48,18 @@ object AppServices {
     private var unlocked = false
     private var backgroundSince: Long? = null
 
+    @Synchronized
     fun init(appContext: Context) {
         if (::prefs.isInitialized) return
-        prefs = appContext.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        this.appContext = appContext.applicationContext
+        prefs = this.appContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        // One Keystore key for everything kept on the phone: the device key, the queue and its photos.
+        val sealer = AesGcmSealer { KeystoreKeys.aes("meter-reading-data") }
+        deviceStore = DeviceKeyStore(prefs, sealer)
+        // noBackupFilesDir: never copied to cloud backups.
+        queueStore = QueueStore(File(this.appContext.noBackupFilesDir, "queue.mrq"), sealer)
+        photoVault = PhotoVault(sealer)
+        device = deviceStore.load()
         // A PIN given at build time becomes the first supervisor PIN; only its hash is kept.
         if (storedPin() == null && SupervisorPin.isValid(BuildConfig.SETTINGS_PIN)) setPin(BuildConfig.SETTINGS_PIN)
         apply(load())
@@ -52,6 +75,18 @@ object AppServices {
             .apply()
         apply(new)
         if (!new.deviceLock) markUnlocked()
+    }
+
+    /**
+     * Registers this phone with a one-time code from IT, against [serverUrl], and keeps its key.
+     * Throws ApiException (e.g. REGISTRATION_CODE_INVALID) or IOException (no connection).
+     */
+    suspend fun registerDevice(serverUrl: String, code: String): DeviceCredentials {
+        val registered = ApiClient(serverUrl).registerDevice(code, "${Build.MANUFACTURER} ${Build.MODEL}", Build.VERSION.RELEASE, BuildConfig.VERSION_NAME)
+        deviceStore.save(registered)
+        device = registered
+        apply(settings)
+        return registered
     }
 
     // --- phone lock ---
@@ -107,7 +142,16 @@ object AppServices {
 
     private fun apply(s: AppSettings) {
         settings = s
-        AppGraph.repository = if (BuildConfig.USE_FAKE_DATA) FakeMeterRepository() else ApiMeterRepository(ApiClient(s.apiBaseUrl))
+        // The reader is known from Settings, so the background upload can send without a sign-in screen.
+        val client = ApiClient(s.apiBaseUrl).apply {
+            device = this@AppServices.device
+            devUser = s.readerLogin.ifBlank { null }
+        }
+        AppGraph.repository = if (BuildConfig.USE_FAKE_DATA) {
+            FakeMeterRepository()
+        } else {
+            ApiMeterRepository(client, store = queueStore, vault = photoVault, onWaiting = { UploadWorker.schedule(appContext) })
+        }
     }
 
     private fun load(): AppSettings {

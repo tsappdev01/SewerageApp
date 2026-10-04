@@ -21,7 +21,8 @@ public sealed class DevelopmentAuthHandler(
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        var user = Request.Headers[Header].ToString();
+        // X-Reader too, so a registered phone also works against a development API.
+        var user = Request.Headers[Header].ToString() is { Length: > 0 } dev ? dev : Request.Headers[DeviceAuthHandler.ReaderHeader].ToString();
         if (string.IsNullOrWhiteSpace(user)) return Task.FromResult(AuthenticateResult.NoResult());
         var identity = new ClaimsIdentity(
             [new Claim("preferred_username", user), new Claim(ClaimTypes.Role, auth.Value.ReaderRole)], SchemeName);

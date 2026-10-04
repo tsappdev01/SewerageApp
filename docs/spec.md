@@ -209,12 +209,12 @@ device so a weak signal does not stop navigation or capture (§9).
 
 | ID | Requirement |
 |---|---|
-| FR-002.1 | Each installation shall register once, generating a unique Device ID (UUID) stored in encrypted storage, via `POST /api/v1/devices/register`. |
+| FR-002.1 | Each installation shall register once via `POST /api/v1/devices/register` with a one-time code made by IT (12 characters, valid 24 hours, usable once; `db/ops/new_device_code.sql`). The server returns a Device ID and a secret device key; the phone keeps the key encrypted with an Android Keystore key, and the server keeps only SHA-256 hashes of codes and keys. Registration is rate limited per address. *Detailed 2026-10-04.* |
 | FR-002.2 | The system shall hold Device ID, last user, device model, Android version, app version, registration date, last sync and status (`Active`, `Revoked`). |
 | FR-002.3 | An administrator shall be able to revoke a device; the API shall reject any request from a revoked device with `DEVICE_REVOKED` (HTTP 403). On receiving it the app shall wipe cached data **except** the unsent queue, which stays encrypted and unreadable to the user; an admin may reinstate the device to allow it to drain. |
 | FR-002.4 | The app should be deployed and managed through Microsoft Intune (MDM/MAM) where the organisation supports it. |
 | FR-002.5 | The app shall refuse to run on rooted devices or failed Play Integrity checks when `RequirePlayIntegrity` = true. The integrity token shall be **verified server-side** at registration and at least daily (SEC-010). |
-| FR-002.6 | Every API request from the app shall carry headers `X-Device-Id` and `X-App-Version`. The API shall reject app versions below `MinAppVersion` with `APP_VERSION_UNSUPPORTED` (HTTP 426). |
+| FR-002.6 | Every API request from the app shall carry headers `X-Device-Id` and `X-Device-Key` (and `X-Reader`, the reader set on the phone); with `Auth:Mode` = `Device` the API refuses unknown phones or wrong keys with `DEVICE_NOT_REGISTERED` and blocked phones with `DEVICE_REVOKED` (both HTTP 403). `X-App-Version` and `MinAppVersion` are not built yet. The API shall reject app versions below `MinAppVersion` with `APP_VERSION_UNSUPPORTED` (HTTP 426). |
 
 ### 4.3 Dashboard (FR-003)
 
@@ -639,6 +639,7 @@ readings per hour, last sync per reader/device.
 | ID | Requirement |
 |---|---|
 | FR-020.1 | The app shall store assignments, meters, properties, zones, LOVs, status rules and settings in an encrypted local database (Room + SQLCipher; key held in Android Keystore). |
+| FR-020.1a | *Built 2026-10-04:* readings and photos waiting to upload are kept in one AES-256-GCM encrypted file (key in Android Keystore) and photo files of saved readings are encrypted in place; WorkManager sends them when a network is available. The meter list itself is not yet kept offline. |
 | FR-020.2 | Initial sync at sign-in downloads all assignments for the open period. Delta sync (`GET /sync/assignments?since=<token>`) runs on app open, after each submission, and every `SyncIntervalMinutes` (default 30) when online, via WorkManager. |
 | FR-020.3 | Delta responses include added, changed and **removed** assignments (reassigned away), and reading outcomes for the reader's earlier submissions (e.g. supervisor rejections). |
 | FR-020.4 | Submissions are written to a local outbox inside one local DB transaction with their images, then sent by a WorkManager job with network constraint and exponential backoff (30 s → max 30 min). |
@@ -1030,7 +1031,8 @@ Each has a proposed default that development can use now. Resolve each with an A
 | ALREADY_READ | 409 | Another reading already accepted | Inform user |
 | TRANSACTION_ID_REUSED | 409 | Same ID, different payload | Log as defect; re-capture with new ID |
 | DEVICE_REVOKED | 403 | Device revoked | Wipe per FR-002.3 |
-| DEVICE_NOT_REGISTERED | 403 | Unknown device | Re-register |
+| DEVICE_NOT_REGISTERED | 403 | Unknown device or wrong key | Keep the queue; ask the supervisor to register the phone |
+| REGISTRATION_CODE_INVALID | 422 | Registration code wrong, used or expired | Ask IT for a new code |
 | INTEGRITY_FAILED | 403 | Play Integrity failed | Block |
 | APP_VERSION_UNSUPPORTED | 426 | Update required | Prompt update |
 | RATE_LIMITED | 429 | Too many requests | Back off per `Retry-After` |

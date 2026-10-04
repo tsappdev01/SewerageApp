@@ -107,6 +107,15 @@ data class SubmitReadingResponse(
     val exceptions: List<String> = emptyList(),
 )
 
+/** This phone's registration (spec FR-002): its id and secret key, and IT's name for it. */
+data class DeviceCredentials(val deviceId: String, val deviceKey: String, val label: String)
+
+@Serializable
+data class RegisterDeviceRequest(val code: String, val model: String? = null, val androidVersion: String? = null, val appVersion: String? = null)
+
+@Serializable
+data class RegisterDeviceResponse(val deviceId: String, val deviceKey: String, val label: String = "")
+
 @Serializable
 data class ProblemDto(val title: String? = null, val status: Int? = null, val code: String? = null)
 
