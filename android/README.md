@@ -50,9 +50,11 @@ In the demo build, **Demo: no signal** on the sign-in screen shows the offline p
 - **English only**, short everyday words, no system terms (see `res/values/strings.xml`).
 - **Dubai Investments Park colours**: navy `#12305C` (wordmark) and taupe `#776759` (mark), in
   `ui/theme/Theme.kt`. Light theme only, for use in sun.
-- **Logo**: `res/drawable-nodpi/dip_logo.png` on the sign-in screen and the "D" mark as the launcher
-  icon (`ic_launcher_mark.png`), both made from `docs/Dubai-Investments-Park (8).jpg` with the
-  white background made transparent.
+- **Logo**: `res/drawable-nodpi/dip_logo.png` on the sign-in screen, made from
+  `docs/Dubai-Investments-Park (8).jpg` with the white background made transparent.
+- **App icon**: from `docs/ChatGPT Image Oct 4, 2026, 06_00_11 PM.png`, split into an adaptive
+  icon's two layers (`ic_launcher_background.png` brown gradient, `ic_launcher_mark.png` white "D")
+  so every phone's icon shape works. `play-store-icon-512.png` is the 512 px icon for Google Play.
 - **Sub-tenant**: optional "Add sub-tenant name" on the check screen, sent with the reading.
 
 ## Screens
