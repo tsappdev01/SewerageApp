@@ -80,3 +80,50 @@ WHERE Transferred = 0 AND Status IN ('ACCEPTED', 'APPROVED');   -- exceptions wa
 The process marks rows done on the table itself (`UPDATE mr.ReadingTransaction SET Transferred = 1,
 TransferredAtUtc = SYSUTCDATETIME(), TransferredToBaan = @ref WHERE RowId = @rowId`); its login
 needs SELECT on the view and UPDATE on those columns only.
+
+## Copying readings into `MaintainMeterReading`
+
+The API can copy readings into PMS's own `MaintainMeterReading`, so posting and the Baan transfer
+work exactly as today. It is **off** until `PmsTransfer:Enabled` is `true` (`appsettings.json`).
+
+**What is copied:** readings with status `ACCEPTED`, or `APPROVED` by a supervisor, a condition of
+`WORKING`, `DAMAGED`, `SUBMERSED` or `REMOVED`, and a reading value. Exceptions wait until a
+supervisor approves them; `NOT_ACCESSIBLE` and replaced meters are not copied (no single reading).
+
+**How:** every 60 seconds, up to 100 waiting readings, oldest first. Each one is a single
+transaction: insert the row, then store the `RowId` it got in `mr.ReadingTransaction.PmsRowId`.
+A reading with `PmsRowId` set is never copied again. If the insert fails, nothing is kept, the
+error goes in `PmsCopyError` and `PmsCopyAttempts` goes up; after 10 attempts the reading waits
+for someone to look at it. `GET /health/ready` reports a missing table or column.
+
+| `MaintainMeterReading` | Written as |
+|---|---|
+| RowId | Given by the table; stored back in `PmsRowId`. |
+| PropertyId, PropertyCode, MeterNumber, TenantCode, SubTenant | As stored with the reading. |
+| ReadingDate | `CapturedAtUtc` in UAE time, as text `yyyy-MM-dd HH:mm:ss` (`ReadingDateFormat`, `TimeZone`). |
+| MeterStatus | The condition code (`WORKING`, …), or the text from `MeterStatusMap`. |
+| Latitude, Longitude | Up to 6 decimals; empty when no GPS. |
+| Previous_Reading, Current_Reading | `PreviousReading`, `NewReading`, without trailing zeros (`1234.5`). |
+| MeterReader | `vw_MR_Reader.UserId`. |
+| Type | The meter type as the source writes it. |
+| Posted, UploadTime, Transferred, Consumption, TransferredToBaan | Left to the table's defaults and calculation. |
+
+Readings to see which are waiting or failing:
+
+```sql
+SELECT TransactionId, MeterNumber, Status, PmsCopyAttempts, PmsCopyError
+FROM mr.ReadingTransaction
+WHERE PmsCopiedAtUtc IS NULL AND PmsCopyAttempts > 0;
+```
+
+To retry one after fixing the cause: `UPDATE mr.ReadingTransaction SET PmsCopyAttempts = 0 WHERE TransactionId = @id`.
+
+### To confirm with the PMS team before switching on
+
+1. **ReadingDate** text format the posting expects (default `2026-10-04 09:15:30`).
+2. **MeterStatus** values the table uses (e.g. `Working`); set them in `MeterStatusMap`.
+3. **MeterReader**: `UserId` or the reader's name.
+4. **SubTenant** length in the table: the app allows 100 characters; a longer value fails the copy and shows in `PmsCopyError`.
+5. Whether `Posted` should start as `0` for copied rows (the table's default is used).
+6. **Login:** INSERT on `MaintainMeterReading` for the API's login.
+7. Use **either** this copy **or** reading `mr.vw_MeterReading` (above) in the existing process, not both, or readings would be posted twice.

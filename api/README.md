@@ -18,9 +18,11 @@ The API reads five `vw_MR_*` views in `PropertyManagementSystem` (plus an option
 | `002_create_mr_schema.sql` | Creates the API's own tables `mr.Device`, `mr.ReadingTransaction`, `mr.ReadingImage`. Re-runnable. | Any environment |
 | `004_add_expected_photos.sql` | Adds `mr.ReadingTransaction.ExpectedPhotos` (photos the phone will upload). Re-runnable. | Any environment |
 | `005_reading_tenant_and_export.sql` | Adds the source readings-table fields to readings (RowId, PropertyId, PropertyCode, MeterNumber, TenantCode, Type, SubTenant, Posted, Transferred, TransferredToBaan) and the view `mr.vw_MeterReading` in `MaintainMeterReading`'s column names. See `docs/readings-table.md`. Re-runnable. | Any environment |
+| `006_pms_transfer.sql` | Adds the columns that track the copy into `MaintainMeterReading` (`PmsRowId`, `PmsCopiedAtUtc`, `PmsCopyAttempts`, `PmsCopyError`). Re-runnable. | Any environment |
 | `003_meter_id_as_text.sql` | Brings an `mr` schema from an earlier `002` in line: `MeterId` as text (barcode), readings to 4 decimals. Does nothing on a fresh install. | Any environment |
 | `dev/000_create_dev_source_views.sql` | Test stand-ins shaped like the real views (barcode ids, Status 1, every month OPEN, ISNULL zeros), with sample data. | Development only |
 | `dev/010_seed_dev_readings.sql` | Sample readings already received this period. | Development only |
+| `dev/020_create_dev_maintain_meter_reading.sql` | Stand-in `dbo.MaintainMeterReading` for the transfer tests. **Never run where the real table exists.** | Development only |
 
 ## Endpoints
 
@@ -96,6 +98,10 @@ Photos are stored once, never overwritten, at
 | `ReadingRules:*` | Average periods, high-consumption factor and floors, default averages (spec BR-007, BR-008). |
 | `ImageStore:Kind` | `FileSystem` (photos under `ImageStore:Root`, which the API must be able to write) or `AzureBlob` (`ImageStore:BlobServiceUri` and `Container`, reached with the API's managed identity; the container stays private). |
 | `ImageStore:MaxImageBytes`, `MaxImagesPerReading` | Upload limits: 2 MB and 4 photos by default. |
+| `PmsTransfer:Enabled` | Copies accepted readings into `MaintainMeterReading` (default `false`). See `docs/readings-table.md`. |
+| `PmsTransfer:TargetTable` | `dbo.MaintainMeterReading`, or `PropertyManagementSystem.dbo.MaintainMeterReading` when `mr` is in another database on the same server. |
+| `PmsTransfer:IntervalSeconds`, `BatchSize`, `MaxAttempts` | Every 60 s, up to 100 readings; a reading that failed 10 times is left for someone to look at. |
+| `PmsTransfer:ReadingDateFormat`, `TimeZone`, `MeterStatusMap` | How `ReadingDate` and `MeterStatus` are written (default `yyyy-MM-dd HH:mm:ss` in UAE time; condition codes as they are unless mapped, e.g. `{"WORKING": "Working"}`). |
 | `Auth:Mode` | `Entra` (production) or `Development` (trusts `X-Dev-User` header; refused outside Development). |
 | `AzureAd:*` | Entra tenant and API app registration. |
 
@@ -108,7 +114,8 @@ Use a SQL login or managed identity with **SELECT only** on the views and read/w
 docker run -d --name mrsql -p 1433:1433 -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='Dev_Passw0rd!' mcr.microsoft.com/mssql/server:2022-latest
 # create database MeterReading, then run in order:
 #   ../db/dev/000_create_dev_source_views.sql, ../db/002_create_mr_schema.sql, ../db/003_meter_id_as_text.sql,
-#   ../db/004_add_expected_photos.sql, ../db/005_reading_tenant_and_export.sql, ../db/dev/010_seed_dev_readings.sql
+#   ../db/004_add_expected_photos.sql, ../db/005_reading_tenant_and_export.sql, ../db/006_pms_transfer.sql,
+#   ../db/dev/010_seed_dev_readings.sql, ../db/dev/020_create_dev_maintain_meter_reading.sql
 dotnet run --project src/MeterReading.Api            # Development: http://localhost:5080
 curl -H "X-Dev-User: rashid@dip.example" "http://localhost:5080/api/v1/sync/meters?zone=598"
 dotnet test                                          # all tests; integration tests need the database above (MR_TEST_SQL to override)
@@ -126,6 +133,10 @@ dotnet test                                          # all tests; integration te
   rows, sign-in is refused with `LOGIN_NOT_UNIQUE` rather than guessing.
 - **No assignment.** Meter lists are shared; only a reader's own submissions are scoped to them.
   Phones should sync by zone (`?zone=`) on large estates rather than downloading every meter.
+- **The transfer is the only write outside `mr`.** Each reading is copied in one transaction
+  that inserts into `MaintainMeterReading` and stores the new `RowId` in `PmsRowId`, under a lock,
+  so a reading is copied once even with two API instances running. A failure rolls back and
+  is counted in `PmsCopyAttempts` / `PmsCopyError`.
 - Dapper rather than EF Core: the API does not own the source schema.
 
 ## Next

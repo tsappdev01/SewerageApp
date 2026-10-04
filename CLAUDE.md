@@ -17,6 +17,9 @@ never run outside development.
   to them** and never hard-code their schema: use `SqlConnectionFactory.Views`. CAST every view
   column to the row type in SQL.
 - The API's own tables are schema `mr`; a new column needs a new numbered script in `db/`.
+- The only write outside `mr` is `PmsTransferService` inserting into `MaintainMeterReading`
+  (off unless `PmsTransfer:Enabled`). Keep it insert-only, once per reading, in one transaction
+  with the `PmsRowId` update.
 - Work is not assigned: meter lists are shared by all active readers and narrowed by zone. A
   reader's own submissions ("my readings", "read by you") are scoped to them; test that.
 - Errors are problem details with a `code` from spec Appendix A.

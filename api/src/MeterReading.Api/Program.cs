@@ -15,6 +15,9 @@ builder.Services.Configure<SourceViewsOptions>(config.GetSection(SourceViewsOpti
 builder.Services.Configure<ReadingRulesOptions>(config.GetSection(ReadingRulesOptions.Section));
 builder.Services.Configure<AuthOptions>(config.GetSection(AuthOptions.Section));
 builder.Services.Configure<ImageStoreOptions>(config.GetSection(ImageStoreOptions.Section));
+builder.Services.Configure<PmsTransferOptions>(config.GetSection(PmsTransferOptions.Section));
+builder.Services.AddScoped<PmsTransferService>();
+builder.Services.AddHostedService<PmsTransferWorker>();
 if (string.Equals(config[$"{ImageStoreOptions.Section}:Kind"], "AzureBlob", StringComparison.OrdinalIgnoreCase))
     builder.Services.AddSingleton<IImageStore, AzureBlobImageStore>();
 else
@@ -61,11 +64,12 @@ app.UseAuthorization();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 
 app.MapGet("/health/live", () => Results.Ok(new { status = "live" })).AllowAnonymous().ExcludeFromDescription();
-app.MapGet("/health/ready", async (MeterReadingRepository repo, ILogger<Program> log, CancellationToken ct) =>
+app.MapGet("/health/ready", async (MeterReadingRepository repo, PmsTransferService transfer, Microsoft.Extensions.Options.IOptions<PmsTransferOptions> transferOptions, ILogger<Program> log, CancellationToken ct) =>
 {
     try
     {
-        var missing = await repo.FindMissingViewsAsync(ct);
+        var missing = (await repo.FindMissingViewsAsync(ct)).ToList();
+        if (transferOptions.Value.Enabled && await transfer.FindProblemAsync(ct) is { } problem) missing.Add(problem);
         return missing.Count == 0
             ? Results.Ok(new { status = "ready" })
             : Results.Json(new { status = "not ready", missing }, statusCode: StatusCodes.Status503ServiceUnavailable);

@@ -60,3 +60,36 @@ public sealed class ImageStoreOptions
     /// <summary>FR-008.7.</summary>
     public int MaxImagesPerReading { get; set; } = 4;
 }
+
+/// <summary>
+/// Copying accepted readings into PropertyManagementSystem's MaintainMeterReading
+/// (docs/readings-table.md). Off until the formats below are confirmed against existing rows.
+/// </summary>
+public sealed class PmsTransferOptions
+{
+    public const string Section = "PmsTransfer";
+
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// The table to insert into, as seen from the MeterReading connection: <c>dbo.MaintainMeterReading</c>
+    /// when the mr schema is in PropertyManagementSystem, or <c>PropertyManagementSystem.dbo.MaintainMeterReading</c>
+    /// from another database on the same server.
+    /// </summary>
+    public string TargetTable { get; set; } = "dbo.MaintainMeterReading";
+
+    public int IntervalSeconds { get; set; } = 60;
+    public int BatchSize { get; set; } = 100;
+
+    /// <summary>After this many failed attempts a reading is left for someone to look at.</summary>
+    public int MaxAttempts { get; set; } = 10;
+
+    /// <summary>.NET format for the text ReadingDate column, in <see cref="TimeZone"/>.</summary>
+    public string ReadingDateFormat { get; set; } = "yyyy-MM-dd HH:mm:ss";
+
+    /// <summary>SQL Server time zone name for ReadingDate.</summary>
+    public string TimeZone { get; set; } = "Arabian Standard Time";
+
+    /// <summary>App condition code to the MeterStatus text the table uses, e.g. WORKING → Working. Unmapped codes are copied as they are.</summary>
+    public Dictionary<string, string> MeterStatusMap { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
