@@ -79,31 +79,42 @@ views and a test `MaintainMeterReading`.
 
 ### 1.4 The API's SQL login
 
-Create one login for the API, used by nothing else:
+Create one login for the API, used by nothing else (a SQL login, or the IIS app pool's Windows
+account), then run **`db/008_grant_api_login.sql`** in the database that holds schema `mr`
+after setting `@Login` at the top. It is re-runnable and grants only:
 
-```sql
--- in the database that holds the views
-GRANT SELECT ON dbo.vw_MR_Reader TO [mr_api];
-GRANT SELECT ON dbo.vw_MR_Zone TO [mr_api];
-GRANT SELECT ON dbo.vw_MR_Property TO [mr_api];
-GRANT SELECT ON dbo.vw_MR_Meter TO [mr_api];
-GRANT SELECT ON dbo.vw_MR_ReadingPeriod TO [mr_api];
-GRANT SELECT ON dbo.vw_MR_Tenant TO [mr_api];
-
--- in the database that holds schema mr
-GRANT SELECT, INSERT, UPDATE ON SCHEMA::mr TO [mr_api];
-
--- only when the copy into MaintainMeterReading is switched on (section 2.6)
-GRANT INSERT ON dbo.MaintainMeterReading TO [mr_api];
-```
+| Where | What |
+|---|---|
+| `mr` database (MRDB) | SELECT, INSERT, UPDATE on schema `mr`; SELECT on its `dbo.vw_MR_*` views |
+| `PropertyManagementSystem` | SELECT on the six `dbo.vw_MR_*` views. Needed because MRDB's views read these and ownership chaining between databases is off. |
+| `PropertyManagementSystem`, only with `@AllowPmsCopy = 1` | INSERT on `dbo.MaintainMeterReading` (section 2.8) |
 
 The API never needs DELETE, never writes to the views, and never creates tables.
 
-### 1.5 Space for photos
+With the views in MRDB as wrappers (as on UAT), the API needs **one connection string, to
+MRDB**: leave `ConnectionStrings__Source` empty.
+
+### 1.5 Size, growth and backups
 
 Photos are stored in the database (`mr.ReadingImageData`). Each is about 500 KB, so allow about
 **1 GB per 2,000 photos**, in the data file and in backups. Example: 3,000 meters × 2 photos × 12
 months ≈ 36 GB a year. SQL Server Express (10 GB limit) is not enough.
+
+The UAT MRDB (scripted 2026-10-04) was created with SQL Server's small defaults. Before go-live:
+
+```sql
+-- Fixed growth steps instead of 1 MB and 10 %: photos would otherwise grow the file thousands of times.
+ALTER DATABASE MRDB MODIFY FILE (NAME = N'MRDB',     SIZE = 10GB, FILEGROWTH = 1GB);
+ALTER DATABASE MRDB MODIFY FILE (NAME = N'MRDB_log', FILEGROWTH = 512MB);
+```
+
+- **Recovery model FULL** needs scheduled **transaction log backups** (e.g. every 15 minutes),
+  or the log grows without end; every photo passes through it. Use SIMPLE only if losing up to a
+  day's readings since the last full backup is acceptable.
+- The files are on **C:** (`...\MSSQL11.MSSQLSERVER\MSSQL\DATA\`). Move them to a data drive before
+  the photos arrive, so a full C: cannot stop the server.
+- Optional: put `mr.ReadingImageData` on its own filegroup or drive, so photos can be sized and
+  backed up apart from the readings.
 
 ---
 

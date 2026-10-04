@@ -20,6 +20,7 @@ The API reads five `vw_MR_*` views in `PropertyManagementSystem` (plus an option
 | `005_reading_tenant_and_export.sql` | Adds the source readings-table fields to readings (RowId, PropertyId, PropertyCode, MeterNumber, TenantCode, Type, SubTenant, Posted, Transferred, TransferredToBaan) and the view `mr.vw_MeterReading` in `MaintainMeterReading`'s column names. See `docs/readings-table.md`. Re-runnable. | Any environment |
 | `006_pms_transfer.sql` | Adds the columns that track the copy into `MaintainMeterReading` (`PmsRowId`, `PmsCopiedAtUtc`, `PmsCopyAttempts`, `PmsCopyError`). Re-runnable. | Any environment |
 | `007_reading_image_data.sql` | Creates `mr.ReadingImageData`, which holds the photos when `ImageStore:Kind` is `Database` (the default). Re-runnable. | Any environment |
+| `008_grant_api_login.sql` | Grants the API's login what it needs in the `mr` database and in the views' database (SELECT on the views, SELECT/INSERT/UPDATE on `mr`, optional INSERT on `MaintainMeterReading`). Re-runnable. | Any environment |
 | `003_meter_id_as_text.sql` | Brings an `mr` schema from an earlier `002` in line: `MeterId` as text (barcode), readings to 4 decimals. Does nothing on a fresh install. | Any environment |
 | `dev/000_create_dev_source_views.sql` | Test stand-ins shaped like the real views (barcode ids, Status 1, every month OPEN, ISNULL zeros), with sample data. | Development only |
 | `dev/010_seed_dev_readings.sql` | Sample readings already received this period. | Development only |
