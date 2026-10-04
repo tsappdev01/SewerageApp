@@ -13,7 +13,8 @@ public sealed record ZoneDto(string Code, string? Name);
 public sealed record PropertyDto(string Code, string? Name, string ZoneCode, int? RouteSequence, decimal? Latitude, decimal? Longitude);
 
 public sealed record MeterDto(
-    long Id,
+    /// <summary>The meter's barcode in the source system.</summary>
+    string Id,
     string Number,
     string Type,
     string PropertyCode,
@@ -21,9 +22,10 @@ public sealed record MeterDto(
     int? RouteSequence,
     int RegisterDigits,
     int DecimalDigits,
-    /// <summary>Last approved actual reading, or the opening reading for a new meter.</summary>
+    /// <summary>Last billed reading (the view's OpeningReading); 0 for a meter never read.</summary>
     decimal? PreviousReading,
-    DateOnly? PreviousReadingDate,
+    /// <summary>Consumption of the last reading, shown as "used last time".</summary>
+    decimal? LastConsumption,
     /// <summary>True when the meter has no reading yet (spec BR-004).</summary>
     bool IsFirstReading,
     decimal? AverageConsumption,
@@ -46,7 +48,7 @@ public sealed record SearchResultDto(string Query, IReadOnlyList<PropertyHitDto>
 
 public sealed record ReadingDto(
     Guid TransactionId,
-    long MeterId,
+    string MeterId,
     string? MeterNumber,
     string? MeterType,
     string Condition,

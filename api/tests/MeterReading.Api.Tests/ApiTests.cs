@@ -64,38 +64,42 @@ public sealed class ApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var meters = (await Get(Rashid, "/api/v1/sync/meters")).GetProperty("meters").EnumerateArray().ToList();
         Assert.Equal(18, meters.Count);
         Assert.Equal("1001-I", meters[0].GetProperty("number").GetString());
-        Assert.DoesNotContain(meters, m => m.GetProperty("id").GetInt64() == 19); // INACTIVE
+        Assert.Equal("BC0001", meters[0].GetProperty("id").GetString());          // barcode, text
+        Assert.Equal("IRRIGATION", meters[0].GetProperty("type").GetString());   // view says "Irrigation"
+        Assert.DoesNotContain(meters, m => m.GetProperty("id").GetString() == "BC0019"); // Status 0
     }
 
     [Fact]
     public async Task Sync_zone_filter_narrows_the_list()
     {
         var meters = (await Get(Rashid, "/api/v1/sync/meters?zone=602")).GetProperty("meters").EnumerateArray();
-        Assert.Equal([16L, 17L, 18L], meters.Select(m => m.GetProperty("id").GetInt64()));
+        Assert.Equal(["BC0016", "BC0017", "BC0018"], meters.Select(m => m.GetProperty("id").GetString()));
     }
 
     [Fact]
     public async Task A_meter_read_by_another_reader_shows_as_done_for_everyone()
     {
         var meters = (await Get(Rashid, "/api/v1/sync/meters?zone=602")).GetProperty("meters").EnumerateArray()
-            .ToDictionary(m => m.GetProperty("id").GetInt64());
-        Assert.Equal("SENT", meters[16].GetProperty("state").GetString());     // read by Anil
-        Assert.Equal("REVISIT", meters[17].GetProperty("state").GetString());  // Anil could not reach it
-        Assert.Equal("PENDING", meters[18].GetProperty("state").GetString());
+            .ToDictionary(m => m.GetProperty("id").GetString()!);
+        Assert.Equal("SENT", meters["BC0016"].GetProperty("state").GetString());     // read by Anil
+        Assert.Equal("REVISIT", meters["BC0017"].GetProperty("state").GetString());  // Anil could not reach it
+        Assert.Equal("PENDING", meters["BC0018"].GetProperty("state").GetString());
     }
 
     [Fact]
     public async Task Sync_maps_state_note_first_reading_and_history_average()
     {
         var meters = (await Get(Rashid, "/api/v1/sync/meters")).GetProperty("meters").EnumerateArray()
-            .ToDictionary(m => m.GetProperty("id").GetInt64());
-        Assert.Equal("READ_AGAIN", meters[8].GetProperty("state").GetString());
-        Assert.Equal("Photo not clear", meters[8].GetProperty("supervisorNote").GetString());
-        Assert.Equal("CHECKING", meters[13].GetProperty("state").GetString());
-        Assert.True(meters[10].GetProperty("isFirstReading").GetBoolean());
-        Assert.Equal(12m, meters[10].GetProperty("previousReading").GetDecimal());
-        Assert.Equal(1050m, meters[6].GetProperty("averageConsumption").GetDecimal()); // from history, AVERAGE period skipped
-        Assert.Equal(3150m, meters[6].GetProperty("expectedHigh").GetDecimal());
+            .ToDictionary(m => m.GetProperty("id").GetString()!);
+        Assert.Equal("READ_AGAIN", meters["BC0008"].GetProperty("state").GetString());
+        Assert.Equal("Photo not clear", meters["BC0008"].GetProperty("supervisorNote").GetString());
+        Assert.Equal("CHECKING", meters["BC0013"].GetProperty("state").GetString());
+        Assert.True(meters["BC0010"].GetProperty("isFirstReading").GetBoolean());
+        Assert.Equal(0m, meters["BC0010"].GetProperty("previousReading").GetDecimal());          // OpeningReading 0 = never read
+        Assert.Equal(JsonValueKind.Null, meters["BC0010"].GetProperty("averageConsumption").ValueKind); // AvgConsumption 0 = unknown
+        Assert.Equal(1000m, meters["BC0006"].GetProperty("averageConsumption").GetDecimal());   // the view's AvgConsumption
+        Assert.Equal(3000m, meters["BC0006"].GetProperty("expectedHigh").GetDecimal());
+        Assert.Equal(1200m, meters["BC0006"].GetProperty("lastConsumption").GetDecimal());
     }
 
     [Fact]
@@ -122,7 +126,7 @@ public sealed class ApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     {
         var mine = await Get(Anil, "/api/v1/readings/mine");
         Assert.Equal(2, mine.GetArrayLength());
-        Assert.All(mine.EnumerateArray(), r => Assert.True(r.GetProperty("meterId").GetInt64() is 16 or 17));
+        Assert.All(mine.EnumerateArray(), r => Assert.Contains(r.GetProperty("meterId").GetString(), new[] { "BC0016", "BC0017" }));
     }
 
     [Fact]
@@ -136,16 +140,34 @@ public sealed class ApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [Fact]
     public async Task Any_reader_can_open_any_active_meter()
     {
-        var detail = await Get(Rashid, "/api/v1/meters/16");
+        var detail = await Get(Rashid, "/api/v1/meters/BC0016");
         Assert.Equal("3010-I", detail.GetProperty("meter").GetProperty("number").GetString());
     }
 
     [Fact]
     public async Task Inactive_meter_is_not_found()
     {
-        var response = await As(Rashid).GetAsync("/api/v1/meters/19");
+        var response = await As(Rashid).GetAsync("/api/v1/meters/BC0019");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Contains("METER_NOT_FOUND", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Period_code_comes_from_start_date_and_latest_open_month_wins()
+    {
+        // The view says "2026-9" and marks August, September and October all OPEN.
+        var me = await Get(Rashid, "/api/v1/me");
+        Assert.Equal("2026-10", me.GetProperty("openPeriod").GetProperty("code").GetString());
+        var september = await Get(Rashid, "/api/v1/summary?period=2026-09");
+        Assert.Equal("2026-09", september.GetProperty("periodCode").GetString());
+    }
+
+    [Fact]
+    public async Task Shared_sign_in_name_is_refused_with_a_clear_code()
+    {
+        var response = await As("shared@dip.example").GetAsync("/api/v1/me");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("LOGIN_NOT_UNIQUE", await response.Content.ReadAsStringAsync());
     }
 
     [Fact]

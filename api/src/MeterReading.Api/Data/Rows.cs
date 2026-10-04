@@ -22,7 +22,7 @@ public sealed class PeriodRow
 
 public sealed class MeterRow
 {
-    public long MeterId { get; init; }
+    public string MeterId { get; init; } = "";
     public string MeterNumber { get; init; } = "";
     public string MeterType { get; init; } = "";
     public string PropertyCode { get; init; } = "";
@@ -35,16 +35,15 @@ public sealed class MeterRow
     public int? MeterRoute { get; init; }
     public int RegisterDigits { get; init; }
     public int DecimalDigits { get; init; }
-    /// <summary>The meter's last reading; for a meter never read, its reading when installed.</summary>
+    /// <summary>The meter's last billed reading (the view's OpeningReading). 0 or null: never read.</summary>
     public decimal? LastReading { get; init; }
-    /// <summary>Null when the meter has never been read.</summary>
-    public DateTime? LastReadingDate { get; init; }
+    public decimal? LastConsumption { get; init; }
     public decimal? AverageConsumption { get; init; }
 }
 
 public sealed class LatestTransactionRow
 {
-    public long MeterId { get; init; }
+    public string MeterId { get; init; } = "";
     public Guid TransactionId { get; init; }
     public string Status { get; init; } = "";
     public string? StatusNote { get; init; }
@@ -55,7 +54,7 @@ public sealed class LatestTransactionRow
 public sealed class TransactionRow
 {
     public Guid TransactionId { get; init; }
-    public long MeterId { get; init; }
+    public string MeterId { get; init; } = "";
     public string MeterCondition { get; init; } = "";
     public string? ReasonCode { get; init; }
     public decimal? NewReading { get; init; }
@@ -77,6 +76,6 @@ public sealed class HistoryRow
 
 public sealed class AverageRow
 {
-    public long MeterId { get; init; }
+    public string MeterId { get; init; } = "";
     public decimal Average { get; init; }
 }

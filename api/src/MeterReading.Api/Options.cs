@@ -8,8 +8,8 @@ public sealed class SourceViewsOptions
     /// <summary>Schema of the vw_MR_* views. Must be a plain SQL identifier.</summary>
     public string Schema { get; set; } = "dbo";
 
-    /// <summary>False when the optional vw_MR_ReadingHistory view is not provided.</summary>
-    public bool HasReadingHistory { get; set; } = true;
+    /// <summary>True only when the optional vw_MR_ReadingHistory view is provided.</summary>
+    public bool HasReadingHistory { get; set; }
 }
 
 /// <summary>Thresholds from spec BR-007 and BR-008. Settings, not constants.</summary>

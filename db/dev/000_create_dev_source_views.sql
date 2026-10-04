@@ -2,15 +2,16 @@
   dev/000_create_dev_source_views.sql
   DEVELOPMENT AND TEST ONLY. Never run against UAT or production.
 
-  Stands in for the views your team will provide (docs/source-views.md): tables in schema
-  devsrc with the same sample data as the Android app, and dbo.vw_MR_* views over them.
-  Re-runnable.
+  Stands in for the views in PropertyManagementSystem (docs/source-views.md): tables in schema
+  devsrc with the same sample data as the Android app, and dbo.vw_MR_* views over them shaped
+  like the real ones: text MeterId (barcode), Status 1/0, PeriodCode like 2026-9 with every month
+  OPEN, and ISNULL(..., 0) for readings and averages. Re-runnable.
 */
 IF SCHEMA_ID(N'devsrc') IS NULL EXEC (N'CREATE SCHEMA devsrc');
 GO
 
 IF OBJECT_ID(N'devsrc.Reader', N'U') IS NULL
-CREATE TABLE devsrc.Reader (ReaderId varchar(50) PRIMARY KEY, LoginEmail nvarchar(256) NOT NULL UNIQUE,
+CREATE TABLE devsrc.Reader (ReaderId varchar(50) PRIMARY KEY, LoginEmail nvarchar(256) NOT NULL,
     DisplayName nvarchar(100) NOT NULL, TeamCode varchar(20) NULL, SupervisorEmail nvarchar(256) NULL, IsActive bit NOT NULL);
 IF OBJECT_ID(N'devsrc.Zone', N'U') IS NULL
 CREATE TABLE devsrc.Zone (ZoneCode varchar(20) PRIMARY KEY, ZoneName nvarchar(100) NULL, IsActive bit NOT NULL);
@@ -29,11 +30,20 @@ CREATE TABLE devsrc.ReadingHistory (MeterId bigint NOT NULL, PeriodCode char(7) 
     AverageConsumption decimal(18,3) NULL, PRIMARY KEY (MeterId, PeriodCode));
 GO
 
+/* The real reader view can repeat a sign-in name; earlier dev tables forbade it. */
+DECLARE @unique sysname = (SELECT kc.name FROM sys.key_constraints kc
+                           WHERE kc.parent_object_id = OBJECT_ID(N'devsrc.Reader') AND kc.type = 'UQ');
+IF @unique IS NOT NULL EXEC (N'ALTER TABLE devsrc.Reader DROP CONSTRAINT ' + @unique);
+GO
+
 INSERT devsrc.Reader (ReaderId, LoginEmail, DisplayName, TeamCode, SupervisorEmail, IsActive)
 SELECT v.* FROM (VALUES
     ('E1001', N'rashid@dip.example', N'Rashid', 'T1', N'supervisor@dip.example', 1),
     ('E1002', N'anil@dip.example', N'Anil', 'T1', N'supervisor@dip.example', 1),
-    ('E1003', N'left.company@dip.example', N'Former reader', 'T1', NULL, 0)
+    ('E1003', N'left.company@dip.example', N'Former reader', 'T1', NULL, 0),
+    -- Two active readers on one sign-in name, as when the view uses a placeholder email.
+    ('E1004', N'shared@dip.example', N'Shared one', 'T1', NULL, 1),
+    ('E1005', N'shared@dip.example', N'Shared two', 'T1', NULL, 1)
 ) v (ReaderId, LoginEmail, DisplayName, TeamCode, SupervisorEmail, IsActive)
 WHERE NOT EXISTS (SELECT 1 FROM devsrc.Reader r WHERE r.ReaderId = v.ReaderId);
 
@@ -109,40 +119,51 @@ WHERE NOT EXISTS (SELECT 1 FROM devsrc.ReadingHistory h WHERE h.MeterId = v.Mete
 GO
 
 CREATE OR ALTER VIEW dbo.vw_MR_Reader AS
-SELECT ReaderId, LoginEmail, DisplayName, TeamCode, SupervisorEmail, IsActive FROM devsrc.Reader;
+SELECT ReaderId AS UserId, LoginEmail, DisplayName, TeamCode, SupervisorEmail, IsActive FROM devsrc.Reader;
 GO
 CREATE OR ALTER VIEW dbo.vw_MR_Zone AS
-SELECT ZoneCode, ZoneName, IsActive FROM devsrc.Zone;
+SELECT ZoneCode, ZoneName + ' ' AS ZoneName, CAST(IsActive AS varchar(1)) AS IsActive FROM devsrc.Zone;
 GO
 CREATE OR ALTER VIEW dbo.vw_MR_Property AS
-SELECT PropertyCode, PropertyName, ZoneCode, RouteSequence, Latitude, Longitude, IsActive FROM devsrc.Property;
+SELECT ROW_NUMBER() OVER (ORDER BY PropertyCode) AS PropertyId,
+       PropertyCode, PropertyName, ZoneCode, RouteSequence, Latitude, Longitude, IsActive
+FROM devsrc.Property;
 GO
-/* The meter with its last ACTUAL reading. A meter never read shows its OpeningReading and no date. */
+/* Shaped like the real view: barcode id, last billed reading as OpeningReading, ISNULL zeros, Status 1/0. */
 CREATE OR ALTER VIEW dbo.vw_MR_Meter AS
-SELECT m.MeterId, m.MeterNumber, m.PropertyCode, m.MeterType, m.RegisterDigits, m.DecimalDigits,
-       COALESCE(h.ReadingValue, m.OpeningReading) AS LastReading,
-       h.ReadingDate AS LastReadingDate,
-       h.AverageConsumption,
-       m.InstallDate, m.RouteSequence, m.SerialNumber, m.Status
+SELECT 'BC' + RIGHT('0000' + CAST(m.MeterId AS varchar(10)), 4) AS MeterId,
+       m.MeterNumber, m.PropertyCode,
+       CASE m.MeterType WHEN 'IRRIGATION' THEN 'Irrigation' ELSE 'Sewerage' END AS MeterType,
+       m.RegisterDigits, m.DecimalDigits,
+       ISNULL(lastActual.ReadingValue, 0) AS OpeningReading,
+       ISNULL(lastAny.Consumption, 0) AS LastConsumption,
+       ISNULL(avgRead.AvgConsumption, 0) AS AvgConsumption,
+       m.InstallDate, 'BC' + RIGHT('0000' + CAST(m.MeterId AS varchar(10)), 4) AS SerialNumber,
+       m.RouteSequence,
+       CASE m.Status WHEN 'ACTIVE' THEN 1 ELSE 0 END AS Status
 FROM devsrc.Meter m
-OUTER APPLY (
-    SELECT TOP (1) r.ReadingValue, r.ReadingDate, r.AverageConsumption
-    FROM devsrc.ReadingHistory r
-    WHERE r.MeterId = m.MeterId AND r.ConsumptionBasis = 'ACTUAL'
-    ORDER BY r.PeriodCode DESC
-) h;
+OUTER APPLY (SELECT TOP (1) r.ReadingValue FROM devsrc.ReadingHistory r
+             WHERE r.MeterId = m.MeterId AND r.ConsumptionBasis = 'ACTUAL' ORDER BY r.PeriodCode DESC) lastActual
+OUTER APPLY (SELECT TOP (1) r.Consumption FROM devsrc.ReadingHistory r
+             WHERE r.MeterId = m.MeterId ORDER BY r.PeriodCode DESC) lastAny
+OUTER APPLY (SELECT AVG(CAST(x.Consumption AS decimal(18,4))) AS AvgConsumption
+             FROM (SELECT TOP (6) r.Consumption FROM devsrc.ReadingHistory r
+                   WHERE r.MeterId = m.MeterId ORDER BY r.PeriodCode DESC) x) avgRead;
 GO
+/* Like the real view: PeriodCode without a leading zero and every billing month OPEN. */
 CREATE OR ALTER VIEW dbo.vw_MR_ReadingPeriod AS
-SELECT PeriodCode, StartDate, EndDate, Status FROM devsrc.ReadingPeriod;
+SELECT CONCAT(YEAR(StartDate), '-', MONTH(StartDate)) AS PeriodCode, StartDate, EOMONTH(StartDate) AS EndDate, 'OPEN' AS Status
+FROM devsrc.ReadingPeriod
+WHERE Status <> 'PLANNED';
 GO
-/* Work is not assigned (docs/source-views.md); earlier versions had an assignment view. */
+/* Work is not assigned (docs/source-views.md); earlier versions had these views. */
 DROP VIEW IF EXISTS dbo.vw_MR_Assignment;
 GO
 DROP TABLE IF EXISTS devsrc.Assignment;
 GO
-/* Earlier versions had a separate last-reading view; it is now part of vw_MR_Meter. */
 DROP VIEW IF EXISTS dbo.vw_MR_LastReading;
 GO
 CREATE OR ALTER VIEW dbo.vw_MR_ReadingHistory AS
-SELECT MeterId, PeriodCode, ReadingDate, ReadingValue, Consumption, ConsumptionBasis FROM devsrc.ReadingHistory;
+SELECT 'BC' + RIGHT('0000' + CAST(MeterId AS varchar(10)), 4) AS MeterId, PeriodCode, ReadingDate, ReadingValue, Consumption, ConsumptionBasis
+FROM devsrc.ReadingHistory;
 GO

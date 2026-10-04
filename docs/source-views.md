@@ -1,122 +1,125 @@
-# Source views required by the Meter Reading API
+# Source views read by the Meter Reading API
 
-The API **reads** master data (readers, zones, properties, meters with their last reading,
-and reading periods) from SQL Server views that your team provides. It never writes to them.
-Readings captured on the phone are stored in the API's own tables (schema `mr`), see the end.
+The API **reads** master data from views in the `PropertyManagementSystem` database. It never
+writes to them. Readings captured on the phone are stored in the API's own tables (schema `mr`),
+see the end.
 
-Default schema for the views: `dbo`. It can be changed in `appsettings.json`
-(`SourceViews:Schema`) without a code change.
+This page describes the views as they exist (scripted 2026-10-04) and how the API reads each
+column. Default schema: `dbo` (`SourceViews:Schema` in `appsettings.json`).
 
-Run `db/001_check_source_views.sql` after creating the views: it lists any view or column
-that is missing or has an incompatible type.
+Run `db/001_check_source_views.sql` in that database after any change to the views. Result 1
+lists missing columns and wrong types; result 2 lists data problems and notes, with a count.
 
 ## Conventions
 
-- Names are case-insensitive; keep the column names exactly as below (aliases in the view are fine).
-- **Key columns must be unique** within the view and must never be reused for a different thing.
-- Codes in `MeterType` and `Status` columns must use the exact values listed (map them in the view).
-- Readings are `decimal(18,3)`. Dates are `date`; timestamps are `datetime2` in UTC.
-- "Required" means the API needs the column; nullable columns may return NULL.
+- Keep the column names below; aliases in the view are fine.
+- **Key columns must be unique** and must never be reused for a different thing.
+- The API CASTs every column itself, so exact SQL types do not matter as long as the values convert.
 
 ---
 
-## 1. `vw_MR_Reader` — who can read meters (required)
+## 1. `vw_MR_Reader` — who can sign in
 
-One row per meter reader. Used to identify the signed-in reader and their supervisor.
+| Column | Read as | Notes |
+|---|---|---|
+| **UserId** | text, key | `MaintainUser.UserId`. Stored on every reading the user submits. |
+| LoginEmail | text | **Must be each reader's own Microsoft 365 sign-in name.** The API finds the signed-in user by it. If two active readers share one, both are refused with `LOGIN_NOT_UNIQUE`. |
+| DisplayName | text | Shown on the phone: "Hello, …". |
+| TeamCode | text | `RoleCode`. |
+| SupervisorEmail | text | |
+| IsActive | 1/0 | Only `1` can sign in. |
 
-| Column | Type | Null | Notes |
-|---|---|---|---|
-| **ReaderId** | varchar(50) | no | Key. Employee or staff number. |
-| LoginEmail | nvarchar(256) | no | Unique. The reader's Microsoft 365 / Entra sign-in name (UPN), e.g. `rashid@dip.ae`. The API matches the signed-in user on this. |
-| DisplayName | nvarchar(100) | no | Shown on the phone: "Hello, Rashid". |
-| TeamCode | varchar(20) | yes | Team the reader belongs to. |
-| SupervisorEmail | nvarchar(256) | yes | Sign-in name of the reader's supervisor. |
-| IsActive | bit | no | 0 = cannot sign in. |
+## 2. `vw_MR_Zone`
 
-## 2. `vw_MR_Zone` (required)
+| Column | Read as | Notes |
+|---|---|---|
+| **ZoneCode** | text, key | `597`, `598`. |
+| ZoneName | text | Trailing spaces are trimmed. |
+| IsActive | 1/0 | |
 
-| Column | Type | Null | Notes |
-|---|---|---|---|
-| **ZoneCode** | varchar(20) | no | Key, e.g. `597`. |
-| ZoneName | nvarchar(100) | yes | |
-| IsActive | bit | no | |
+## 3. `vw_MR_Property`
 
-## 3. `vw_MR_Property` (required)
+| Column | Read as | Notes |
+|---|---|---|
+| PropertyId | — | Not read by the API (the meter view joins on it). |
+| **PropertyCode** | text, key | |
+| PropertyName | text | |
+| ZoneCode | text | Must exist in `vw_MR_Zone`. |
+| RouteSequence | int | Walking order; the API sorts by it. |
+| Latitude, Longitude | number | A value that is not a number is read as empty. |
+| IsActive | 1/0 | `Billable`. Only `1` is listed. |
 
-One row per property (villa, building, plot).
+## 4. `vw_MR_Meter`
 
-| Column | Type | Null | Notes |
-|---|---|---|---|
-| **PropertyCode** | varchar(30) | no | Key, e.g. `1100`, `1499-W1`. |
-| PropertyName | nvarchar(150) | yes | e.g. `Building 1499-W1`. |
-| ZoneCode | varchar(20) | no | Must exist in `vw_MR_Zone`. |
-| RouteSequence | int | yes | Walking order inside the zone. NULL sorts last. |
-| Latitude | decimal(9,6) | yes | For map links later. |
-| Longitude | decimal(9,6) | yes | |
-| IsActive | bit | no | |
+One row per meter.
 
-## 4. `vw_MR_Meter` (required)
+| Column | Read as | Notes |
+|---|---|---|
+| **MeterId** | text, key (max 50) | `Barcode`. Must be unique and never change: readings are stored against it. |
+| MeterNumber | text | |
+| PropertyCode | text | Must exist in `vw_MR_Property`. |
+| MeterType | text | First letter `I` = irrigation, `S` = sewerage; anything else is reported by the checker. |
+| RegisterDigits | int | Number of whole-number wheels. The phone shows one box per wheel. |
+| DecimalDigits | int | Readings are kept to 4 decimal places. |
+| OpeningReading | number | The meter's **last billed reading** (last transferred `Current_Reading`). This is "Last time" on the phone and the base for consumption. **0 or NULL means never read**: the next reading is the meter's first (spec BR-004). |
+| LastConsumption | number | Consumption of the latest reading; shown as "used last time". |
+| AvgConsumption | number | Average of the last 6 consumptions. Sets the "much bigger than usual" warning at 3 × average (spec BR-008). **0 or NULL means no average**: no warning. |
+| InstallDate | date | |
+| SerialNumber | text | |
+| RouteSequence | int | Order of meters inside the property. |
+| Status | 1/0 | `1`, `True` or `ACTIVE` is active; anything else is left out. |
 
-One row per physical meter, with its last reading. This is the "Last time" the reader sees
-and the base for consumption.
+## 5. `vw_MR_ReadingPeriod`
 
-| Column | Type | Null | Notes |
-|---|---|---|---|
-| **MeterId** | bigint | no | Key. Stable internal id, never reused. |
-| MeterNumber | varchar(30) | no | Number printed on the meter, e.g. `2001-I`. Unique among active meters. |
-| PropertyCode | varchar(30) | no | Must exist in `vw_MR_Property`. |
-| MeterType | varchar(20) | no | Exactly `IRRIGATION` or `SEWERAGE`. |
-| RegisterDigits | tinyint | no | Number of whole-number wheels, e.g. `5` (max 99,999). |
-| DecimalDigits | tinyint | no | Fractional wheels; `0` if none. |
-| LastReading | decimal(18,3) | yes | The meter's last reading — your `OpeningReading` column (`OpeningReading AS LastReading`). For a meter never read, the reading when installed. NULL = 0. |
-| LastReadingDate | date | yes | Date of `LastReading`. **NULL means the meter has never been read**: the phone treats the next reading as its first (spec BR-004). |
-| AverageConsumption | decimal(18,3) | yes | Average consumption per period, if billing already calculates it (spec BR-007). If NULL the API calculates it from `vw_MR_ReadingHistory`, or uses the configured default. |
-| InstallDate | date | yes | |
-| RouteSequence | int | yes | Order of meters inside the property. |
-| SerialNumber | varchar(50) | yes | |
-| Status | varchar(10) | no | Exactly `ACTIVE` or `INACTIVE`. |
+| Column | Read as | Notes |
+|---|---|---|
+| PeriodCode | — | Not read: `CONCAT(YEAR, '-', MONTH)` gives `2026-9`. The API builds `2026-09` from `StartDate`. |
+| StartDate | date | First day of the billing month. |
+| EndDate | date | Last day of the billing month. |
+| Status | text | `OPEN`, `CLOSED` or `PLANNED`. When several months are `OPEN`, the API reads into the **latest**. |
 
-## 5. `vw_MR_ReadingPeriod` (required)
+## 6. `vw_MR_ReadingHistory` (optional, not provided)
 
-| Column | Type | Null | Notes |
-|---|---|---|---|
-| **PeriodCode** | char(7) | no | Key, `yyyy-MM`, e.g. `2026-10`. |
-| StartDate | date | no | First day readings may be taken. |
-| EndDate | date | no | Last day readings may be taken. |
-| Status | varchar(10) | no | Exactly `PLANNED`, `OPEN` or `CLOSED`. **At most one `OPEN`.** |
+Past readings for the supervisor's history view and for averages when `AvgConsumption` is 0.
+Not needed while `AvgConsumption` is in the meter view. If added later, set
+`SourceViews:HasReadingHistory` to `true`.
+
+| Column | Notes |
+|---|---|
+| MeterId | Barcode, as in `vw_MR_Meter`. |
+| PeriodCode | `yyyy-MM` |
+| ReadingDate, ReadingValue, Consumption | |
+| ConsumptionBasis | `ACTUAL` or `AVERAGE` |
 
 ## Work is not assigned
 
-There is no assignment view. Every active reader may read every active meter in the open
-period; a meter read by anyone shows as done for everyone. Readers choose zones on the phone.
-
-## 6. `vw_MR_ReadingHistory` (optional, recommended)
-
-Past readings, for averages and for the supervisor's history view. Last 12 periods is enough.
-
-| Column | Type | Null | Notes |
-|---|---|---|---|
-| **MeterId** | bigint | no | Key part 1. |
-| **PeriodCode** | char(7) | no | Key part 2. |
-| ReadingDate | date | yes | |
-| ReadingValue | decimal(18,3) | yes | NULL when the period was estimated. |
-| Consumption | decimal(18,3) | yes | |
-| ConsumptionBasis | varchar(10) | no | `ACTUAL` or `AVERAGE`. |
+There is no assignment view. Every active reader may read every active meter in the open period;
+a meter read by anyone shows as done for everyone. Readers choose zones on the phone.
 
 ---
 
+## To fix in the views before go-live
+
+1. **`vw_MR_Reader.LoginEmail`** is `'nayyar@techsource'` for every user, so no reader can sign in
+   (`LOGIN_NOT_UNIQUE`). It needs each reader's own sign-in name, e.g. from `MaintainUser`.
+2. **`RegisterDigits` 10 and `DecimalDigits` 4** are the same for every meter. The phone shows one
+   box per wheel, so it would ask readers for 14 digits on every meter. Please provide each meter's
+   real number of wheels; if decimals are not read from the meter, set `DecimalDigits` to 0.
+3. **`vw_MR_ReadingPeriod.Status`** is `OPEN` for every month. The API copes (latest month wins),
+   but only the month being read should be `OPEN`, so a late reading cannot land in an old month.
+4. **`ISNULL(..., 0)`** on `OpeningReading` and `AvgConsumption` is handled (0 = never read / no
+   average), but NULL would be clearer if a real meter can read exactly 0.
+5. **`vw_MR_Property`** lists only zones 597 and 598, and only properties that appear in
+   `MaintainMeterReadingLog`. Confirm that new properties with no log entry should be left out.
+6. **`MeterType`**: confirm `MaintainPropertyMeter.Type` values start with `I` and `S`.
+
 ## What the API stores itself (schema `mr`)
 
-The API needs **its own schema with write access**, in the same database or another one
-(`ConnectionStrings:MeterReading` in `api/src/MeterReading.Api/appsettings.json`). It holds what the phone sends and nothing that is in
-the views:
+The API needs **its own schema with write access**, in `PropertyManagementSystem` or another
+database (`ConnectionStrings:MeterReading` in `api/src/MeterReading.Api/appsettings.json`). Run, in order:
 
-- `mr.ReadingTransaction` — each submission (transaction ID, meter, reading, condition, reason, note, GPS, times, status).
-- `mr.ReadingImage` — photo metadata and blob path (photos go to Azure Blob storage).
-- `mr.Device` — registered phones.
+- `db/002_create_mr_schema.sql` — creates `mr.Device`, `mr.ReadingTransaction`, `mr.ReadingImage`.
+- `db/003_meter_id_as_text.sql` — only needed if an earlier `002` was run; converts `MeterId` to
+  text (barcode) and readings to 4 decimals. Safe to run either way.
 
-## Questions for your team
-
-1. Can the API have a separate schema `mr` with create/write rights in the same database as the views? If not, which database?
-2. Is `LoginEmail` the same as the readers' Microsoft 365 sign-in name?
-3. Does billing already calculate average consumption (`AverageConsumption`), or should the API?
+The API's login needs **SELECT** on the views and **read/write** on schema `mr`.

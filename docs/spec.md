@@ -1029,6 +1029,10 @@ Each has a proposed default that development can use now. Resolve each with an A
 | INTEGRITY_FAILED | 403 | Play Integrity failed | Block |
 | APP_VERSION_UNSUPPORTED | 426 | Update required | Prompt update |
 | RATE_LIMITED | 429 | Too many requests | Back off per `Retry-After` |
+| READER_NOT_FOUND | 403 | Signed-in user is not an active reader in vw_MR_Reader | Show "ask your supervisor" |
+| LOGIN_NOT_UNIQUE | 409 | Two active readers share the sign-in name in vw_MR_Reader | Show "ask your supervisor" |
+| NO_OPEN_PERIOD | 409 | No reading period is open | Show "ask your supervisor" |
+| METER_NOT_FOUND | 404 | No active meter with this id (barcode) | Refresh meter list |
 
 ## Appendix B — Business rule test vectors
 

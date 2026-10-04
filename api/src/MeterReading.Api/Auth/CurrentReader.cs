@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using MeterReading.Api.Data;
+using MeterReading.Api.Endpoints;
 
 namespace MeterReading.Api.Auth;
 
@@ -12,6 +13,17 @@ public sealed class CurrentReader(IHttpContextAccessor http, MeterReadingReposit
     public string? LoginEmail =>
         LoginClaims.Select(c => http.HttpContext?.User.FindFirst(c)?.Value).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 
-    public async Task<ReaderRow?> GetAsync(CancellationToken ct) =>
-        LoginEmail is { } email ? await repo.FindReaderAsync(email, ct) : null;
+    /// <summary>The reader, or the problem to return: not set up, or several readers share the sign-in name.</summary>
+    public async Task<(ReaderRow? Reader, IResult? Problem)> ResolveAsync(CancellationToken ct)
+    {
+        if (LoginEmail is not { } email) return (null, Problems.ReaderNotFound());
+        var readers = await repo.FindReadersAsync(email, ct);
+        return readers.Count switch
+        {
+            0 => (null, Problems.ReaderNotFound()),
+            1 => (readers[0], null),
+            _ => (null, Problems.Of(StatusCodes.Status409Conflict, "LOGIN_NOT_UNIQUE",
+                "More than one active reader has this sign-in name in vw_MR_Reader. Each reader needs their own LoginEmail.")),
+        };
+    }
 }

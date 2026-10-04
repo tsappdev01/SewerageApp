@@ -34,14 +34,16 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
         var meters = ordered.Select(r =>
         {
             latest.TryGetValue(r.MeterId, out var t);
-            var average = ExpectedRange.Average(r.AverageConsumption, averages.TryGetValue(r.MeterId, out var a) ? a : null, r.MeterType, rules.Value);
+            // The source writes 0 for "no average" and "never read" (ISNULL in the view), so 0 means unknown.
+            var sourceAverage = r.AverageConsumption is > 0 ? r.AverageConsumption : null;
+            var average = ExpectedRange.Average(sourceAverage, averages.TryGetValue(r.MeterId, out var a) ? a : null, r.MeterType, rules.Value);
             var state = AssignmentStates.From(t?.Status, t?.MeterCondition);
-            var isFirst = r.LastReadingDate is null; // BR-004: never read, so LastReading is the install reading
+            var isFirst = r.LastReading is null or 0m; // BR-004
             return new MeterDto(
                 r.MeterId, r.MeterNumber, r.MeterType, r.PropertyCode, r.ZoneCode, r.MeterRoute,
                 r.RegisterDigits, r.DecimalDigits,
                 PreviousReading: r.LastReading ?? 0m,
-                PreviousReadingDate: r.LastReadingDate is { } d ? DateOnly.FromDateTime(d) : null,
+                LastConsumption: r.LastConsumption,
                 IsFirstReading: isFirst,
                 AverageConsumption: average,
                 ExpectedHigh: ExpectedRange.High(average, r.MeterType, rules.Value),

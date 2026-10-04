@@ -23,23 +23,23 @@ public static partial class ReaderEndpoints
         api.MapGet("/properties/search", SearchProperties).WithSummary("Find a Property by code, name or meter number.");
         api.MapGet("/readings/mine", GetMyReadings).WithSummary("The reader's own submissions in a period.");
         api.MapGet("/summary", GetSummary).WithSummary("Reconciliation: meters, read, read by you, not read. ?zone=597,598 narrows it.");
-        api.MapGet("/meters/{meterId:long}", GetMeter).WithSummary("One meter with its reading history.");
+        api.MapGet("/meters/{meterId}", GetMeter).WithSummary("One meter with its reading history.");
     }
 
     private static async Task<IResult> GetMe(CurrentReader current, MeterReadingRepository repo, CancellationToken ct)
     {
-        var reader = await current.GetAsync(ct);
-        if (reader is null) return Problems.ReaderNotFound();
+        var (reader, readerProblem) = await current.ResolveAsync(ct);
+        if (readerProblem is not null) return readerProblem;
         var period = await repo.GetOpenPeriodAsync(ct);
-        return Results.Ok(new MeDto(reader.ReaderId, reader.DisplayName, reader.TeamCode, period is null ? null : ToDto(period)));
+        return Results.Ok(new MeDto(reader!.ReaderId, reader!.DisplayName, reader!.TeamCode, period is null ? null : ToDto(period)));
     }
 
     private static async Task<IResult> GetMeters(
         CurrentReader current, MeterReadingRepository repo, ReaderService service, string? zone, CancellationToken ct)
     {
         if (!TryParseZones(zone, out var zones)) return Problems.Invalid("zone must be zone codes separated by commas, e.g. 597,598.");
-        var reader = await current.GetAsync(ct);
-        if (reader is null) return Problems.ReaderNotFound();
+        var (reader, readerProblem) = await current.ResolveAsync(ct);
+        if (readerProblem is not null) return readerProblem;
         var period = await repo.GetOpenPeriodAsync(ct);
         if (period is null) return Problems.NoOpenPeriod();
         var set = await service.LoadAsync(period.PeriodCode, new MeterFilter(ZoneCodes: zones), ct);
@@ -58,8 +58,8 @@ public static partial class ReaderEndpoints
         if (type is not null && type.ToUpperInvariant() is not ("IRRIGATION" or "SEWERAGE"))
             return Problems.Invalid("type must be IRRIGATION or SEWERAGE.");
 
-        var reader = await current.GetAsync(ct);
-        if (reader is null) return Problems.ReaderNotFound();
+        var (reader, readerProblem) = await current.ResolveAsync(ct);
+        if (readerProblem is not null) return readerProblem;
         var period = await repo.GetOpenPeriodAsync(ct);
         if (period is null) return Problems.NoOpenPeriod();
         var set = await service.LoadAsync(period.PeriodCode, new MeterFilter(ZoneCodes: zones), ct);
@@ -69,16 +69,16 @@ public static partial class ReaderEndpoints
     private static async Task<IResult> GetMyReadings(
         CurrentReader current, MeterReadingRepository repo, ReaderService service, string? period, CancellationToken ct)
     {
-        var reader = await current.GetAsync(ct);
-        if (reader is null) return Problems.ReaderNotFound();
+        var (reader, readerProblem) = await current.ResolveAsync(ct);
+        if (readerProblem is not null) return readerProblem;
         var (p, problem) = await ResolvePeriodAsync(repo, period, ct);
         if (problem is not null) return problem;
 
-        var readings = await repo.GetReaderTransactionsAsync(reader.ReaderId, p!.PeriodCode, ct);
-        var ids = readings.Select(r => r.MeterId).Distinct().ToArray();
+        var readings = await repo.GetReaderTransactionsAsync(reader!.ReaderId, p!.PeriodCode, ct);
+        var ids = readings.Select(r => r.MeterId).Distinct(StringComparer.Ordinal).ToArray();
         var meters = ids.Length == 0
-            ? new Dictionary<long, MeterDto>()
-            : (await service.LoadAsync(p.PeriodCode, new MeterFilter(MeterIds: ids), ct)).Meters.ToDictionary(m => m.Id);
+            ? new Dictionary<string, MeterDto>()
+            : (await service.LoadAsync(p.PeriodCode, new MeterFilter(MeterIds: ids), ct)).Meters.ToDictionary(m => m.Id, StringComparer.Ordinal);
         return Results.Ok(readings.Select(r => ToDto(r, meters.GetValueOrDefault(r.MeterId))).ToList());
     }
 
@@ -86,23 +86,24 @@ public static partial class ReaderEndpoints
         CurrentReader current, MeterReadingRepository repo, ReaderService service, string? period, string? zone, CancellationToken ct)
     {
         if (!TryParseZones(zone, out var zones)) return Problems.Invalid("zone must be zone codes separated by commas, e.g. 597,598.");
-        var reader = await current.GetAsync(ct);
-        if (reader is null) return Problems.ReaderNotFound();
+        var (reader, readerProblem) = await current.ResolveAsync(ct);
+        if (readerProblem is not null) return readerProblem;
         var (p, problem) = await ResolvePeriodAsync(repo, period, ct);
         if (problem is not null) return problem;
 
         var set = await service.LoadAsync(p!.PeriodCode, new MeterFilter(ZoneCodes: zones), ct);
-        var inScope = set.Meters.Select(m => m.Id).ToHashSet();
-        var mine = (await repo.GetReaderTransactionsAsync(reader.ReaderId, p.PeriodCode, ct))
+        var inScope = set.Meters.Select(m => m.Id).ToHashSet(StringComparer.Ordinal);
+        var mine = (await repo.GetReaderTransactionsAsync(reader!.ReaderId, p.PeriodCode, ct))
             .Where(r => inScope.Contains(r.MeterId)).ToList();
         return Results.Ok(ReaderService.Summarize(p.PeriodCode, set, mine));
     }
 
     private static async Task<IResult> GetMeter(
-        long meterId, CurrentReader current, MeterReadingRepository repo, ReaderService service, CancellationToken ct)
+        string meterId, CurrentReader current, MeterReadingRepository repo, ReaderService service, CancellationToken ct)
     {
-        var reader = await current.GetAsync(ct);
-        if (reader is null) return Problems.ReaderNotFound();
+        if (meterId.Length > 50) return Problems.Invalid("Meter id can be at most 50 characters.");
+        var (reader, readerProblem) = await current.ResolveAsync(ct);
+        if (readerProblem is not null) return readerProblem;
         var period = await repo.GetOpenPeriodAsync(ct);
         if (period is null) return Problems.NoOpenPeriod();
 

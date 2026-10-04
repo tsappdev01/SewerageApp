@@ -44,15 +44,15 @@ public class RulesTests
     public void Search_ignores_case_spaces_and_dashes(string candidate, string query, bool expected) =>
         Assert.Equal(expected, PropertySearch.Matches(candidate, PropertySearch.Normalize(query)));
 
-    private static MeterDto Meter(long id, string number, string property, string zone, AssignmentState state, string type = "SEWERAGE") =>
-        new(id, number, type, property, zone, 1, 5, 0, 100m, null, false, 300m, 900m, state, null, null);
+    private static MeterDto Meter(string id, string number, string property, string zone, AssignmentState state, string type = "SEWERAGE") =>
+        new(id, number, type, property, zone, 1, 5, 0, 100m, 50m, false, 300m, 900m, state, null, null);
 
     private static readonly MeterSet Work = new(
         [
-            Meter(1, "2001-I", "1499-W1", "598", AssignmentState.PENDING, "IRRIGATION"),
-            Meter(2, "2002-2", "1499-W1", "598", AssignmentState.SENT),
-            Meter(3, "1497-S", "1497", "598", AssignmentState.READ_AGAIN),
-            Meter(4, "1001-I", "1100", "597", AssignmentState.CHECKING, "IRRIGATION"),
+            Meter("BC0001", "2001-I", "1499-W1", "598", AssignmentState.PENDING, "IRRIGATION"),
+            Meter("BC0002", "2002-2", "1499-W1", "598", AssignmentState.SENT),
+            Meter("BC0003", "1497-S", "1497", "598", AssignmentState.READ_AGAIN),
+            Meter("BC0004", "1001-I", "1100", "597", AssignmentState.CHECKING, "IRRIGATION"),
         ],
         [
             new PropertyDto("1499-W1", "Building 1499-W1", "598", 1, null, null),
@@ -67,11 +67,11 @@ public class RulesTests
 
     [Fact]
     public void Search_lists_meter_number_hits_from_other_buildings() =>
-        Assert.Equal([4L], ReaderService.Search(Work, "1001", null, DoneFilter.ALL, null).Meters.Select(m => m.Id));
+        Assert.Equal(["BC0004"], ReaderService.Search(Work, "1001", null, DoneFilter.ALL, null).Meters.Select(m => m.Id));
 
     [Fact]
     public void Search_to_read_keeps_capturable_meters_only() =>
-        Assert.Equal([1L], ReaderService.Search(Work, "1499", null, DoneFilter.TO_READ, null).Properties.Single().Meters.Select(m => m.Id));
+        Assert.Equal(["BC0001"], ReaderService.Search(Work, "1499", null, DoneFilter.TO_READ, null).Properties.Single().Meters.Select(m => m.Id));
 
     [Fact]
     public void Search_by_type_and_zone() =>
