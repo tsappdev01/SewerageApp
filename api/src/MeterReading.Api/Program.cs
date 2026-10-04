@@ -14,6 +14,11 @@ var config = builder.Configuration;
 builder.Services.Configure<SourceViewsOptions>(config.GetSection(SourceViewsOptions.Section));
 builder.Services.Configure<ReadingRulesOptions>(config.GetSection(ReadingRulesOptions.Section));
 builder.Services.Configure<AuthOptions>(config.GetSection(AuthOptions.Section));
+builder.Services.Configure<ImageStoreOptions>(config.GetSection(ImageStoreOptions.Section));
+if (string.Equals(config[$"{ImageStoreOptions.Section}:Kind"], "AzureBlob", StringComparison.OrdinalIgnoreCase))
+    builder.Services.AddSingleton<IImageStore, AzureBlobImageStore>();
+else
+    builder.Services.AddSingleton<IImageStore, FileSystemImageStore>();
 
 builder.Services.AddSingleton<SqlConnectionFactory>();
 builder.Services.AddScoped<MeterReadingRepository>();
@@ -74,6 +79,7 @@ app.MapGet("/health/ready", async (MeterReadingRepository repo, ILogger<Program>
 
 app.MapReaderEndpoints();
 app.MapReadingEndpoints();
+app.MapImageEndpoints();
 
 app.Run();
 

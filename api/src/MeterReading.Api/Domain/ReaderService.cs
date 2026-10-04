@@ -106,6 +106,7 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
             Revisit: Count(AssignmentState.REVISIT),
             NotRead: notRead,
             ReadByYou: mine.Select(r => r.MeterId).Distinct().Count(),
+            PhotosWaiting: mine.Sum(r => Math.Max(0, (r.ExpectedPhotos ?? 0) - r.PhotosReceived)),
             Zones: zones,
             LastReceivedUtc: mine.Count == 0 ? null : DateTime.SpecifyKind(mine.Max(r => r.ReceivedAtUtc), DateTimeKind.Utc));
     }

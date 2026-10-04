@@ -62,12 +62,15 @@ data class ReadingDraft(
     val note: String,
     val numbers: Map<NumberTarget, Long>,
     val newMeterNumber: String?,
-    val photoPaths: Map<ImageRole, String>,
+    val photos: List<DraftPhoto>,
     val readerConfirmedWarning: Boolean,
     val capturedAt: LocalDateTime,
 ) {
     val value: Long? get() = numbers[NumberTarget.CURRENT] ?: numbers[NumberTarget.OLD_FINAL]
 }
+
+/** A photo taken for a reading. [imageId] is made once, so a retried upload is recognised (FR-009). */
+data class DraftPhoto(val imageId: String, val role: ImageRole, val path: String)
 
 enum class SubmitOutcome { SENT, QUEUED, CHECKING, REJECTED }
 

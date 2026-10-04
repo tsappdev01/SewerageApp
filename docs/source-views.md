@@ -121,5 +121,9 @@ database (`ConnectionStrings:MeterReading` in `api/src/MeterReading.Api/appsetti
 - `db/002_create_mr_schema.sql` — creates `mr.Device`, `mr.ReadingTransaction`, `mr.ReadingImage`.
 - `db/003_meter_id_as_text.sql` — only needed if an earlier `002` was run; converts `MeterId` to
   text (barcode) and readings to 4 decimals. Safe to run either way.
+- `db/004_add_expected_photos.sql` — adds the expected photo count to readings.
+
+Photos are not kept in the database: they go to a folder or an Azure Blob container
+(`ImageStore` in `appsettings.json`); `mr.ReadingImage` records where.
 
 The API's login needs **SELECT** on the views and **read/write** on schema `mr`.

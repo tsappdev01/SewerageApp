@@ -20,6 +20,8 @@ never run outside development.
 - Work is not assigned: meter lists are shared by all active readers and narrowed by zone. A
   reader's own submissions ("my readings", "read by you") are scoped to them; test that.
 - Errors are problem details with a `code` from spec Appendix A.
+- Photos go through `IImageStore` (folder or Azure Blob) and are never overwritten; a reading is
+  stored first and its photos follow one by one, checked against their SHA-256.
 - `dotnet test api/MeterReading.slnx` needs SQL Server prepared as in `api/README.md`.
 
 ## Android (`android/`)

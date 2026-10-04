@@ -52,6 +52,9 @@ import com.meterreading.reader.ui.components.CircleIconButton
 import com.meterreading.reader.ui.components.SpeakButton
 import com.meterreading.reader.ui.theme.AppColors
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 /**
@@ -85,6 +88,7 @@ fun CameraCapture(hint: String, speakText: String, showFrame: Boolean, onCapture
 
     val lifecycleOwner = LocalLifecycleOwner.current
     val haptics = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
     val previewView = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
     val imageCapture = remember { ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build() }
     var flashMode by remember { mutableIntStateOf(ImageCapture.FLASH_MODE_AUTO) }
@@ -183,8 +187,12 @@ fun CameraCapture(hint: String, speakText: String, showFrame: Boolean, onCapture
                         ContextCompat.getMainExecutor(context),
                         object : ImageCapture.OnImageSavedCallback {
                             override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                                busy = false
-                                onCaptured(file)
+                                scope.launch {
+                                    // FR-008.5: shrink before use, so uploads are small and quick.
+                                    withContext(Dispatchers.IO) { runCatching { shrinkForUpload(file) } }
+                                    busy = false
+                                    onCaptured(file)
+                                }
                             }
 
                             override fun onError(exception: ImageCaptureException) {

@@ -790,7 +790,8 @@ published with each build and is the contract for the Android client.
 | `POST /devices/register` | Register/refresh device; body includes Play Integrity token |
 | `GET /config` | LOVs, status rules, settings relevant to the app, `configVersion` |
 | `GET /sync/assignments?since={token}` | Assignment delta for open period: zones, properties, meters, assignments (with previous reading, ExpectedLow/High), removals, outcomes; returns next `syncToken` |
-| `POST /readings` | Submit one reading. `multipart/form-data`: part `reading` (JSON) + one part per image named `image-{imageId}`. Max 5 MB. Returns `{transactionId, status, assignmentStatus, consumption, billingConsumption, exceptions[], flags[]}` with 201 (new) or 200 (idempotent repeat) |
+| `POST /readings` | Submit one reading (JSON, with `photoCount`). Returns `{transactionId, meterId, status, state, consumption, exceptions[]}` with 201 (new) or 200 (idempotent repeat) |
+| `PUT /readings/{transactionId}/images/{imageId}?role=&capturedAtUtc=` | Upload one photo after its reading: body `image/jpeg`, header `X-Content-SHA256`. 201 new, 200 repeat. Decided 2026-10-04 instead of one multipart request, so a reading is never held up by its photos |
 | `GET /readings/mine?period=&status=&page=` | Own submissions |
 | `GET /readings/{transactionId}` | One own submission and its outcome |
 
@@ -1033,6 +1034,10 @@ Each has a proposed default that development can use now. Resolve each with an A
 | LOGIN_NOT_UNIQUE | 409 | Two active readers share the sign-in name in vw_MR_Reader | Show "ask your supervisor" |
 | NO_OPEN_PERIOD | 409 | No reading period is open | Show "ask your supervisor" |
 | METER_NOT_FOUND | 404 | No active meter with this id (barcode) | Refresh meter list |
+| READING_NOT_FOUND | 404 | Photo sent for a reading that is not the caller's or not stored | Send the reading first |
+| IMAGE_TOO_LARGE | 413 | Photo above the size limit | Shrink and retry |
+| IMAGE_ID_REUSED | 409 | Same image id, different photo | Log as defect |
+| TOO_MANY_IMAGES | 422 | More photos than allowed per reading | Drop the extra photo |
 
 ## Appendix B — Business rule test vectors
 

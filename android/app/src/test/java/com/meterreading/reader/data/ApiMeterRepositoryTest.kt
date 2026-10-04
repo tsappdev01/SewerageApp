@@ -12,7 +12,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.File
 import java.io.IOException
+import java.security.MessageDigest
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -59,11 +61,24 @@ class ApiMeterRepositoryTest {
         return runBlocking { repo.signIn("rashid@dip.example") }
     }
 
-    private fun draft(meterId: String = "BC0006", reading: Long = 52_840) = ReadingDraft(
+    private fun draft(meterId: String = "BC0006", reading: Long = 52_840, photos: List<DraftPhoto> = emptyList()) = ReadingDraft(
         transactionId = UUID.randomUUID().toString(), meterId = meterId, condition = MeterCondition.WORKING,
         reasonCode = null, note = "", numbers = mapOf(NumberTarget.CURRENT to reading), newMeterNumber = null,
-        photoPaths = emptyMap(), readerConfirmedWarning = false, capturedAt = LocalDateTime.of(2026, 10, 4, 7, 15),
+        photos = photos, readerConfirmedWarning = false, capturedAt = LocalDateTime.of(2026, 10, 4, 7, 15),
     )
+
+    private fun photo(bytes: ByteArray = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 1, 2, 3)): DraftPhoto {
+        val file = File.createTempFile("meter", ".jpg").apply { writeBytes(bytes); deleteOnExit() }
+        return DraftPhoto(UUID.randomUUID().toString(), ImageRole.DISPLAY, file.path)
+    }
+
+    private fun sha256(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02X".format(it) }
+
+    private fun stored(d: ReadingDraft) =
+        """{"transactionId":"${d.transactionId}","meterId":"${d.meterId}","status":"ACCEPTED","state":"SENT","exceptions":[]}"""
+
+    private fun imageStored(d: ReadingDraft, p: DraftPhoto) =
+        """{"imageId":"${p.imageId}","transactionId":"${d.transactionId}","role":"DISPLAY","sizeBytes":6,"sha256":"x"}"""
 
     private fun takeRequests(n: Int): List<RecordedRequest> = List(n) { server.takeRequest() }
 
@@ -157,5 +172,73 @@ class ApiMeterRepositoryTest {
         signIn(); takeRequests(3)
         enqueue(503, "")
         assertEquals(SubmitOutcome.QUEUED, runBlocking { repo.submit(draft()) }.outcome)
+    }
+
+    @Test
+    fun `FR009 photos go up after the reading with their hash and are deleted from the phone`() {
+        signIn(); takeRequests(3)
+        val p = photo()
+        val d = draft(photos = listOf(p))
+        enqueue(201, stored(d)); enqueue(201, imageStored(d, p))
+        assertEquals(SubmitOutcome.SENT, runBlocking { repo.submit(d) }.outcome)
+
+        val reading = server.takeRequest()
+        assertTrue(reading.body.readUtf8().contains("\"photoCount\":1"))
+        val upload = server.takeRequest()
+        assertEquals("PUT", upload.method)
+        assertEquals("/api/v1/readings/${d.transactionId}/images/${p.imageId}", upload.requestUrl!!.encodedPath)
+        assertEquals("DISPLAY", upload.requestUrl!!.queryParameter("role"))
+        assertEquals("2026-10-04T07:15:00Z", upload.requestUrl!!.queryParameter("capturedAtUtc"))
+        val bytes = upload.body.readByteArray()
+        assertEquals(sha256(bytes), upload.getHeader("X-Content-SHA256"))
+        assertEquals("image/jpeg", upload.getHeader("Content-Type"))
+        assertEquals(false, File(p.path).exists())
+        assertEquals(0, repo.photosWaiting.value)
+    }
+
+    @Test
+    fun `a photo that cannot be sent waits and goes up later`() {
+        signIn(); takeRequests(3)
+        val p = photo()
+        val d = draft(photos = listOf(p))
+        enqueue(201, stored(d)); enqueue(503, "")
+        assertEquals(SubmitOutcome.SENT, runBlocking { repo.submit(d) }.outcome) // the reading is not held up
+        takeRequests(2)
+        assertEquals(1, repo.photosWaiting.value)
+        assertTrue(repo.hasWaiting())
+        assertTrue(File(p.path).exists())
+
+        enqueue(201, imageStored(d, p)); enqueue(200, sync); enqueue(200, mine)
+        assertEquals(1, runBlocking { repo.sendQueued() })
+        assertEquals(p.imageId, server.takeRequest().requestUrl!!.pathSegments.last())
+        assertEquals(0, repo.photosWaiting.value)
+        assertEquals(false, File(p.path).exists())
+    }
+
+    @Test
+    fun `photos of a reading saved without signal go up after the reading`() {
+        signIn(); takeRequests(3)
+        val p = photo()
+        val d = draft(photos = listOf(p))
+        offline = true
+        assertEquals(SubmitOutcome.QUEUED, runBlocking { repo.submit(d) }.outcome)
+        assertEquals(0, repo.photosWaiting.value) // only counted once the reading is stored
+
+        offline = false
+        enqueue(201, stored(d)); enqueue(201, imageStored(d, p)); enqueue(200, sync); enqueue(200, mine)
+        assertEquals(2, runBlocking { repo.sendQueued() })
+        assertEquals("POST", server.takeRequest().method)
+        assertEquals("PUT", server.takeRequest().method)
+        assertEquals(false, File(p.path).exists())
+    }
+
+    @Test
+    fun `photos of a refused reading are removed`() {
+        signIn(); takeRequests(3)
+        val p = photo()
+        enqueue(409, """{"title":"This meter was already read this period.","status":409,"code":"ALREADY_READ"}""")
+        assertEquals(SubmitOutcome.REJECTED, runBlocking { repo.submit(draft(photos = listOf(p))) }.outcome)
+        assertEquals(false, File(p.path).exists())
+        assertEquals(0, repo.photosWaiting.value)
     }
 }

@@ -24,7 +24,11 @@ Example: `./gradlew installDebug -PapiBaseUrl=http://192.168.1.20:5080/`
 1. Start the API in Development as in `../api/README.md` (it accepts the `X-Dev-User` sign-in).
 2. On the sign-in screen, enter a reader's `LoginEmail` from `vw_MR_Reader` and press **Sign in**.
    The server's reason is shown if it refuses (not a reader, shared sign-in name, no open period).
-3. Readings go to `POST /api/v1/readings`. Without signal they wait on the phone (purple cloud)
+3. Readings go to `POST /api/v1/readings`, then each photo with `PUT .../images/{imageId}`.
+   Photos are shrunk when taken (long edge 1,600 px, about 500 KB, turned upright), uploaded with
+   their SHA-256, and deleted from the phone once the server has them. A photo that cannot be sent
+   waits and goes up later; "My summary" shows how many are still on the phone.
+4. Readings Without signal they wait on the phone (purple cloud)
    and are sent with the same transaction id when signal returns: on Home, from **Upload now**,
    or by the one-minute retry. A reading the server refuses shows **Not sent** with its reason.
 
@@ -67,8 +71,8 @@ The capture steps for each meter condition come from `data/StatusRules.kt`, whic
   `ApiClient.accessToken` is set; until then debug builds use the development sign-in.
 - Device registration (FR-002).
 - Keep the upload queue in an encrypted Room database and send it with WorkManager (§9, FR-020).
-  Today the queue lives in memory, so readings waiting to upload are lost if the app is closed.
-- Photo upload: photos stay on the phone; the API does not take them yet.
+  Today the queues live in memory, so readings and photos waiting to upload are lost if the app
+  is closed. Photo files are app-private but not yet encrypted (FR-008.6).
 - Readings are whole numbers on the phone; `DecimalDigits` from the server is not used yet.
 - Image quality check, resize to 1,600 px / 500 KB, encrypted image files, SHA-256 (FR-008.4–.6, FR-009).
 - GPS capture (FR-006.8), Play Integrity (FR-002.5), OCR assist (Phase 3).
@@ -80,6 +84,6 @@ The capture steps for each meter condition come from `data/StatusRules.kt`, whic
 
 The project was written in an environment without the Android SDK, so it has **not been
 compiled for Android yet**; expect small compile fixes on first sync. The plain-Kotlin parts
-(`data/`, `api/`, `util/Format.kt`) compile and their 28 unit tests pass on the JVM, including
+(`data/`, `api/`, `util/Format.kt`) compile and their 32 unit tests pass on the JVM, including
 the repository against a scripted server (MockWebServer) and, with `MR_API_URL` set, against
 the running API.

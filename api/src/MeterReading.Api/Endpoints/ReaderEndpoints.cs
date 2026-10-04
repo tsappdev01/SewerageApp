@@ -150,7 +150,8 @@ public static partial class ReaderEndpoints
         r.TransactionId, r.MeterId, meter?.Number, meter?.Type, r.MeterCondition, r.ReasonCode, r.NewReading, r.Consumption,
         DateTime.SpecifyKind(r.CapturedAtUtc, DateTimeKind.Utc), DateTime.SpecifyKind(r.ReceivedAtUtc, DateTimeKind.Utc),
         r.Status, AssignmentStates.From(r.Status, r.MeterCondition),
-        r.Status is "REJECTED_BY_SUPERVISOR" or "EXCEPTION" ? r.StatusNote : null);
+        r.Status is "REJECTED_BY_SUPERVISOR" or "EXCEPTION" ? r.StatusNote : null,
+        r.ExpectedPhotos ?? 0, r.PhotosReceived);
 
     [GeneratedRegex(@"^\d{4}-(0[1-9]|1[0-2])$")]
     private static partial Regex PeriodCode();

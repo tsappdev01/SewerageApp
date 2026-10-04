@@ -12,3 +12,6 @@ local.properties
 *.iml
 captures/
 .DS_Store
+
+# Development photo store (ImageStore:Root)
+api/src/MeterReading.Api/images/

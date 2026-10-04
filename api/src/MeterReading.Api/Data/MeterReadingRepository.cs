@@ -169,11 +169,12 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     public async Task<IReadOnlyList<TransactionRow>> GetReaderTransactionsAsync(string readerId, string periodCode, CancellationToken ct)
     {
         const string sql = """
-            SELECT TransactionId, MeterId, MeterCondition, ReasonCode, NewReading, Consumption,
-                   CapturedAtUtc, ReceivedAtUtc, Status, StatusNote
-            FROM mr.ReadingTransaction
-            WHERE ReaderId = @readerId AND PeriodCode = @periodCode AND Status <> 'SUPERSEDED'
-            ORDER BY CapturedAtUtc DESC
+            SELECT t.TransactionId, t.MeterId, t.MeterCondition, t.ReasonCode, t.NewReading, t.Consumption,
+                   t.CapturedAtUtc, t.ReceivedAtUtc, t.Status, t.StatusNote, CAST(t.ExpectedPhotos AS int) AS ExpectedPhotos,
+                   (SELECT COUNT(*) FROM mr.ReadingImage i WHERE i.TransactionId = t.TransactionId) AS PhotosReceived
+            FROM mr.ReadingTransaction t
+            WHERE t.ReaderId = @readerId AND t.PeriodCode = @periodCode AND t.Status <> 'SUPERSEDED'
+            ORDER BY t.CapturedAtUtc DESC
             """;
         await using var c = await db.OpenMeterReadingAsync(ct);
         return (await c.QueryAsync<TransactionRow>(Cmd(sql, new { readerId, periodCode }, ct))).AsList();
@@ -182,11 +183,12 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     public async Task<IReadOnlyList<TransactionRow>> GetMeterTransactionsAsync(string meterId, string periodCode, CancellationToken ct)
     {
         const string sql = """
-            SELECT TransactionId, MeterId, MeterCondition, ReasonCode, NewReading, Consumption,
-                   CapturedAtUtc, ReceivedAtUtc, Status, StatusNote
-            FROM mr.ReadingTransaction
-            WHERE MeterId = @meterId AND PeriodCode = @periodCode
-            ORDER BY ReceivedAtUtc DESC
+            SELECT t.TransactionId, t.MeterId, t.MeterCondition, t.ReasonCode, t.NewReading, t.Consumption,
+                   t.CapturedAtUtc, t.ReceivedAtUtc, t.Status, t.StatusNote, CAST(t.ExpectedPhotos AS int) AS ExpectedPhotos,
+                   (SELECT COUNT(*) FROM mr.ReadingImage i WHERE i.TransactionId = t.TransactionId) AS PhotosReceived
+            FROM mr.ReadingTransaction t
+            WHERE t.MeterId = @meterId AND t.PeriodCode = @periodCode
+            ORDER BY t.ReceivedAtUtc DESC
             """;
         await using var c = await db.OpenMeterReadingAsync(ct);
         return (await c.QueryAsync<TransactionRow>(Cmd(sql, new { meterId, periodCode }, ct))).AsList();
@@ -195,10 +197,11 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     public async Task<TransactionRow?> GetTransactionAsync(Guid transactionId, CancellationToken ct)
     {
         const string sql = """
-            SELECT TransactionId, MeterId, ReaderId, MeterCondition, ReasonCode, NewReading, Consumption,
-                   CapturedAtUtc, ReceivedAtUtc, Status, StatusNote, PayloadHash
-            FROM mr.ReadingTransaction
-            WHERE TransactionId = @transactionId
+            SELECT t.TransactionId, t.MeterId, t.ReaderId, t.PeriodCode, t.MeterCondition, t.ReasonCode, t.NewReading, t.Consumption,
+                   t.CapturedAtUtc, t.ReceivedAtUtc, t.Status, t.StatusNote, t.PayloadHash, CAST(t.ExpectedPhotos AS int) AS ExpectedPhotos,
+                   (SELECT COUNT(*) FROM mr.ReadingImage i WHERE i.TransactionId = t.TransactionId) AS PhotosReceived
+            FROM mr.ReadingTransaction t
+            WHERE t.TransactionId = @transactionId
             """;
         await using var c = await db.OpenMeterReadingAsync(ct);
         return await c.QuerySingleOrDefaultAsync<TransactionRow>(Cmd(sql, new { transactionId }, ct));
@@ -229,15 +232,52 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             END
             INSERT mr.ReadingTransaction (TransactionId, PeriodCode, MeterId, ReaderId, DeviceId, MeterCondition, ReasonCode, Remarks,
                 NewReading, PreviousReading, Consumption, OldFinalReading, NewMeterNumber, NewOpeningReading, NewCurrentReading,
-                Latitude, Longitude, GpsAccuracyM, CapturedAtUtc, Status, StatusNote, StatusChangedAtUtc, PayloadHash)
+                Latitude, Longitude, GpsAccuracyM, CapturedAtUtc, Status, StatusNote, StatusChangedAtUtc, PayloadHash, ExpectedPhotos)
             VALUES (@TransactionId, @PeriodCode, @MeterId, @ReaderId, @DeviceId, @MeterCondition, @ReasonCode, @Remarks,
                 @NewReading, @PreviousReading, @Consumption, @OldFinalReading, @NewMeterNumber, @NewOpeningReading, @NewCurrentReading,
-                @Latitude, @Longitude, @GpsAccuracyM, @CapturedAtUtc, @Status, @StatusNote, SYSUTCDATETIME(), @PayloadHash);
+                @Latitude, @Longitude, @GpsAccuracyM, @CapturedAtUtc, @Status, @StatusNote, SYSUTCDATETIME(), @PayloadHash, @ExpectedPhotos);
             COMMIT TRANSACTION;
             SELECT 1;
             """;
         await using var c = await db.OpenMeterReadingAsync(ct);
         return await c.ExecuteScalarAsync<int>(Cmd(sql, row, ct)) == 1;
+    }
+
+    public async Task<ImageRow?> GetImageAsync(Guid imageId, CancellationToken ct)
+    {
+        const string sql = """
+            SELECT ImageId, TransactionId, ImageRole, BlobPath, Sha256, SizeBytes, CapturedAtUtc
+            FROM mr.ReadingImage WHERE ImageId = @imageId
+            """;
+        await using var c = await db.OpenMeterReadingAsync(ct);
+        return await c.QuerySingleOrDefaultAsync<ImageRow>(Cmd(sql, new { imageId }, ct));
+    }
+
+    /// <summary>
+    /// Records an uploaded photo unless the reading already has <paramref name="maxImages"/> photos.
+    /// Returns false when full. Counted under a lock so parallel uploads cannot pass the limit.
+    /// </summary>
+    public async Task<bool> InsertImageAsync(ImageRow image, int maxImages, CancellationToken ct)
+    {
+        const string sql = """
+            SET XACT_ABORT ON;
+            BEGIN TRANSACTION;
+            IF (SELECT COUNT(*) FROM mr.ReadingImage WITH (UPDLOCK, HOLDLOCK) WHERE TransactionId = @TransactionId) >= @maxImages
+            BEGIN
+                ROLLBACK TRANSACTION;
+                SELECT 0;
+                RETURN;
+            END
+            INSERT mr.ReadingImage (ImageId, TransactionId, ImageRole, BlobPath, Sha256, SizeBytes, CapturedAtUtc)
+            VALUES (@ImageId, @TransactionId, @ImageRole, @BlobPath, @Sha256, @SizeBytes, @CapturedAtUtc);
+            COMMIT TRANSACTION;
+            SELECT 1;
+            """;
+        await using var c = await db.OpenMeterReadingAsync(ct);
+        return await c.ExecuteScalarAsync<int>(Cmd(sql, new
+        {
+            image.ImageId, image.TransactionId, image.ImageRole, image.BlobPath, image.Sha256, image.SizeBytes, image.CapturedAtUtc, maxImages,
+        }, ct)) == 1;
     }
 
     /// <summary>Names of required views and tables that are missing, for the readiness check.</summary>
@@ -257,6 +297,8 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         await using var mr = await db.OpenMeterReadingAsync(ct);
         if (await mr.ExecuteScalarAsync<int>(Cmd("SELECT CASE WHEN OBJECT_ID(N'mr.ReadingTransaction') IS NULL THEN 0 ELSE 1 END", null, ct)) == 0)
             missing.Add("mr.ReadingTransaction (run db/002_create_mr_schema.sql)");
+        else if (await mr.ExecuteScalarAsync<int>(Cmd("SELECT CASE WHEN COL_LENGTH(N'mr.ReadingTransaction', N'ExpectedPhotos') IS NULL THEN 0 ELSE 1 END", null, ct)) == 0)
+            missing.Add("mr.ReadingTransaction.ExpectedPhotos (run db/004_add_expected_photos.sql)");
         return missing;
     }
 

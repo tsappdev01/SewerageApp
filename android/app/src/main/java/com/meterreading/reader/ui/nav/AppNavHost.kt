@@ -47,7 +47,7 @@ fun AppNavHost(defaultLogin: String = "") {
     LaunchedEffect(Unit) {
         while (true) {
             delay(60_000)
-            if (repo.readings.value.any { it.state == ReadingState.QUEUED }) repo.sendQueued()
+            if (repo.hasWaiting()) repo.sendQueued()
         }
     }
 

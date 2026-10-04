@@ -59,7 +59,10 @@ public sealed record ReadingDto(
     DateTime ReceivedAtUtc,
     string Status,
     AssignmentState State,
-    string? Note);
+    string? Note,
+    /// <summary>Photos the phone took for this reading, and how many have arrived.</summary>
+    int PhotosExpected,
+    int PhotosReceived);
 
 public sealed record ZoneReconciliationDto(string ZoneCode, int Meters, int Read, int NotRead);
 
@@ -78,6 +81,8 @@ public sealed record SummaryDto(
     int Revisit,
     int NotRead,
     int ReadByYou,
+    /// <summary>Photos of the reader's readings that have not arrived yet.</summary>
+    int PhotosWaiting,
     IReadOnlyList<ZoneReconciliationDto> Zones,
     DateTime? LastReceivedUtc);
 
@@ -101,6 +106,8 @@ public sealed record SubmitReadingRequest(
     /// <summary>The reader saw the app's warning and said the number is correct.</summary>
     bool ReaderConfirmedWarning,
     DateTime CapturedAtUtc,
+    /// <summary>How many photos will follow with PUT /readings/{id}/images/{imageId}.</summary>
+    int PhotoCount = 0,
     Guid? DeviceId = null,
     decimal? Latitude = null,
     decimal? Longitude = null,
@@ -114,3 +121,6 @@ public sealed record SubmitReadingResponse(
     AssignmentState State,
     decimal? Consumption,
     IReadOnlyList<string> Exceptions);
+
+/// <summary>A stored photo (spec FR-009).</summary>
+public sealed record ImageUploadResponse(Guid ImageId, Guid TransactionId, string Role, int SizeBytes, string Sha256);

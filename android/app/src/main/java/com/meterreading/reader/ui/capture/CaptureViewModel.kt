@@ -137,7 +137,7 @@ class CaptureViewModel(private val repo: MeterRepository, meterId: String) : Vie
                 note = note.trim(),
                 numbers = NumberTarget.entries.mapNotNull { t -> value(t)?.let { t to it } }.toMap(),
                 newMeterNumber = newMeterNumber.trim().ifEmpty { null },
-                photoPaths = photos.mapValues { it.value.path },
+                photos = photos.map { (role, file) -> DraftPhoto(UUID.randomUUID().toString(), role, file.path) },
                 readerConfirmedWarning = readerConfirmedWarning,
                 capturedAt = LocalDateTime.now(),
             )

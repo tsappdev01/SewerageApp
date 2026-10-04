@@ -37,3 +37,26 @@ public sealed class AuthOptions
     /// <summary>Entra app role required to use the reader endpoints.</summary>
     public string ReaderRole { get; set; } = "MeterReader";
 }
+
+/// <summary>Where reading photos are kept (spec FR-009.3) and the upload limits.</summary>
+public sealed class ImageStoreOptions
+{
+    public const string Section = "ImageStore";
+
+    /// <summary><c>FileSystem</c> (on-premises or development) or <c>AzureBlob</c>.</summary>
+    public string Kind { get; set; } = "FileSystem";
+
+    /// <summary>FileSystem: folder that holds the photos. The API needs write access.</summary>
+    public string Root { get; set; } = "images";
+
+    /// <summary>AzureBlob: e.g. https://account.blob.core.windows.net. Uses the API's managed identity.</summary>
+    public string? BlobServiceUri { get; set; }
+
+    public string Container { get; set; } = "readings";
+
+    /// <summary>The phone shrinks photos to about 500 KB (FR-008.5); this is the hard limit.</summary>
+    public int MaxImageBytes { get; set; } = 2_000_000;
+
+    /// <summary>FR-008.7.</summary>
+    public int MaxImagesPerReading { get; set; } = 4;
+}

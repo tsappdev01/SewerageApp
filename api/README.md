@@ -16,6 +16,7 @@ The API reads five `vw_MR_*` views in `PropertyManagementSystem` (plus an option
 |---|---|---|
 | `001_check_source_views.sql` | Checks the views: missing columns, wrong types, duplicate keys, unknown codes, more than one open period. Read-only. | Any environment |
 | `002_create_mr_schema.sql` | Creates the API's own tables `mr.Device`, `mr.ReadingTransaction`, `mr.ReadingImage`. Re-runnable. | Any environment |
+| `004_add_expected_photos.sql` | Adds `mr.ReadingTransaction.ExpectedPhotos` (photos the phone will upload). Re-runnable. | Any environment |
 | `003_meter_id_as_text.sql` | Brings an `mr` schema from an earlier `002` in line: `MeterId` as text (barcode), readings to 4 decimals. Does nothing on a fresh install. | Any environment |
 | `dev/000_create_dev_source_views.sql` | Test stand-ins shaped like the real views (barcode ids, Status 1, every month OPEN, ISNULL zeros), with sample data. | Development only |
 | `dev/010_seed_dev_readings.sql` | Sample readings already received this period. | Development only |
@@ -36,6 +37,8 @@ Errors are RFC 9457 problem details with a `code` (e.g. `READER_NOT_FOUND`, `NO_
 | `GET /summary?period=&zone=` | Reconciliation: meters, read, accepted, being checked, read again, visit again, not read, read by you, per zone |
 | `GET /meters/{id}` | One active meter (id = barcode) with history when the history view exists |
 | `POST /readings` | Send one reading (below). 201 when stored, 200 when the same `transactionId` was already stored |
+| `PUT /readings/{id}/images/{imageId}` | Upload one photo of a stored reading (below) |
+| `GET /readings/{id}/images/{imageId}` | One of the reader's own photos |
 | `GET /health/live`, `GET /health/ready` | Liveness; readiness checks the views and `mr` tables exist |
 
 OpenAPI document (Development): `/openapi/v1.json`.
@@ -55,7 +58,29 @@ Checks run in the order of spec §7.2. A refusal stores nothing and returns a pr
 (`LOWER_THAN_PREVIOUS`, `HIGH_CONSUMPTION`, `ROLLOVER_OUT_OF_RANGE`, `DAMAGED_METER`,
 `METER_REPLACEMENT`, `METER_REMOVAL`). A meter can be read again only after the supervisor
 rejects its reading or when it was not accessible; the check runs under a lock, so two phones
-cannot both read it. Photos are not uploaded yet.
+cannot both read it. `photoCount` says how many photos will follow.
+
+### Uploading photos
+
+After the reading is stored, each photo goes up on its own, so a slow photo never holds up the
+reading:
+
+```
+PUT /api/v1/readings/{transactionId}/images/{imageId}?role=DISPLAY&capturedAtUtc=2026-10-04T07:15:10Z
+Content-Type: image/jpeg
+X-Content-SHA256: <SHA-256 of the body, hex>
+<JPEG bytes>
+```
+
+The server checks the reading is the caller's (`READING_NOT_FOUND`), the role
+(`INVALID_LOV_CODE`), that the body is a JPEG (`IMAGE_INVALID`) no larger than
+`ImageStore:MaxImageBytes` (`IMAGE_TOO_LARGE`), that it matches its hash
+(`IMAGE_HASH_MISMATCH`), and the limit of `ImageStore:MaxImagesPerReading` (`TOO_MANY_IMAGES`).
+The same photo sent again returns 200; a different photo under the same id is `IMAGE_ID_REUSED`.
+Photos are stored once, never overwritten, at
+`readings/{yyyy}/{MM}/{meterId}/{transactionId}/{imageId}.jpg`, and recorded in `mr.ReadingImage`.
+"My readings" and the summary show photos still to come (`photosExpected`, `photosReceived`,
+`photosWaiting`).
 
 ## Configuration (`appsettings.json`)
 
@@ -66,6 +91,8 @@ cannot both read it. Photos are not uploaded yet.
 | `SourceViews:Schema` | Schema of the views (default `dbo`). |
 | `SourceViews:HasReadingHistory` | `true` only when `vw_MR_ReadingHistory` is provided (default `false`). |
 | `ReadingRules:*` | Average periods, high-consumption factor and floors, default averages (spec BR-007, BR-008). |
+| `ImageStore:Kind` | `FileSystem` (photos under `ImageStore:Root`, which the API must be able to write) or `AzureBlob` (`ImageStore:BlobServiceUri` and `Container`, reached with the API's managed identity; the container stays private). |
+| `ImageStore:MaxImageBytes`, `MaxImagesPerReading` | Upload limits: 2 MB and 4 photos by default. |
 | `Auth:Mode` | `Entra` (production) or `Development` (trusts `X-Dev-User` header; refused outside Development). |
 | `AzureAd:*` | Entra tenant and API app registration. |
 
@@ -77,7 +104,8 @@ Use a SQL login or managed identity with **SELECT only** on the views and read/w
 # SQL Server 2022 in Docker
 docker run -d --name mrsql -p 1433:1433 -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='Dev_Passw0rd!' mcr.microsoft.com/mssql/server:2022-latest
 # create database MeterReading, then run in order:
-#   ../db/dev/000_create_dev_source_views.sql, ../db/002_create_mr_schema.sql, ../db/003_meter_id_as_text.sql, ../db/dev/010_seed_dev_readings.sql
+#   ../db/dev/000_create_dev_source_views.sql, ../db/002_create_mr_schema.sql, ../db/003_meter_id_as_text.sql,
+#   ../db/004_add_expected_photos.sql, ../db/dev/010_seed_dev_readings.sql
 dotnet run --project src/MeterReading.Api            # Development: http://localhost:5080
 curl -H "X-Dev-User: rashid@dip.example" "http://localhost:5080/api/v1/sync/meters?zone=598"
 dotnet test                                          # all tests; integration tests need the database above (MR_TEST_SQL to override)
@@ -99,5 +127,4 @@ dotnet test                                          # all tests; integration te
 
 ## Next
 
-`POST /api/v1/readings` (idempotent, multipart with photos to Blob storage), device registration,
-supervisor endpoints, and delta sync (`since` token).
+Device registration, supervisor endpoints (exception queue, photo review), and delta sync (`since` token).

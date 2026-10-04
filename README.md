@@ -13,10 +13,10 @@ readings to billing.
 
 ## Status
 
-- **API:** reader endpoints done, including sending readings (`POST /readings`, safe to retry);
-  66 tests against SQL Server 2022. Work is not assigned; lists narrow by zone. Photo upload is next.
+- **API:** reader endpoints done, including sending readings and their photos (safe to retry;
+  photos to a folder or Azure Blob); 77 tests against SQL Server 2022. Work is not assigned.
 - **Android:** all reader screens, connected to the API (development sign-in until Entra ID),
-  with an upload queue for readings taken without signal. Not yet compiled with the Android SDK;
-  the plain-Kotlin parts compile and their 28 tests pass, including against the running API.
+  with upload queues for readings and photos taken without signal. Not yet compiled with the
+  Android SDK; the plain-Kotlin parts compile and their 32 tests pass, including against the API.
 - **Source views:** the five views in `PropertyManagementSystem` are read as they are. Items to fix
   before go-live are listed in [docs/source-views.md](docs/source-views.md#to-fix-in-the-views-before-go-live).

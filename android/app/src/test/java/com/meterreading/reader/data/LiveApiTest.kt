@@ -13,7 +13,7 @@ import java.util.UUID
  * Reads only, so it leaves the database as it found it.
  */
 class LiveApiTest {
-    private val url: String? = System.getenv("MR_API_URL")
+    private val url: String? = System.getenv("MR_API_URL")?.takeIf { it.isNotBlank() }
 
     @Test
     fun `signs in and syncs the development data`() {
@@ -34,7 +34,7 @@ class LiveApiTest {
         val tooLong = ReadingDraft(
             transactionId = UUID.randomUUID().toString(), meterId = "BC0003", condition = MeterCondition.WORKING,
             reasonCode = null, note = "", numbers = mapOf(NumberTarget.CURRENT to 123_456L), newMeterNumber = null,
-            photoPaths = emptyMap(), readerConfirmedWarning = false, capturedAt = LocalDateTime.now().minusMinutes(1),
+            photos = emptyList(), readerConfirmedWarning = false, capturedAt = LocalDateTime.now().minusMinutes(1),
         )
         val result = runBlocking { repo.submit(tooLong) }
         assertEquals(SubmitOutcome.REJECTED, result.outcome)

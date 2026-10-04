@@ -17,8 +17,10 @@ public sealed record SubmitOutcome(SubmitReadingResponse? Response, bool Created
 /// ACCEPTED, or EXCEPTION when a rule needs a supervisor; the reason codes go in StatusNote.
 /// A repeat with the same TransactionId and payload returns the stored result (BR-013).
 /// </summary>
-public sealed class SubmitService(MeterReadingRepository repo, ReaderService readers, TimeProvider clock)
+public sealed class SubmitService(MeterReadingRepository repo, ReaderService readers, TimeProvider clock, Microsoft.Extensions.Options.IOptions<ImageStoreOptions> images)
 {
+    private int MaxImages => images.Value.MaxImagesPerReading;
+
     private static readonly HashSet<string> Conditions = ["WORKING", "DAMAGED", "SUBMERSED", "NOT_ACCESSIBLE", "METER_REPLACED", "REMOVED"];
     private static readonly HashSet<string> NeedReason = ["DAMAGED", "NOT_ACCESSIBLE", "METER_REPLACED", "REMOVED"];
     private static readonly HashSet<string> NeedNote = ["DAMAGED", "SUBMERSED", "NOT_ACCESSIBLE", "REMOVED"];
@@ -29,6 +31,8 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
     {
         if (r.TransactionId == Guid.Empty || string.IsNullOrWhiteSpace(r.MeterId) || r.MeterId.Length > 50)
             return SubmitOutcome.Reject(422, "VALIDATION_FAILED", "TransactionId and MeterId are required.");
+        if (r.PhotoCount < 0 || r.PhotoCount > MaxImages)
+            return SubmitOutcome.Reject(422, "VALIDATION_FAILED", $"A reading can have at most {MaxImages} photos.");
         if (!Conditions.Contains(r.Condition))
             return SubmitOutcome.Reject(422, "INVALID_LOV_CODE", $"Unknown meter condition '{r.Condition}'.");
 
@@ -86,6 +90,7 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
             Status = exceptions.Count > 0 ? "EXCEPTION" : "ACCEPTED",
             StatusNote = exceptions.Count > 0 ? string.Join(',', exceptions) : null,
             PayloadHash = hash,
+            ExpectedPhotos = r.PhotoCount,
         };
 
         // ALREADY_READ is checked under a lock on the meter's rows, so two phones cannot both read it.

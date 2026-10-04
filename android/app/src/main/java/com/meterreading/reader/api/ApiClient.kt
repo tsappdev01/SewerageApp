@@ -54,6 +54,24 @@ class ApiClient(
                 .post(json.encodeToString(SubmitReadingRequest.serializer(), request).toRequestBody(JSON)),
         ) { json.decodeFromString(SubmitReadingResponse.serializer(), it) }
 
+    /** One photo of a stored reading (FR-009). The server checks the bytes against [sha256Hex]. */
+    suspend fun uploadPhoto(
+        transactionId: String,
+        imageId: String,
+        role: String,
+        capturedAtUtc: String,
+        bytes: ByteArray,
+        sha256Hex: String,
+    ): ImageUploadResponse {
+        val url = "$base/api/v1/readings/$transactionId/images/$imageId".toHttpUrl().newBuilder()
+            .addQueryParameter("role", role)
+            .addQueryParameter("capturedAtUtc", capturedAtUtc)
+            .build()
+        return send(
+            Request.Builder().url(url).put(bytes.toRequestBody(JPEG)).header("X-Content-SHA256", sha256Hex),
+        ) { json.decodeFromString(ImageUploadResponse.serializer(), it) }
+    }
+
     private suspend inline fun <reified T> get(path: String): T =
         send(Request.Builder().url("$base$path".toHttpUrl()).get()) { json.decodeFromString<T>(it) }
 
@@ -79,6 +97,7 @@ class ApiClient(
 
     private companion object {
         val JSON = "application/json; charset=utf-8".toMediaType()
+        val JPEG = "image/jpeg".toMediaType()
 
         fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)

@@ -36,6 +36,9 @@ class FakeMeterRepository : MeterRepository() {
 
     override val isDemo: Boolean = true
 
+    /** The demo keeps photos on the phone. */
+    override val photosWaiting: StateFlow<Int> = MutableStateFlow(0)
+
     override suspend fun signIn(login: String): SignInResult = SignInResult.Success
 
     override suspend fun refresh(): Boolean = online.value

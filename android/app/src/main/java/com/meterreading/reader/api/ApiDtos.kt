@@ -68,6 +68,8 @@ data class ReadingDto(
     val status: String,
     val state: String,
     val note: String? = null,
+    val photosExpected: Int = 0,
+    val photosReceived: Int = 0,
 )
 
 @Serializable
@@ -84,6 +86,7 @@ data class SubmitReadingRequest(
     val newCurrentReading: Long? = null,
     val readerConfirmedWarning: Boolean = false,
     val capturedAtUtc: String,
+    val photoCount: Int = 0,
 )
 
 @Serializable
@@ -98,3 +101,6 @@ data class SubmitReadingResponse(
 
 @Serializable
 data class ProblemDto(val title: String? = null, val status: Int? = null, val code: String? = null)
+
+@Serializable
+data class ImageUploadResponse(val imageId: String, val transactionId: String, val role: String, val sizeBytes: Int, val sha256: String)

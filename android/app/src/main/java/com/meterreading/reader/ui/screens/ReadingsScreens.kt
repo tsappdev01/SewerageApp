@@ -132,6 +132,7 @@ fun SummaryScreen(onBack: () -> Unit) {
     val meters by repo.meters.collectAsStateWithLifecycle()
     val readings by repo.readings.collectAsStateWithLifecycle()
     val r = remember(meters, readings) { Reconciliation.from(meters, readings) }
+    val photosWaiting by repo.photosWaiting.collectAsStateWithLifecycle()
     var sending by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -146,6 +147,9 @@ fun SummaryScreen(onBack: () -> Unit) {
                 .padding(horizontal = 16.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            if (photosWaiting > 0) {
+                Banner(stringResource(R.string.summary_photos_waiting, photosWaiting), Icons.Rounded.PhotoCamera, AppColors.Queued, AppColors.QueuedTint)
+            }
             if (r.allUploaded) {
                 Banner(stringResource(R.string.summary_all_uploaded), Icons.Rounded.CloudDone, AppColors.Ok, AppColors.OkTint)
             } else {
@@ -188,9 +192,9 @@ fun SummaryScreen(onBack: () -> Unit) {
                 Text(stringResource(R.string.summary_last_upload, formatTime(it)), color = AppColors.SubInk)
             }
         }
-        if (!r.allUploaded) {
+        if (!r.allUploaded || photosWaiting > 0) {
             BigButton(
-                text = if (sending) stringResource(R.string.sending) else stringResource(R.string.upload_now, r.waiting),
+                text = if (sending) stringResource(R.string.sending) else stringResource(R.string.upload_now, r.waiting + photosWaiting),
                 onClick = {
                     sending = true
                     scope.launch {

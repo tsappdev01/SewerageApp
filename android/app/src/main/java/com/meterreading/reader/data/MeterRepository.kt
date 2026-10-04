@@ -16,6 +16,9 @@ abstract class MeterRepository {
     /** False after a failed call: the phone is saving readings to send later. */
     abstract val online: MutableStateFlow<Boolean>
 
+    /** Photos of stored readings still to upload. */
+    abstract val photosWaiting: StateFlow<Int>
+
     /** True when the sign-in screen should ask for a development sign-in name instead of company sign-in. */
     open val needsDevLogin: Boolean = false
 
@@ -29,8 +32,11 @@ abstract class MeterRepository {
 
     abstract suspend fun submit(draft: ReadingDraft): SubmitResult
 
-    /** Sends readings saved on the phone. Returns how many were sent. */
+    /** Sends readings and photos saved on the phone. Returns how many items were sent. */
     abstract suspend fun sendQueued(): Int
+
+    /** Something is waiting on the phone: a reading or a photo. */
+    fun hasWaiting(): Boolean = photosWaiting.value > 0 || readings.value.any { it.state == ReadingState.QUEUED }
 
     fun meter(id: String): Meter = meters.value.first { it.id == id }
 

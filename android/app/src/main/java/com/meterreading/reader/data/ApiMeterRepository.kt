@@ -12,7 +12,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.io.File
 import java.io.IOException
+import java.security.MessageDigest
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -21,6 +23,10 @@ import java.time.ZoneId
  * Meters and readings from the Meter Reading API. Readings that cannot be sent (no signal, or a
  * server error worth retrying) wait in a queue and go up with [sendQueued], keeping their
  * transaction id so a retry is never stored twice (BR-013).
+ *
+ * Photos go up after their reading is stored, one at a time with their SHA-256, and are deleted
+ * from the phone once the server has them (FR-008.6). A photo that cannot be sent waits too; the
+ * reading is not held up by its photos.
  *
  * TODO(FR-020): keep the queue in an encrypted Room database so it survives the app being closed.
  */
@@ -44,7 +50,13 @@ class ApiMeterRepository(
 
     override val needsDevLogin: Boolean get() = api.accessToken == null
 
+    private val _photosWaiting = MutableStateFlow(0)
+    override val photosWaiting: StateFlow<Int> = _photosWaiting.asStateFlow()
+
+    private data class PendingPhoto(val transactionId: String, val photo: DraftPhoto, val capturedAt: LocalDateTime)
+
     private val queue = ArrayDeque<ReadingDraft>()
+    private val photoQueue = ArrayDeque<PendingPhoto>()
     private val lock = Mutex()
 
     override suspend fun signIn(login: String): SignInResult {
@@ -92,6 +104,7 @@ class ApiMeterRepository(
             val response = api.submit(draft.toRequest())
             online.value = true
             applyStored(draft, response)
+            uploadPhotos()
             SubmitResult(if (response.status == "EXCEPTION") SubmitOutcome.CHECKING else SubmitOutcome.SENT)
         } catch (e: IOException) {
             online.value = false
@@ -102,6 +115,7 @@ class ApiMeterRepository(
                 enqueue(draft)
                 SubmitResult(SubmitOutcome.QUEUED)
             } else {
+                deletePhotos(draft) // the reading was not stored; the reader takes new photos
                 SubmitResult(SubmitOutcome.REJECTED, e.title)
             }
         }
@@ -124,14 +138,56 @@ class ApiMeterRepository(
                     if (e.isRetryable) break
                     // Final refusal (e.g. already read by someone else): show it as "read again" with the reason.
                     queue.removeFirst()
+                    deletePhotos(draft)
                     _readings.update { list -> list.filterNot { it.transactionId == draft.transactionId } }
                     updateMeter(draft.meterId) { it.copy(state = ReadingState.READ_AGAIN, supervisorNote = e.title) }
                 }
             }
+            if (queue.isEmpty()) sent += uploadPhotos()
             if (sent > 0) online.value = true
         }
         if (sent > 0) refresh()
         return sent
+    }
+
+    /** Uploads waiting photos in order; stops at the first one that cannot be sent now. Returns how many went up. */
+    private suspend fun uploadPhotos(): Int {
+        var uploaded = 0
+        while (photoQueue.isNotEmpty()) {
+            val pending = photoQueue.first()
+            val file = File(pending.photo.path)
+            if (!file.exists()) {
+                photoQueue.removeFirst()
+                continue
+            }
+            val bytes = file.readBytes()
+            try {
+                api.uploadPhoto(
+                    transactionId = pending.transactionId,
+                    imageId = pending.photo.imageId,
+                    role = pending.photo.role.name,
+                    capturedAtUtc = pending.capturedAt.atZone(zone).toInstant().toString(),
+                    bytes = bytes,
+                    sha256Hex = sha256Hex(bytes),
+                )
+                photoQueue.removeFirst()
+                file.delete()
+                uploaded++
+            } catch (e: IOException) {
+                online.value = false
+                break
+            } catch (e: ApiException) {
+                // A photo damaged on the way is sent again later; any other refusal is final, the file is kept.
+                if (e.isRetryable || e.code == "IMAGE_HASH_MISMATCH") break
+                photoQueue.removeFirst()
+            }
+        }
+        _photosWaiting.value = photoQueue.size
+        return uploaded
+    }
+
+    private fun deletePhotos(draft: ReadingDraft) {
+        draft.photos.forEach { File(it.path).delete() }
     }
 
     private fun enqueue(draft: ReadingDraft) {
@@ -156,6 +212,10 @@ class ApiMeterRepository(
             ) + list.filterNot { it.transactionId == response.transactionId }
         }
         updateMeter(draft.meterId) { it.copy(state = state, supervisorNote = null) }
+        draft.photos.forEach { photo ->
+            if (photoQueue.none { it.photo.imageId == photo.imageId }) photoQueue.addLast(PendingPhoto(response.transactionId, photo, draft.capturedAt))
+        }
+        _photosWaiting.value = photoQueue.size
     }
 
     private fun updateMeter(id: String, change: (Meter) -> Meter) {
@@ -175,6 +235,7 @@ class ApiMeterRepository(
         newCurrentReading = numbers[NumberTarget.NEW_CURRENT],
         readerConfirmedWarning = readerConfirmedWarning,
         capturedAtUtc = capturedAt.atZone(zone).toInstant().toString(),
+        photoCount = photos.size,
     )
 
     private fun ReadingDraft.toQueuedReading() = Reading(transactionId, meterId, condition, value, capturedAt, ReadingState.QUEUED, needsCheck = false)
@@ -205,6 +266,9 @@ class ApiMeterRepository(
         state = state.toReadingState().let { if (it == ReadingState.REVISIT) ReadingState.SENT else it },
         needsCheck = status == "EXCEPTION",
     )
+
+    private fun sha256Hex(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02X".format(it) }
 
     private fun String.toReadingState(): ReadingState =
         runCatching { ReadingState.valueOf(this) }.getOrDefault(ReadingState.PENDING)

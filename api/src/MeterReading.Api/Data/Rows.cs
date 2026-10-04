@@ -55,6 +55,9 @@ public sealed class TransactionRow
 {
     public string ReaderId { get; init; } = "";
     public string? PayloadHash { get; init; }
+    public string PeriodCode { get; init; } = "";
+    public int? ExpectedPhotos { get; init; }
+    public int PhotosReceived { get; init; }
     public Guid TransactionId { get; init; }
     public string MeterId { get; init; } = "";
     public string MeterCondition { get; init; } = "";
@@ -107,4 +110,16 @@ public sealed class NewTransactionRow
     public string Status { get; init; } = "";
     public string? StatusNote { get; init; }
     public string PayloadHash { get; init; } = "";
+    public int ExpectedPhotos { get; init; }
+}
+
+public sealed class ImageRow
+{
+    public Guid ImageId { get; init; }
+    public Guid TransactionId { get; init; }
+    public string ImageRole { get; init; } = "";
+    public string BlobPath { get; init; } = "";
+    public string Sha256 { get; init; } = "";
+    public int SizeBytes { get; init; }
+    public DateTime CapturedAtUtc { get; init; }
 }

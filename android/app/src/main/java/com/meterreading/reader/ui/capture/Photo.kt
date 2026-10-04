@@ -3,6 +3,9 @@ package com.meterreading.reader.ui.capture
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import java.io.ByteArrayOutputStream
+import kotlin.math.max
+import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -20,6 +23,36 @@ fun rememberPhoto(file: File?, maxSize: Int = 1200): ImageBitmap? {
         value = file?.let { withContext(Dispatchers.IO) { decodeUpright(it, maxSize)?.asImageBitmap() } }
     }
     return bitmap
+}
+
+/**
+ * FR-008.5: makes the photo ready to upload, in place. Turned upright (so no EXIF rotation is
+ * needed), long edge at most [maxEdge] px, JPEG at the highest quality that fits [maxBytes].
+ * Call off the main thread.
+ */
+fun shrinkForUpload(file: File, maxEdge: Int = 1600, maxBytes: Int = 500_000) {
+    val upright = decodeUpright(file, maxEdge) ?: return
+    val edge = max(upright.width, upright.height)
+    val scaled = if (edge <= maxEdge) {
+        upright
+    } else {
+        val f = maxEdge.toFloat() / edge
+        Bitmap.createScaledBitmap(upright, (upright.width * f).roundToInt(), (upright.height * f).roundToInt(), true)
+    }
+    var quality = 85
+    var bytes: ByteArray
+    do {
+        val out = ByteArrayOutputStream()
+        scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)
+        bytes = out.toByteArray()
+        quality -= 10
+    } while (bytes.size > maxBytes && quality >= 45)
+    val temp = File(file.path + ".tmp")
+    temp.writeBytes(bytes)
+    if (!temp.renameTo(file)) {
+        file.writeBytes(bytes)
+        temp.delete()
+    }
 }
 
 private fun decodeUpright(file: File, maxSize: Int): Bitmap? {

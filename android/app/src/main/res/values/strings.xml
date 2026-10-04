@@ -158,6 +158,7 @@
     <string name="summary_zone">Zone</string>
     <string name="summary_all_uploaded">Every reading on this phone is uploaded</string>
     <string name="summary_not_uploaded">%1$d readings are still on this phone</string>
+    <string name="summary_photos_waiting">%1$d photos are still on this phone</string>
     <string name="summary_last_upload">Last upload %1$s</string>
     <string name="summary_chart">%1$d meters: %2$d accepted, %3$d being checked, %4$d read again, %5$d visit again, %6$d waiting to upload, %7$d not read</string>
     <string name="upload_now">Upload now (%1$d)</string>
