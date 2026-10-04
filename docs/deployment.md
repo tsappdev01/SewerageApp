@@ -2,7 +2,7 @@
 
 Covers the database, the API and the Android app, in the order they are set up. For a short
 ordered runbook with a check after each step, see `docs/deploy-steps.md`.
-Last checked against the code on 2026-10-04 (API 104 tests passing; app version 0.2.0).
+Last checked against the code on 2026-10-04 (API 118 tests, gateway 30 tests passing; app version 0.3.0).
 
 ---
 
@@ -14,6 +14,7 @@ Last checked against the code on 2026-10-04 (API 104 tests passing; app version 
 | API on a server, with **registered phones** (`Auth__Mode=Device`) | Yes: safe over the internet; each phone has its own key (section 2.11) |
 | Android app (phone lock, supervisor PIN, registration, Settings) | Yes, once it has been built in Android Studio (see 3.1) |
 | Android app for **field use** | Yes, once built and tested on the readers' phones (3.1, 3.6) |
+| **DMZ gateway** (phones on the internet, API and database inside) | Yes (section 2.12, `gateway/README.md`) |
 
 1. **How the server knows who is calling.** The phone opens with its own lock (PIN, pattern, finger
    or face). Each phone is **registered once** with a one-time code from IT and then sends its own
@@ -133,7 +134,8 @@ ALTER DATABASE MRDB MODIFY FILE (NAME = N'MRDB_log', FILEGROWTH = 512MB);
 - Network access to SQL Server (port 1433).
 - A **public HTTPS address** the phones can reach over mobile data, e.g.
   `https://meterreading-api.dubaiinvestments.example`. This needs a proper certificate; phones
-  will not trust a self-signed one. *UAT mode: office network or VPN only, see section 0.*
+  will not trust a self-signed one. When the DMZ cannot reach the database, the public address
+  is the **gateway** in the DMZ and the API stays inside (2.12). *UAT mode: office network or VPN only, see section 0.*
 
 ### 2.2 Build
 
@@ -167,6 +169,9 @@ settings), not in the file.
 | `AzureAd__Audience` | The API's Application ID URI, e.g. `api://meterreading-api` |
 | `ImageStore__Kind` | `Database` (default) |
 | `PmsTransfer__Enabled` | `false` until section 2.6 is done |
+| `Gateway__KnownProxies__0` *(behind the DMZ gateway)* | The gateway's IP. Its `X-Forwarded-For` is used only from this address (2.12). |
+| `Gateway__RequireClientCertificate` | `true` behind the gateway: only the gateway's certificate gets in |
+| `Gateway__ClientCertificateThumbprints__0` | The gateway client certificate's thumbprint |
 
 Other settings (the high-consumption factor, photo limits) have sensible defaults; see
 `api/README.md`.
@@ -295,6 +300,24 @@ guessed quickly.
 
 ---
 
+### 2.12 DMZ gateway (phones on the internet, database inside)
+
+The DMZ has no route to the database, so the API does not go there. Instead a small gateway
+(`gateway/`) runs in the DMZ on 443: it passes on only the app's own requests, with size and
+rate limits, and connects to the internal API with its own client certificate (mutual TLS). It
+has no database and stores nothing. The API accepts only the gateway's certificate and keeps
+checking the phone's key, the reader and every rule.
+
+| From | To | Port | |
+|---|---|---|---|
+| Internet | Gateway | 443 | allow |
+| Gateway | API server | 443 | allow (only this) |
+| API server | UATWEB01 | 1433 | allow |
+| DMZ, Internet | SQL Server, API server | any | **block** |
+
+Certificates, IIS and settings for both servers: `gateway/README.md`. The phones' server address
+(Settings, and `-PapiBaseUrl` in the build) is the **gateway's** public address.
+
 ## 3. Android app
 
 ### 3.1 Build machine (once)
@@ -403,6 +426,9 @@ cd android
 - [ ] Deployed with HTTPS and a trusted certificate; `ASPNETCORE_ENVIRONMENT=Production`,
       `Auth__Mode=Device`; `db/009` run.
 - [ ] `/health/ready` = ready.
+- [ ] If the DMZ cannot reach the database: gateway deployed (2.12), API site needs the gateway's
+      certificate, firewall as in 2.12, and from the internet only `/gateway/health` and the app's
+      calls answer (`/health/ready` is 404).
 - [ ] Transfer into `MaintainMeterReading` either confirmed and on, or knowingly left off.
 
 **App** (blocked until these are built)

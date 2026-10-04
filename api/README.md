@@ -114,6 +114,7 @@ Photos are stored once, never overwritten, in `mr.ReadingImageData` under the na
 | `PmsTransfer:IntervalSeconds`, `BatchSize`, `MaxAttempts` | Every 60 s, up to 100 readings; a reading that failed 10 times is left for someone to look at. |
 | `PmsTransfer:ReadingDateFormat`, `TimeZone`, `MeterStatusMap` | How `ReadingDate` and `MeterStatus` are written (default `yyyy-MM-dd HH:mm:ss` in UAE time; condition codes as they are unless mapped, e.g. `{"WORKING": "Working"}`). |
 | `Auth:Mode` | `Device` (production for the phone app: headers `X-Device-Id`, `X-Device-Key` and `X-Reader`; refusals `DEVICE_NOT_REGISTERED`, `DEVICE_REVOKED`), `Entra`, or `Development` (trusts `X-Dev-User` or `X-Reader`; refused outside Development). |
+| `Gateway:KnownProxies`, `Gateway:RequireClientCertificate`, `Gateway:ClientCertificateThumbprints` | Behind the DMZ gateway (`gateway/README.md`): `X-Forwarded-For` is used only from these IPs (so rate limits count per phone), and with the certificate required every request except `/health/*` needs the gateway's client certificate (`403 GATEWAY_REQUIRED`). Empty/off by default. |
 | `Devices:RegisterPerMinute` | Registration tries per address per minute (default 10). |
 | `AzureAd:*` | Entra tenant and API app registration. |
 

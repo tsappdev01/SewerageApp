@@ -6,6 +6,7 @@ using MeterReading.Api.Domain;
 using MeterReading.Api.Endpoints;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Identity.Web;
 
@@ -17,6 +18,7 @@ builder.Services.Configure<ReadingRulesOptions>(config.GetSection(ReadingRulesOp
 builder.Services.Configure<AuthOptions>(config.GetSection(AuthOptions.Section));
 builder.Services.Configure<ImageStoreOptions>(config.GetSection(ImageStoreOptions.Section));
 builder.Services.Configure<PmsTransferOptions>(config.GetSection(PmsTransferOptions.Section));
+builder.Services.Configure<GatewayTrustOptions>(config.GetSection(GatewayTrustOptions.Section));
 builder.Services.AddScoped<PmsTransferService>();
 builder.Services.AddHostedService<PmsTransferWorker>();
 switch ((config[$"{ImageStoreOptions.Section}:Kind"] ?? "Database").ToUpperInvariant())
@@ -48,6 +50,19 @@ builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
+// DMZ gateway (gateway/): trust its X-Forwarded-For, and optionally require its client certificate.
+var gateway = config.GetSection(GatewayTrustOptions.Section).Get<GatewayTrustOptions>() ?? new GatewayTrustOptions();
+if (gateway.RequireClientCertificate && gateway.ClientCertificateThumbprints.Length == 0)
+    throw new InvalidOperationException("Gateway:RequireClientCertificate is on but Gateway:ClientCertificateThumbprints is empty.");
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    o.ForwardLimit = 1;
+    o.KnownProxies.Clear();
+    o.KnownIPNetworks.Clear(); // only the gateway's own addresses, never a whole network
+    foreach (var address in gateway.KnownProxies) o.KnownProxies.Add(System.Net.IPAddress.Parse(address.Trim()));
+});
+
 var auth = config.GetSection(AuthOptions.Section).Get<AuthOptions>() ?? new AuthOptions();
 if (string.Equals(auth.Mode, "Development", StringComparison.OrdinalIgnoreCase))
 {
@@ -78,6 +93,9 @@ _ = app.Services.GetRequiredService<SqlConnectionFactory>();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+// The phone's address from the gateway, before the rate limiter counts per address.
+if (gateway.KnownProxies.Length > 0) app.UseForwardedHeaders();
+if (gateway.RequireClientCertificate) app.UseMiddleware<GatewayCertificateCheck>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();

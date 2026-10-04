@@ -5,8 +5,12 @@ there read `PropertyManagementSystem`), the API on IIS, phones registered with t
 Each step ends with a **Check**. Details and reasons are in `docs/deployment.md` (section numbers
 in brackets).
 
-Who does what: **DBA** (parts A, E), **IT / web server admin** (part B), **developer** (part C),
+Who does what: **DBA** (parts A, E), **IT / web server admin** (parts B, B+), **developer** (part C),
 **IT and supervisors** (part D).
+
+**Where does the API go?** If the phones' public address can be on a server that reaches
+UATWEB01, do part B only. If the internet-facing server is in a **DMZ without database access**,
+do part B on an *internal* server and then part **B+** (the gateway in the DMZ).
 
 ---
 
@@ -94,6 +98,38 @@ to read that folder.
   the Windows Event Log (Application).
 - `https://<address>/api/v1/me` → `403` with `"code":"DEVICE_NOT_REGISTERED"`. This is correct: only
   registered phones get in.
+
+---
+
+## Part B+ — DMZ gateway (IT; only when the DMZ cannot reach the database)
+
+Full detail, with the PowerShell for the certificates: `gateway/README.md`.
+
+**B+1. Certificates.** Public certificate for the phones' address on the gateway server; a
+**gateway client certificate** in the gateway server's `LocalMachine\My` (note its thumbprint, give
+`IIS AppPool\MeterReadingGateway` read access to its key); its public part trusted on the API server.
+
+**B+2. Build:** `dotnet publish gateway\src\MeterReading.Gateway -c Release -o publish-gateway`.
+Copy to the DMZ server, new pool `MeterReadingGateway` (*No Managed Code*), site with https 443.
+
+**B+3. Gateway settings** (Configuration Editor → environmentVariables): `ASPNETCORE_ENVIRONMENT` =
+`Production`, `Gateway__ApiBaseUrl` = the internal API's https address,
+`Gateway__ClientCertificate__Thumbprint` = the client certificate's thumbprint, optionally
+`Gateway__ApiCertificateThumbprint` = the API certificate's thumbprint.
+
+**B+4. API settings** (add to B6): `Gateway__KnownProxies__0` = the gateway's IP,
+`Gateway__RequireClientCertificate` = `true`, `Gateway__ClientCertificateThumbprints__0` = the
+client certificate's thumbprint. API site → **SSL Settings** → Client certificates **Accept** (or
+**Require**). Recycle both pools.
+
+**B+5. Firewall:** Internet → gateway 443; gateway → API 443 only; API → UATWEB01 1433; nothing
+from the DMZ or internet to SQL Server or the API.
+
+- **Check** from outside: `https://<public>/gateway/health` → live; `https://<public>/health/live` →
+  live; `https://<public>/health/ready` → 404; `https://<public>/api/v1/me` → `403
+  DEVICE_NOT_REGISTERED`. From an office PC straight to the API's `/api/v1/me` → refused or `403
+  GATEWAY_REQUIRED`.
+- In part C and D the **server address is the gateway's public address**.
 
 ---
 

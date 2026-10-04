@@ -33,6 +33,14 @@ never run outside development.
   stored first and its photos follow one by one, checked against their SHA-256.
 - `dotnet test api/MeterReading.slnx` needs SQL Server prepared as in `api/README.md`.
 
+## Gateway (`gateway/`)
+
+- The DMZ's only piece: YARP, no database, stores nothing. The routes it passes on are a fixed
+  list in `Routes.cs`; a new app endpoint must be added there (and tested) or phones get 404.
+- It strips `X-Dev-User` and forwarding headers and sets its own `X-Forwarded-For`; the API trusts
+  that only from `Gateway:KnownProxies` and can require the gateway's client certificate.
+- `dotnet test gateway/MeterReading.Gateway.slnx` needs no database.
+
 ## Android (`android/`)
 
 - Plain, short English; every screen has a read-aloud line (`speak_*` strings).

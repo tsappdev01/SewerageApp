@@ -94,3 +94,24 @@ public sealed class PmsTransferOptions
     /// <summary>App condition code to the MeterStatus text the table uses, e.g. WORKING → Working. Unmapped codes are copied as they are.</summary>
     public Dictionary<string, string> MeterStatusMap { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
+
+/// <summary>
+/// The DMZ gateway in front of the API (gateway/ project, docs/deployment.md "DMZ gateway").
+/// Section "Gateway" in appsettings.json or Gateway__* environment variables.
+/// </summary>
+public sealed class GatewayTrustOptions
+{
+    public const string Section = "Gateway";
+
+    /// <summary>
+    /// The gateway's IP addresses. Only requests from these may say, in X-Forwarded-For, which phone
+    /// they come from; then rate limits count per phone, not per gateway. Empty: the header is ignored.
+    /// </summary>
+    public string[] KnownProxies { get; set; } = [];
+
+    /// <summary>Refuse every request (except /health/*) that does not come with one of <see cref="ClientCertificateThumbprints"/>.</summary>
+    public bool RequireClientCertificate { get; set; }
+
+    /// <summary>Thumbprints of the gateway's client certificate(s); two during a certificate change.</summary>
+    public string[] ClientCertificateThumbprints { get; set; } = [];
+}

@@ -9,6 +9,7 @@ readings to billing.
 | [`docs/`](docs) | [Specification](docs/spec.md), [source view contract](docs/source-views.md), [readings table](docs/readings-table.md), [screen mock](docs/meter-reader-mock.html), [deployment guide](docs/deployment.md), [step-by-step deploy](docs/deploy-steps.md), the Dubai Investments Park logo |
 | [`api/`](api) | .NET 10 Web API. Reads master data from SQL Server views, stores readings in its own `mr` tables. See [api/README.md](api/README.md). |
 | [`db/`](db) | SQL scripts, numbered in run order. `db/dev/` is test data, development only. |
+| [`gateway/`](gateway) | DMZ gateway on 443: passes the app's requests to the internal API; no database. See [gateway/README.md](gateway/README.md). |
 | [`android/`](android) | Meter Reader app, Kotlin and Jetpack Compose. See [android/README.md](android/README.md). |
 
 ## Status
@@ -17,7 +18,9 @@ readings to billing.
   photos stored in the database); copy of accepted readings into `MaintainMeterReading`
   (off until switched on, see [docs/readings-table.md](docs/readings-table.md#copying-readings-into-maintainmeterreading));
   the reader checks the property's tenant before every reading is saved (spec FR-006.12);
-  115 tests against SQL Server 2022. Work is not assigned.
+  118 tests against SQL Server 2022. Work is not assigned.
+- **DMZ gateway:** YARP reverse proxy for a DMZ without database access: fixed list of the app's
+  requests, size and rate limits, mutual TLS to the API (which then accepts only the gateway); 30 tests.
 - **Android:** all reader screens, connected to the API; opens with the phone's own lock (PIN,
   pattern, finger or face) as the reader set in Settings; each phone registered with its own key;
   Settings (gear) behind a supervisor PIN;

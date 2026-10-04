@@ -1036,6 +1036,10 @@ Each has a proposed default that development can use now. Resolve each with an A
 | INTEGRITY_FAILED | 403 | Play Integrity failed | Block |
 | APP_VERSION_UNSUPPORTED | 426 | Update required | Prompt update |
 | RATE_LIMITED | 429 | Too many requests | Back off per `Retry-After` |
+| REQUEST_TOO_LARGE | 413 | Body above the DMZ gateway's limit | Shrink and retry |
+| API_UNAVAILABLE | 502/504 | DMZ gateway cannot reach the internal API | Keep the queue; retry later |
+| GATEWAY_REQUIRED | 403 | Internal API called without the gateway's certificate | Configuration fault: use the gateway's address |
+| NOT_FOUND / METHOD_NOT_ALLOWED | 404/405 | Not one of the app's requests (DMZ gateway) | Log as defect |
 | READER_NOT_FOUND | 403 | Signed-in user is not an active reader in vw_MR_Reader | Show "ask your supervisor" |
 | LOGIN_NOT_UNIQUE | 409 | Two active readers share the sign-in name in vw_MR_Reader | Show "ask your supervisor" |
 | NO_OPEN_PERIOD | 409 | No reading period is open | Show "ask your supervisor" |

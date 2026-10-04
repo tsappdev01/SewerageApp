@@ -1,0 +1,28 @@
+# DMZ gateway: build and test on every change to gateway/ (no database needed).
+name: Gateway
+
+on:
+  push:
+    paths:
+      - "gateway/**"
+      - "!gateway/**/*.md"
+      - ".github/workflows/gateway.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - run: dotnet test gateway/MeterReading.Gateway.slnx -c Release
+      - run: dotnet publish gateway/src/MeterReading.Gateway -c Release -o publish-gateway
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meterreading-gateway
+          path: publish-gateway
