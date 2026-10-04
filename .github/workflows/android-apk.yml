@@ -1,0 +1,108 @@
+# Builds the Meter Reader app and attaches the APK to a GitHub Release (Releases page of this repo).
+# Runs on every push that changes android/, or by hand (Actions → Android APK → Run workflow).
+#
+# The debug APK is signed with a throw-away debug key: fine for testing, installable by copying it to
+# a phone. For a release APK signed with your own key, add these repository secrets (Settings →
+# Secrets and variables → Actions): ANDROID_KEYSTORE_BASE64 (the .jks file, base64), ANDROID_KEYSTORE_PASSWORD,
+# ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD. Optional repository variables: MR_API_URL (server address
+# built in as the first value) and MR_SETTINGS_PIN (first supervisor PIN).
+name: Android APK
+
+on:
+  push:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-apk.yml'
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: 'Server address built in as the first value, e.g. https://meterreading.example/ (can be changed in Settings)'
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    env:
+      API_URL: ${{ inputs.api_base_url || vars.MR_API_URL || '' }}
+      SETTINGS_PIN: ${{ vars.MR_SETTINGS_PIN || '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build settings
+        run: |
+          ARGS=""
+          if [ -n "$API_URL" ]; then ARGS="$ARGS -PapiBaseUrl=$API_URL"; fi
+          if [ -n "$SETTINGS_PIN" ]; then ARGS="$ARGS -PsettingsPin=$SETTINGS_PIN"; fi
+          echo "GRADLE_ARGS=$ARGS" >> "$GITHUB_ENV"
+          VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Unit tests
+        run: ./gradlew --no-daemon --stacktrace testDebugUnitTest
+
+      - name: Build debug APK
+        run: ./gradlew --no-daemon --stacktrace assembleDebug $GRADLE_ARGS
+
+      - name: Build release APK signed with your key (only when the signing secrets are set)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "No signing secrets: only the debug APK is built."
+            exit 0
+          fi
+          ./gradlew --no-daemon --stacktrace assembleRelease $GRADLE_ARGS
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BUILD_TOOLS/apksigner" sign --ks "$RUNNER_TEMP/release.jks" --ks-pass env:KEYSTORE_PASSWORD \
+            --ks-key-alias "$KEY_ALIAS" --key-pass env:KEY_PASSWORD \
+            --out "app/build/outputs/apk/release/MeterReading-$APP_VERSION.apk" app/build/outputs/apk/release/app-release-unsigned.apk
+          "$BUILD_TOOLS/apksigner" verify "app/build/outputs/apk/release/MeterReading-$APP_VERSION.apk"
+          rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Name the APK
+        run: |
+          mkdir -p "$RUNNER_TEMP/apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/apk/MeterReading-$APP_VERSION-build${{ github.run_number }}-debug.apk"
+          cp app/build/outputs/apk/release/MeterReading-*.apk "$RUNNER_TEMP/apk/" 2>/dev/null || true
+          ls -l "$RUNNER_TEMP/apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MeterReading-${{ env.APP_VERSION }}-build${{ github.run_number }}
+          path: ${{ runner.temp }}/apk/*.apk
+
+      - name: Publish on the Releases page
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-v${{ env.APP_VERSION }}-build${{ github.run_number }}
+          name: Meter Reader app ${{ env.APP_VERSION }} (build ${{ github.run_number }})
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          files: ${{ runner.temp }}/apk/*.apk
+          body: |
+            Built from `${{ github.ref_name }}` at ${{ github.sha }}.
+            **Debug APK**: signed with a test key, for trying the app. Copy it to an Android 10+ phone and open it
+            (allow installing from that app when asked). The server address and reader are set in the app's
+            Settings (gear → supervisor PIN; the first person to open Settings sets the PIN).
+            For phones in the field use a release APK signed with your own key (see docs/deploy-steps.md, part C).
