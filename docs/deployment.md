@@ -26,8 +26,8 @@ Last checked against the code on 2026-10-04 (API 104 tests passing; app version 
    or restarting the phone. When signal is back the phone asks the reader **Send now** or **Later**
    (a notification if the app is closed); Later asks again after 30 minutes.
 
-Also: the app has **not yet been built with the Android SDK**. Expect small compile fixes the
-first time it is opened in Android Studio.
+The app builds on GitHub Actions and the APK is on the repository's Releases page; it has not
+yet been tried on a real phone.
 
 ---
 

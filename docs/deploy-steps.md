@@ -101,8 +101,12 @@ to read that folder.
 
 **C1. Build machine.** Install **Android Studio** (current stable) with **Android SDK 35**. Open the
 `android` folder and let Gradle sync.
-- The app has **never been built with the Android SDK**. Fix any compile errors on this first
-  sync before going on.
+- The same code builds on GitHub Actions (first build 2026-10-04 passed), so a failing sync here is
+  almost always the network or proxy (`docs/deployment.md` 3.1), not the code.
+- **No Android Studio at hand?** The workflow `.github/workflows/android-apk.yml` builds the APK on
+  every push and attaches it to the repository's **Releases** page. With the signing secrets set
+  (see the comment at the top of the workflow) it also produces the signed release APK, so C3–C5
+  can be done there instead.
 - **Check:** *Build → Make Project* succeeds.
 
 **C2. Tests.** In the Android Studio terminal: `.\gradlew test`.

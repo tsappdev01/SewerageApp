@@ -150,8 +150,8 @@ The capture steps for each meter condition come from `data/StatusRules.kt`, whic
 
 ## Build status
 
-The project was written in an environment without the Android SDK, so it has **not been
-compiled for Android yet**; expect small compile fixes on first sync. The plain-Kotlin parts
-(`data/`, `api/`, `util/Format.kt`) compile and their 66 unit tests pass on the JVM, including
-the repository against a scripted server (MockWebServer) and, with `MR_API_URL` set, against
-the running API.
+**GitHub Actions builds the app** (`.github/workflows/android-apk.yml`): on every push that changes
+code under `android/` it runs the unit tests (70; the live-API ones skip), builds the debug APK and
+attaches it to a pre-release on the repository's **Releases** page. With the signing secrets set it
+also builds the release APK signed with your key. First build: 2026-10-04, passed. The app has not
+yet been run on a real phone; that is the next check (`docs/deploy-steps.md`, C6 and D).

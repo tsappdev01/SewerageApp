@@ -12,6 +12,7 @@ on:
   push:
     paths:
       - 'android/**'
+      - '!android/**/*.md'
       - '.github/workflows/android-apk.yml'
   workflow_dispatch:
     inputs:
