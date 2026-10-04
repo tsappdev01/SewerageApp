@@ -79,9 +79,11 @@ views and a test `MaintainMeterReading`.
 
 ### 1.4 The API's SQL login
 
-Create one login for the API, used by nothing else (a SQL login, or the IIS app pool's Windows
-account), then run **`db/008_grant_api_login.sql`** in the database that holds schema `mr`
-after setting `@Login` at the top. It is re-runnable and grants only:
+The API uses one SQL login, **`mr_api`**, for every database action, and nothing else uses it.
+Run **`db/008_create_api_login.sql`** in **MRDB** after setting `@Password` at the top (12+
+characters; never save it in the file). It creates the login if it is missing (an existing one
+keeps its password), creates its users, and grants only what is listed below. Re-runnable. For a
+Windows-only server, set `@WindowsLogin` to the app pool's account instead.
 
 | Where | What |
 |---|---|
@@ -150,7 +152,7 @@ settings), not in the file.
 | Environment variable | Production value |
 |---|---|
 | `ASPNETCORE_ENVIRONMENT` | `Production` |
-| `ConnectionStrings__MeterReading` | Database with schema `mr`, e.g. `Server=SQL01;Database=PropertyManagementSystem;User Id=mr_api;Password=…;Encrypt=True;TrustServerCertificate=False` |
+| `ConnectionStrings__MeterReading` | `Server=UATWEB01;Database=MRDB;User Id=mr_api;Password=<mr_api's password>;Encrypt=True;TrustServerCertificate=True;Application Name=MeterReadingApi`. `appsettings.json` has the same string with `Password=SET_ON_SERVER`; the API refuses to start until this variable gives the real password. Use `TrustServerCertificate=False` once SQL Server has a certificate the web server trusts. |
 | `ConnectionStrings__Source` | Database with the views. **Leave empty** if it is the same database. |
 | `SourceViews__Schema` | `dbo` |
 | `Auth__Mode` | `Entra` |
@@ -367,7 +369,7 @@ cd android
 - [ ] Each meter's real `RegisterDigits` and `DecimalDigits` provided.
 
 **Database**
-- [ ] Scripts `002`–`007` run; `mr_api` login with the grants in 1.4; backups include `mr`.
+- [ ] Scripts `002`–`008` run in MRDB; `mr_api`'s password set in `ConnectionStrings__MeterReading`; backups include `mr`.
 - [ ] Database has room for photos (1.5).
 
 **API**

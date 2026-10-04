@@ -18,6 +18,11 @@ public sealed partial class SqlConnectionFactory
     {
         _meterReading = configuration.GetConnectionString("MeterReading")
             ?? throw new InvalidOperationException("ConnectionStrings:MeterReading is not set.");
+        // The real password is never in appsettings.json; it is set on the server (docs/deployment.md 2.3).
+        if (_meterReading.Contains("SET_ON_SERVER", StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                "ConnectionStrings:MeterReading still has the placeholder password. Set the environment variable " +
+                "ConnectionStrings__MeterReading on the server with mr_api's real password (db/008_create_api_login.sql).");
         _source = configuration.GetConnectionString("Source") is { Length: > 0 } source ? source : _meterReading;
 
         var schema = views.Value.Schema;
