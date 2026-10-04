@@ -144,8 +144,11 @@ SELECT v.* FROM (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM devsrc.ReadingHistory h WHERE h.MeterId = v.MeterId AND h.PeriodCode = v.PeriodCode);
 GO
 
+/* Like the real view: IsActive is MaintainUser.Active, text Y/N rather than a bit. */
 CREATE OR ALTER VIEW dbo.vw_MR_Reader AS
-SELECT ReaderId AS UserId, LoginEmail, DisplayName, TeamCode, SupervisorEmail, IsActive FROM devsrc.Reader;
+SELECT ReaderId AS UserId, LoginEmail, DisplayName, TeamCode, SupervisorEmail,
+       CAST(CASE WHEN IsActive = 1 THEN 'Y' ELSE 'N' END AS varchar(1)) AS IsActive
+FROM devsrc.Reader;
 GO
 CREATE OR ALTER VIEW dbo.vw_MR_Zone AS
 SELECT ZoneCode, ZoneName + ' ' AS ZoneName, CAST(IsActive AS varchar(1)) AS IsActive FROM devsrc.Zone;

@@ -34,7 +34,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                    CAST(DisplayName AS nvarchar(100)) AS DisplayName, CAST(TeamCode AS varchar(20)) AS TeamCode,
                    CAST(SupervisorEmail AS nvarchar(256)) AS SupervisorEmail
             FROM {_v.Reader}
-            WHERE CAST(LoginEmail AS nvarchar(256)) COLLATE DATABASE_DEFAULT = @loginEmail AND IsActive = 1
+            WHERE CAST(LoginEmail AS nvarchar(256)) COLLATE DATABASE_DEFAULT = @loginEmail AND {Active("IsActive")}
             """;
         await using var c = await db.OpenSourceAsync(ct);
         return (await c.QueryAsync<ReaderRow>(Cmd(sql, new { loginEmail }, ct))).AsList();
@@ -97,8 +97,8 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             FROM {_v.Meter} m
             JOIN {_v.Property} p ON p.PropertyCode = m.PropertyCode
             LEFT JOIN {_v.Zone} z ON z.ZoneCode = p.ZoneCode
-            WHERE UPPER(CAST(m.Status AS varchar(10))) IN ('1', 'TRUE', 'ACTIVE')
-              AND p.IsActive = 1 AND ISNULL(z.IsActive, 1) = 1
+            WHERE {Active("m.Status")}
+              AND {Active("p.IsActive")} AND (z.IsActive IS NULL OR {Active("z.IsActive")})
               {zoneClause}
               {idClause}
             """;
@@ -108,10 +108,27 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             ids = JsonSerializer.Serialize(filter.MeterIds ?? []),
         };
         await using var c = await db.OpenSourceAsync(ct);
-        // A property with two tenant rows appears twice in vw_MR_Property, and so would its meters:
-        // keep the first row per meter (the view checker reports the duplicate property).
-        return (await c.QueryAsync<MeterRow>(Cmd(sql, args, ct))).DistinctBy(r => r.MeterId, StringComparer.Ordinal).ToList();
+        return OnePerBarcode(await c.QueryAsync<MeterRow>(Cmd(sql, args, ct)));
     }
+
+    /// <summary>
+    /// One row per barcode. A property with two tenant rows appears twice in vw_MR_Property, and so
+    /// do its meters: same meter, so the first row is kept. A barcode on <em>different</em> meters
+    /// (another meter number or property) is left out altogether, so a reading can never be stored
+    /// against the wrong meter; db/001 lists them for fixing in PMS.
+    /// </summary>
+    public static List<MeterRow> OnePerBarcode(IEnumerable<MeterRow> rows) =>
+        rows.GroupBy(r => r.MeterId, StringComparer.Ordinal)
+            .Where(g => g.Select(r => (r.MeterNumber, r.PropertyCode)).Distinct().Count() == 1)
+            .Select(g => g.First())
+            .ToList();
+
+    /// <summary>
+    /// SQL that is true when a source flag means active. The views pass their own codes through:
+    /// a bit, 1/0, True/False, Y/N or ACTIVE/INACTIVE, as number or text.
+    /// </summary>
+    private static string Active(string column) =>
+        $"UPPER(LTRIM(RTRIM(CAST({column} AS varchar(10))))) IN ('1', 'TRUE', 'T', 'Y', 'YES', 'ACTIVE')";
 
     /// <summary>Average of the last N actual consumptions, for meters the source gave no average for (BR-007).</summary>
     public async Task<IReadOnlyDictionary<string, decimal>> GetHistoryAveragesAsync(IReadOnlyCollection<string> meterIds, int periods, CancellationToken ct)

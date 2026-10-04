@@ -88,4 +88,25 @@ public class RulesTests
         Assert.Equal(0, s.ReadByYou);
         Assert.Null(s.LastReceivedUtc);
     }
+
+    private static MeterRow Row(string id, string number, string property) => new() { MeterId = id, MeterNumber = number, PropertyCode = property };
+
+    [Fact]
+    public void The_same_meter_listed_twice_is_kept_once()
+    {
+        // A property with two tenant rows repeats its meters.
+        var rows = MeterReadingRepository.OnePerBarcode([Row("BC1", "0001", "598-903"), Row("BC1", "0001", "598-903"), Row("BC2", "0002", "598-903")]);
+        Assert.Equal(["BC1", "BC2"], rows.Select(r => r.MeterId));
+    }
+
+    [Fact]
+    public void A_barcode_on_different_meters_is_left_out_so_no_reading_goes_to_the_wrong_meter()
+    {
+        var rows = MeterReadingRepository.OnePerBarcode([
+            Row("I-2208-0001", "0001", "598-903"), Row("I-2208-0001", "0001", "598-905"),
+            Row("I-2208-0002", "0002", "598-903"), Row("I-2208-0002", "0003", "598-903"),
+            Row("BC3", "0003", "598-903"),
+        ]);
+        Assert.Equal(["BC3"], rows.Select(r => r.MeterId));
+    }
 }

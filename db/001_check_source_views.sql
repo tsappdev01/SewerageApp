@@ -75,21 +75,24 @@ ORDER BY e.ViewName, e.ColumnName;
 DECLARE @Checks TABLE (CheckName nvarchar(200), View1 sysname, View2 sysname NULL, Query nvarchar(max));
 INSERT @Checks VALUES
  (N'Duplicate UserId', N'vw_MR_Reader', NULL, N'SELECT @n = COUNT(*) FROM (SELECT UserId FROM {s}.vw_MR_Reader GROUP BY UserId HAVING COUNT(*) > 1) d'),
- (N'Active readers sharing a LoginEmail (they cannot sign in; listed in result 3)', N'vw_MR_Reader', NULL, N'SELECT @n = ISNULL(SUM(c), 0) FROM (SELECT COUNT(*) c FROM {s}.vw_MR_Reader WHERE IsActive = 1 GROUP BY CAST(LoginEmail AS nvarchar(256)) COLLATE DATABASE_DEFAULT HAVING COUNT(*) > 1) d'),
- (N'Reader without LoginEmail', N'vw_MR_Reader', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Reader WHERE IsActive = 1 AND (LoginEmail IS NULL OR LoginEmail NOT LIKE ''%_@_%'')'),
+ (N'Active readers sharing a LoginEmail (they cannot sign in; listed in result 3)', N'vw_MR_Reader', NULL, N'SELECT @n = ISNULL(SUM(c), 0) FROM (SELECT COUNT(*) c FROM {s}.vw_MR_Reader WHERE UPPER(LTRIM(RTRIM(CAST(IsActive AS varchar(10))))) IN (''1'', ''TRUE'', ''T'', ''Y'', ''YES'', ''ACTIVE'') GROUP BY CAST(LoginEmail AS nvarchar(256)) COLLATE DATABASE_DEFAULT HAVING COUNT(*) > 1) d'),
+ (N'Reader without LoginEmail', N'vw_MR_Reader', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Reader WHERE UPPER(LTRIM(RTRIM(CAST(IsActive AS varchar(10))))) IN (''1'', ''TRUE'', ''T'', ''Y'', ''YES'', ''ACTIVE'') AND (LoginEmail IS NULL OR LoginEmail NOT LIKE ''%_@_%'')'),
+ (N'vw_MR_Reader.IsActive value not understood (read as inactive; use 1/0, Y/N, True/False)', N'vw_MR_Reader', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Reader WHERE UPPER(LTRIM(RTRIM(CAST(IsActive AS varchar(10))))) NOT IN (''1'', ''TRUE'', ''T'', ''Y'', ''YES'', ''ACTIVE'', ''0'', ''FALSE'', ''F'', ''N'', ''NO'', ''INACTIVE'') OR IsActive IS NULL'),
+ (N'vw_MR_Zone.IsActive value not understood (read as inactive; use 1/0, Y/N, True/False)', N'vw_MR_Zone', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Zone WHERE UPPER(LTRIM(RTRIM(CAST(IsActive AS varchar(10))))) NOT IN (''1'', ''TRUE'', ''T'', ''Y'', ''YES'', ''ACTIVE'', ''0'', ''FALSE'', ''F'', ''N'', ''NO'', ''INACTIVE'') OR IsActive IS NULL'),
+ (N'vw_MR_Property.IsActive value not understood (read as inactive; use 1/0, Y/N, True/False)', N'vw_MR_Property', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Property WHERE UPPER(LTRIM(RTRIM(CAST(IsActive AS varchar(10))))) NOT IN (''1'', ''TRUE'', ''T'', ''Y'', ''YES'', ''ACTIVE'', ''0'', ''FALSE'', ''F'', ''N'', ''NO'', ''INACTIVE'') OR IsActive IS NULL'),
  (N'Duplicate ZoneCode', N'vw_MR_Zone', NULL, N'SELECT @n = COUNT(*) FROM (SELECT ZoneCode FROM {s}.vw_MR_Zone GROUP BY ZoneCode HAVING COUNT(*) > 1) d'),
  (N'Duplicate PropertyCode (e.g. two tenant rows; the API keeps the first)', N'vw_MR_Property', NULL, N'SELECT @n = COUNT(*) FROM (SELECT PropertyCode FROM {s}.vw_MR_Property GROUP BY PropertyCode HAVING COUNT(*) > 1) d'),
  (N'Property without CompanyName (the phone shows the code instead)', N'vw_MR_Property', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Property WHERE CompanyName IS NULL OR LTRIM(CompanyName) = '''''),
  (N'Property with unknown ZoneCode', N'vw_MR_Property', N'vw_MR_Zone', N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Property p WHERE NOT EXISTS (SELECT 1 FROM {s}.vw_MR_Zone z WHERE z.ZoneCode = p.ZoneCode)'),
  (N'Latitude or Longitude not a number', N'vw_MR_Property', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Property WHERE (Latitude IS NOT NULL AND TRY_CAST(Latitude AS decimal(9,6)) IS NULL) OR (Longitude IS NOT NULL AND TRY_CAST(Longitude AS decimal(9,6)) IS NULL)'),
- (N'Property with no current tenant in vw_MR_Tenant (its readings are refused: NO_TENANT)', N'vw_MR_Property', N'vw_MR_Tenant', N'SELECT @n = COUNT(*) FROM (SELECT DISTINCT p.PropertyCode FROM {s}.vw_MR_Property p WHERE p.IsActive = 1 AND NOT EXISTS (SELECT 1 FROM {s}.vw_MR_Tenant t WHERE t.PropertyCode = p.PropertyCode)) d'),
+ (N'Property with no current tenant in vw_MR_Tenant (its readings are refused: NO_TENANT)', N'vw_MR_Property', N'vw_MR_Tenant', N'SELECT @n = COUNT(*) FROM (SELECT DISTINCT p.PropertyCode FROM {s}.vw_MR_Property p WHERE UPPER(LTRIM(RTRIM(CAST(p.IsActive AS varchar(10))))) IN (''1'', ''TRUE'', ''T'', ''Y'', ''YES'', ''ACTIVE'') AND NOT EXISTS (SELECT 1 FROM {s}.vw_MR_Tenant t WHERE t.PropertyCode = p.PropertyCode)) d'),
  (N'Properties with more than one current tenant (the reader picks one)', N'vw_MR_Tenant', NULL, N'SELECT @n = COUNT(*) FROM (SELECT PropertyCode FROM {s}.vw_MR_Tenant GROUP BY PropertyCode HAVING COUNT(DISTINCT TenantCode) > 1) d'),
  (N'Tenant row without TenantCode', N'vw_MR_Tenant', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Tenant WHERE TenantCode IS NULL OR LTRIM(TenantCode) = '''''),
  (N'Meter without MeterId (barcode)', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter WHERE MeterId IS NULL OR LTRIM(CAST(MeterId AS varchar(50))) = '''''),
- (N'Duplicate MeterId (barcode); listed in result 3', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM (SELECT MeterId FROM {s}.vw_MR_Meter WHERE MeterId IS NOT NULL GROUP BY MeterId HAVING COUNT(*) > 1) d'),
+ (N'Duplicate MeterId (barcode): on different meters the API leaves them out; listed in result 3', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM (SELECT MeterId FROM {s}.vw_MR_Meter WHERE MeterId IS NOT NULL GROUP BY MeterId HAVING COUNT(*) > 1) d'),
  (N'MeterId longer than 50 characters', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter WHERE LEN(CAST(MeterId AS varchar(60))) > 50'),
  (N'MeterType not starting with I (irrigation) or S (sewerage)', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter WHERE UPPER(LEFT(LTRIM(CAST(MeterType AS varchar(20))), 1)) NOT IN (''I'', ''S'') OR MeterType IS NULL'),
- (N'Meter Status not 1/0, True/False or ACTIVE/INACTIVE', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter WHERE UPPER(CAST(Status AS varchar(10))) NOT IN (''1'', ''0'', ''TRUE'', ''FALSE'', ''ACTIVE'', ''INACTIVE'') OR Status IS NULL'),
+ (N'Meter Status not 1/0, Y/N, True/False or ACTIVE/INACTIVE', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter WHERE UPPER(LTRIM(RTRIM(CAST(Status AS varchar(10))))) NOT IN (''1'', ''TRUE'', ''T'', ''Y'', ''YES'', ''ACTIVE'', ''0'', ''FALSE'', ''F'', ''N'', ''NO'', ''INACTIVE'') OR Status IS NULL'),
  (N'RegisterDigits not between 1 and 10', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter WHERE RegisterDigits NOT BETWEEN 1 AND 10 OR RegisterDigits IS NULL'),
  (N'Meter with unknown PropertyCode', N'vw_MR_Meter', N'vw_MR_Property', N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter m WHERE NOT EXISTS (SELECT 1 FROM {s}.vw_MR_Property p WHERE p.PropertyCode = m.PropertyCode)'),
  (N'Negative OpeningReading', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter WHERE OpeningReading < 0'),
@@ -138,7 +141,7 @@ BEGIN TRY
     SET @q = REPLACE(N'
         SELECT N''Shared LoginEmail'', CAST(LoginEmail AS nvarchar(256)) COLLATE DATABASE_DEFAULT, COUNT(*),
                STRING_AGG(CAST(CAST(UserId AS varchar(50)) + N'' '' + ISNULL(CAST(DisplayName AS nvarchar(100)), N'''') AS nvarchar(max)), N'', '')
-        FROM {s}.vw_MR_Reader WHERE IsActive = 1
+        FROM {s}.vw_MR_Reader WHERE UPPER(LTRIM(RTRIM(CAST(IsActive AS varchar(10))))) IN (''1'', ''TRUE'', ''T'', ''Y'', ''YES'', ''ACTIVE'')
         GROUP BY CAST(LoginEmail AS nvarchar(256)) COLLATE DATABASE_DEFAULT HAVING COUNT(*) > 1', N'{s}', QUOTENAME(@Schema));
     INSERT @Rows EXEC sp_executesql @q;
 END TRY

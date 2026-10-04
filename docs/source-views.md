@@ -27,7 +27,7 @@ lists missing columns and wrong types; result 2 lists data problems and notes, w
 | DisplayName | text | Shown on the phone: "Hello, …". |
 | TeamCode | text | `RoleCode`. |
 | SupervisorEmail | text | |
-| IsActive | 1/0 | Only `1` can sign in. |
+| IsActive | flag | Active when `1`, `Y`, `Yes`, `True`, `T` or `Active` (number or text; `MaintainUser.Active` is fine as it is). Anything else cannot sign in. |
 
 ## 2. `vw_MR_Zone`
 
@@ -35,7 +35,7 @@ lists missing columns and wrong types; result 2 lists data problems and notes, w
 |---|---|---|
 | **ZoneCode** | text, key | `597`, `598`. |
 | ZoneName | text | Trailing spaces are trimmed. |
-| IsActive | 1/0 | |
+| IsActive | flag | As for readers. |
 
 ## 3. `vw_MR_Property`
 
@@ -47,7 +47,7 @@ lists missing columns and wrong types; result 2 lists data problems and notes, w
 | ZoneCode | text | Must exist in `vw_MR_Zone`. |
 | RouteSequence | int | Walking order; the API sorts by it. |
 | Latitude, Longitude | number | A value that is not a number is read as empty. |
-| IsActive | 1/0 | `Billable`. Only `1` is listed. |
+| IsActive | flag | `Billable`. Only active values (as for readers) are listed. |
 | TenantCode | text | From `MaintainTransactionKeys`. |
 | CompanyName | text | The tenant's company (`MaintainTenant.CompanyName`). **Shown on the phone under the property code**, and searchable in Find a Property. If empty, the phone shows `PropertyName`. |
 
@@ -57,7 +57,7 @@ One row per meter.
 
 | Column | Read as | Notes |
 |---|---|---|
-| **MeterId** | text, key (max 50) | `Barcode`. Must be unique and never change: readings are stored against it. |
+| **MeterId** | text, key (max 50) | `Barcode`. Must be unique and never change: readings are stored against it. **A barcode on two different meters (other meter number or property) is left out by the API** so no reading can go to the wrong meter; `db/001` result 3 lists them. The same meter repeated (property with two tenant rows) is fine. |
 | MeterNumber | text | |
 | PropertyCode | text | Must exist in `vw_MR_Property`. |
 | MeterType | text | First letter `I` = irrigation, `S` = sewerage; anything else is reported by the checker. |
@@ -69,7 +69,7 @@ One row per meter.
 | InstallDate | date | |
 | SerialNumber | text | |
 | RouteSequence | int | Order of meters inside the property. |
-| Status | 1/0 | `1`, `True` or `ACTIVE` is active; anything else is left out. |
+| Status | flag | `1`, `Y`, `True` or `ACTIVE` is active; anything else is left out. |
 
 ## 5. `vw_MR_ReadingPeriod`
 
@@ -143,6 +143,11 @@ a meter read by anyone shows as done for everyone. Readers choose zones on the p
 8. **`vw_MR_Tenant` and `vw_MR_Property` can disagree**: the tenant view leaves out `TranCode`s with
    a dash, the property view does not. A property shown on the phone with no current tenant cannot
    be read (`NO_TENANT`); `db/001` lists how many. Confirm which tenant rows are current.
+9. **Shared barcodes**: on UAT (2026-10-04) `I-2208-0001` and `S-2208-0001` are each the `Barcode`
+   of 4 different meters (meter `0001` at several properties). Those meters cannot be read until
+   each has its own barcode. `db/001` result 3 lists them.
+10. **597 meters have `OpeningReading` 0** on UAT: they are treated as never read (no "much bigger
+   than usual" warning; the first reading counts in full). Confirm they really have no billed reading.
 
 ## What the API stores itself (schema `mr`)
 
