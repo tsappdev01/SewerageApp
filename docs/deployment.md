@@ -1,0 +1,352 @@
+# Deployment guide — Meter Reading API and Android app
+
+Covers the database, the API and the Android app, in the order they are set up.
+Last checked against the code on 2026-10-04 (API 104 tests passing; app version 0.2.0).
+
+---
+
+## 0. Read this first: what can be deployed today
+
+| Part | Ready? |
+|---|---|
+| Database scripts (`db/`) | Yes |
+| API on a server, with Microsoft Entra ID sign-in | Yes. Entra token checking is built in. |
+| Android app for a **UAT trial** (test sign-in, office network only) | Yes, once it has been built in Android Studio (see 3.1) |
+| Android app for **production / field use** | **Not yet.** Two pieces are missing, see below. |
+
+Two gaps stop a production rollout of the app:
+
+1. **Company sign-in (Entra ID / MSAL) is not built in the app.** A release build cannot sign in
+   to an API running in production mode. Until it is built, the app can only be used against an
+   API in **UAT mode**, where the API trusts the reader name the phone sends (section 2.7). In
+   UAT mode anyone who can reach the API can act as any reader, so **only use it on the
+   office network or VPN, never on the internet.**
+2. **Readings waiting to upload are kept in memory.** If the app is closed or the phone restarts
+   while there is no signal, those readings and photos are lost. Fine for a supervised UAT trial;
+   not acceptable for field use.
+
+Also: the app has **not yet been built with the Android SDK**. Expect small compile fixes the
+first time it is opened in Android Studio.
+
+---
+
+## 1. Database
+
+### 1.1 Where things live
+
+| What | Where |
+|---|---|
+| Source views `vw_MR_Reader`, `vw_MR_Zone`, `vw_MR_Property`, `vw_MR_Meter`, `vw_MR_ReadingPeriod`, `vw_MR_Tenant` | `PropertyManagementSystem` (yours) |
+| The API's own tables (schema `mr`): readings, photos, devices | `PropertyManagementSystem`, or another database on the same server |
+| `MaintainMeterReading` (optional copy of accepted readings) | `PropertyManagementSystem` |
+
+Putting `mr` in `PropertyManagementSystem` is simplest: one connection string, and the copy into
+`MaintainMeterReading` needs no database name.
+
+### 1.2 Check the views
+
+Run `db/001_check_source_views.sql` in `PropertyManagementSystem`. It is read-only.
+
+- **Result 1** lists missing views or columns. It must be **empty**.
+- **Result 2** lists data problems, each with a count. Fix at least these before readers start:
+  - "Active readers sharing a LoginEmail": those readers cannot sign in. Today **every** reader
+    has `nayyar@techsource`, so nobody can sign in.
+  - "Property with no current tenant": those properties cannot be read (spec FR-006.12).
+
+The full list is in `docs/source-views.md` under "To fix in the views before go-live".
+
+### 1.3 Create the API's tables
+
+A DBA runs these in order, in the database chosen in 1.1. Each one is safe to run again.
+
+| Script | Does |
+|---|---|
+| `db/002_create_mr_schema.sql` | Schema `mr`: devices, readings, photo records |
+| `db/003_meter_id_as_text.sql` | Upgrades an older `002`; does nothing on a new install |
+| `db/004_add_expected_photos.sql` | Expected photo count |
+| `db/005_reading_tenant_and_export.sql` | `MaintainMeterReading` fields and view `mr.vw_MeterReading` |
+| `db/006_pms_transfer.sql` | Tracking for the copy into `MaintainMeterReading` |
+| `db/007_reading_image_data.sql` | `mr.ReadingImageData`: the photos themselves |
+
+**Never run anything in `db/dev/`** outside a developer's machine. Those scripts create test
+views and a test `MaintainMeterReading`.
+
+### 1.4 The API's SQL login
+
+Create one login for the API, used by nothing else:
+
+```sql
+-- in the database that holds the views
+GRANT SELECT ON dbo.vw_MR_Reader TO [mr_api];
+GRANT SELECT ON dbo.vw_MR_Zone TO [mr_api];
+GRANT SELECT ON dbo.vw_MR_Property TO [mr_api];
+GRANT SELECT ON dbo.vw_MR_Meter TO [mr_api];
+GRANT SELECT ON dbo.vw_MR_ReadingPeriod TO [mr_api];
+GRANT SELECT ON dbo.vw_MR_Tenant TO [mr_api];
+
+-- in the database that holds schema mr
+GRANT SELECT, INSERT, UPDATE ON SCHEMA::mr TO [mr_api];
+
+-- only when the copy into MaintainMeterReading is switched on (section 2.6)
+GRANT INSERT ON dbo.MaintainMeterReading TO [mr_api];
+```
+
+The API never needs DELETE, never writes to the views, and never creates tables.
+
+### 1.5 Space for photos
+
+Photos are stored in the database (`mr.ReadingImageData`). Each is about 500 KB, so allow about
+**1 GB per 2,000 photos**, in the data file and in backups. Example: 3,000 meters × 2 photos × 12
+months ≈ 36 GB a year. SQL Server Express (10 GB limit) is not enough.
+
+---
+
+## 2. API
+
+### 2.1 Server requirements
+
+- Windows Server with IIS, **or** any Linux server or container host.
+- **.NET 10 runtime**. On IIS: the *ASP.NET Core 10.0 Hosting Bundle*.
+- Network access to SQL Server (port 1433).
+- A **public HTTPS address** the phones can reach over mobile data, e.g.
+  `https://meterreading-api.dubaiinvestments.example`. This needs a proper certificate; phones
+  will not trust a self-signed one. *UAT mode: office network or VPN only, see section 0.*
+
+### 2.2 Build
+
+On a build machine with the .NET 10 SDK, from the repository root:
+
+```bash
+dotnet test api/MeterReading.slnx          # optional: needs the dev SQL Server, see api/README.md
+dotnet publish api/src/MeterReading.Api -c Release -o publish
+```
+
+Copy the `publish` folder to the server. **Delete `appsettings.Development.json` from the server
+copy**: it holds the developer's local connection string and is not needed.
+
+### 2.3 Settings
+
+Settings come from `appsettings.json`, and **environment variables override it** (a double
+underscore `__` stands for `:`). Keep passwords in environment variables (or the IIS app pool's
+settings), not in the file.
+
+| Environment variable | Production value |
+|---|---|
+| `ASPNETCORE_ENVIRONMENT` | `Production` |
+| `ConnectionStrings__MeterReading` | Database with schema `mr`, e.g. `Server=SQL01;Database=PropertyManagementSystem;User Id=mr_api;Password=…;Encrypt=True;TrustServerCertificate=False` |
+| `ConnectionStrings__Source` | Database with the views. **Leave empty** if it is the same database. |
+| `SourceViews__Schema` | `dbo` |
+| `Auth__Mode` | `Entra` |
+| `Auth__ReaderRole` | `MeterReader` (the app role in 2.4) |
+| `AzureAd__TenantId` | Your Entra tenant (directory) ID |
+| `AzureAd__ClientId` | The API app registration's client ID |
+| `AzureAd__Audience` | The API's Application ID URI, e.g. `api://meterreading-api` |
+| `ImageStore__Kind` | `Database` (default) |
+| `PmsTransfer__Enabled` | `false` until section 2.6 is done |
+
+Other settings (the high-consumption factor, photo limits) have sensible defaults; see
+`api/README.md`.
+
+### 2.4 Microsoft Entra ID (done once by the Entra admin)
+
+1. **App registrations → New registration**: name "Meter Reading API", single tenant.
+2. **Expose an API**: set the Application ID URI (e.g. `api://meterreading-api`) and add the
+   scope `access_as_user`.
+3. **App roles → Create app role**: display name "Meter Reader", value **`MeterReader`**, allowed
+   member types *Users/Groups*.
+4. **Enterprise applications → Meter Reading API → Users and groups**: assign the readers, or a
+   "Meter Readers" group, to the role. Someone without the role is refused even if their sign-in
+   name is in `vw_MR_Reader`.
+5. Put the tenant ID, client ID and Application ID URI in the settings (2.3).
+
+The phone app will need its own registration ("Meter Reader app", public client, Android
+redirect URI from the signing key) **once MSAL sign-in is built**. It is not needed yet.
+
+Each reader's Entra sign-in name (UPN) must equal their `LoginEmail` in `vw_MR_Reader`.
+
+### 2.5 Host on IIS (Windows)
+
+1. Install the ASP.NET Core 10.0 Hosting Bundle, then run `iisreset`.
+2. Copy the `publish` folder, e.g. to `D:\Sites\MeterReadingApi`.
+3. **Application pool**: new pool `MeterReadingApi`, *.NET CLR version* = **No Managed Code**,
+   pipeline Integrated, start mode *AlwaysRunning* (keeps the transfer job running).
+4. **Site**: point it at the folder, add an **HTTPS binding** with the certificate. Remove any
+   plain HTTP binding, or redirect it.
+5. **Environment variables**: IIS Manager → *Configuration Editor* →
+   `system.webServer/aspNetCore` → `environmentVariables`, add the values from 2.3. They are
+   stored in the site's `web.config`; restrict who can read that folder.
+6. The `publish` folder already has a `web.config` for the ASP.NET Core module. Leave it in place.
+
+**On Linux or containers** (alternative): run `dotnet MeterReading.Api.dll` as a systemd service
+behind nginx with HTTPS, or build a container from `mcr.microsoft.com/dotnet/aspnet:10.0`. Set
+`ASPNETCORE_URLS` and the same environment variables.
+
+### 2.6 Check it is working
+
+| Check | Expected |
+|---|---|
+| `GET https://…/health/live` | `{"status":"live"}`: the API is running |
+| `GET https://…/health/ready` | `{"status":"ready"}`: database reachable, views and tables present |
+| `GET https://…/api/v1/me` with no token | `401` |
+
+If `/health/ready` says `not ready`, its `missing` list names what is wrong:
+
+| Message | Fix |
+|---|---|
+| `vw_MR_…` | View missing, or the login has no SELECT on it (1.4) |
+| `mr.ReadingTransaction (run db/002…)` and similar | Run the named script (1.3) |
+| `mr.ReadingImageData (run db/007…)` | Run `db/007_reading_image_data.sql` |
+| `database unreachable` | Connection string, firewall, or SQL login |
+| `dbo.MaintainMeterReading … not found or no permission` | Only when the transfer is on: table name or INSERT permission |
+
+Once a reader can sign in, problems show up as codes in the app's messages, e.g.
+`READER_NOT_FOUND` (not in `vw_MR_Reader` or not active), `LOGIN_NOT_UNIQUE` (shared sign-in
+name), `NO_OPEN_PERIOD` (no OPEN month in `vw_MR_ReadingPeriod`).
+
+### 2.7 UAT mode (test sign-in, office network only)
+
+Until the app has company sign-in, a UAT API can trust the reader name the phone sends:
+
+| Environment variable | UAT value |
+|---|---|
+| `ASPNETCORE_ENVIRONMENT` | `Development` (the API refuses UAT sign-in in any other environment) |
+| `Auth__Mode` | `Development` |
+| `ConnectionStrings__MeterReading` | The UAT database (overrides the developer value) |
+
+**Anyone who can reach this API can act as any reader.** Bind it to the office network or VPN
+only, and switch to `Production` + `Entra` before any field use.
+
+### 2.8 Copy readings into MaintainMeterReading (optional)
+
+Off by default. Before switching it on, confirm with the PMS team the items listed in
+`docs/readings-table.md` → "To confirm with the PMS team before switching on" (date format,
+MeterStatus values, MeterReader, SubTenant length, `Posted`). Then:
+
+1. Grant INSERT on `MaintainMeterReading` (1.4).
+2. Set `PmsTransfer__Enabled=true`. If `mr` is in a different database, set
+   `PmsTransfer__TargetTable=PropertyManagementSystem.dbo.MaintainMeterReading`.
+3. Restart the site, then check `/health/ready`.
+4. Watch for failures:
+   `SELECT TransactionId, PmsCopyAttempts, PmsCopyError FROM mr.ReadingTransaction WHERE PmsCopiedAtUtc IS NULL AND PmsCopyAttempts > 0;`
+
+Use **either** this copy **or** an existing process reading `mr.vw_MeterReading`, never both,
+or readings are posted twice.
+
+### 2.9 Updates and rollback
+
+1. Run any new `db/0xx_*.sql` scripts first. They only add, so the old API keeps working.
+2. Keep the previous `publish` folder. Stop the app pool (or drop an `app_offline.htm` into the
+   site folder), copy the new files over (keep the server's `web.config` environment
+   variables), start it, and check `/health/ready`.
+3. Roll back by copying the previous folder back. The database needs no rollback.
+
+Phones keep a reading and retry it with the same ID, so a short outage loses nothing that is
+still on the phone (but see section 0, point 2).
+
+### 2.10 Logs and backups
+
+- Logs go to the console. On IIS, set `stdoutLogEnabled="true"` in `web.config` only while
+  investigating, or send logs to your logging tool.
+- Back up the `mr` schema with `PropertyManagementSystem`; it now includes the photos.
+
+---
+
+## 3. Android app
+
+### 3.1 Build machine (once)
+
+- Android Studio (current stable), with Android SDK Platform **35** and JDK **17** (bundled).
+- Open the `android/` folder. Let Gradle sync. **The first sync may show small compile errors**:
+  the screens were written without the Android SDK, so the build has never run. Fix them before
+  anything else.
+- Run the unit tests: `./gradlew test` (42 tests; the live-API tests are skipped unless
+  `MR_API_URL` is set).
+
+### 3.2 The server address is set when the app is built
+
+The app's API address is fixed at build time, so make **one build per environment**:
+
+| Gradle property | Meaning | Default |
+|---|---|---|
+| `apiBaseUrl` | The API's HTTPS address | `http://10.0.2.2:5080/` (emulator → this PC) |
+| `useFakeData` | `true` = demo with sample data, no server | `false` |
+| `devLogin` | Name pre-filled on the test sign-in screen (debug only) | `rashid@dip.example` |
+
+### 3.3 UAT build (test sign-in)
+
+```bash
+cd android
+./gradlew assembleDebug -PapiBaseUrl=https://meterreading-uat.dubaiinvestments.example/ -PdevLogin=
+# output: app/build/outputs/apk/debug/app-debug.apk
+```
+
+- Use this with an API in UAT mode (2.7).
+- The reader types their `LoginEmail` from `vw_MR_Reader` on the sign-in screen.
+- A debug build also allows plain `http://`. Use HTTPS for anything beyond one developer's PC.
+- For a demo with no server: `./gradlew assembleDebug -PuseFakeData=true`.
+
+### 3.4 Release build (for production, once sign-in is built)
+
+1. **Create the signing key once** and keep it safe. It cannot be replaced for updates to the
+   same app:
+   ```bash
+   keytool -genkeypair -v -keystore meterreader-release.jks -alias meterreader \
+     -keyalg RSA -keysize 2048 -validity 10000
+   ```
+   Store the `.jks` file and its passwords in your password vault, never in the repository.
+2. **Raise the version** in `android/app/build.gradle.kts` for every release: `versionCode` (a
+   whole number that must always go up) and `versionName`.
+3. **Build and sign**: Android Studio → *Build → Generate Signed App Bundle / APK* → APK →
+   choose the keystore → *release*, or from the command line:
+   ```bash
+   ./gradlew assembleRelease -PapiBaseUrl=https://meterreading-api.dubaiinvestments.example/
+   apksigner sign --ks meterreader-release.jks --out app-release.apk \
+     app/build/outputs/apk/release/app-release-unsigned.apk
+   ```
+4. Release builds refuse plain `http://` and leave the test sign-in name empty. **Until MSAL
+   sign-in is built they cannot sign in to a production API** (section 0).
+
+### 3.5 Put it on the phones
+
+- **Managed phones (recommended):** upload the signed APK to your MDM (e.g. Microsoft Intune →
+  *Apps → Android → Line-of-business app*, or a private app in *Managed Google Play*). Assign
+  it to the readers' group; updates follow the same route.
+- **Small UAT group:** copy the APK to the phone and install it, allowing installs from that
+  source.
+
+### 3.6 Phone requirements and first-run checks
+
+- **Android 10 or newer** (minSdk 29), with a rear camera.
+- Allow the **camera** permission when asked.
+- **Read-aloud** uses the phone's text-to-speech. Check that an **English** voice is installed
+  (*Settings → Accessibility → Text-to-speech*).
+- **Voice notes** use Google speech input; it needs the Google app and a connection.
+- Mobile data or Wi-Fi that can reach the API address.
+- First run: sign in → choose a zone → read one meter at a property with a tenant → see "Sent"
+  → check the reading in `mr.ReadingTransaction` and its photo in `mr.ReadingImageData`.
+
+---
+
+## 4. Go-live checklist
+
+**Views and data**
+- [ ] `db/001` result 1 empty; shared sign-in names fixed; properties without a tenant reviewed.
+- [ ] Only the month being read is `OPEN` in `vw_MR_ReadingPeriod`.
+- [ ] Each meter's real `RegisterDigits` and `DecimalDigits` provided.
+
+**Database**
+- [ ] Scripts `002`–`007` run; `mr_api` login with the grants in 1.4; backups include `mr`.
+- [ ] Database has room for photos (1.5).
+
+**API**
+- [ ] Deployed with HTTPS and a trusted certificate; `ASPNETCORE_ENVIRONMENT=Production`,
+      `Auth__Mode=Entra`.
+- [ ] Entra app registration, `MeterReader` role assigned to the readers.
+- [ ] `/health/ready` = ready.
+- [ ] Transfer into `MaintainMeterReading` either confirmed and on, or knowingly left off.
+
+**App** (blocked until these are built)
+- [ ] MSAL company sign-in.
+- [ ] Encrypted on-phone queue that survives the app closing.
+- [ ] Built, signed with the release key, tested on the readers' phone models, and distributed
+      through MDM.

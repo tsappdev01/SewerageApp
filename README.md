@@ -6,7 +6,7 @@ readings to billing.
 
 | Folder | What it is |
 |---|---|
-| [`docs/`](docs) | [Specification](docs/spec.md), [source view contract](docs/source-views.md), [readings table](docs/readings-table.md), [screen mock](docs/meter-reader-mock.html), the Dubai Investments Park logo |
+| [`docs/`](docs) | [Specification](docs/spec.md), [source view contract](docs/source-views.md), [readings table](docs/readings-table.md), [screen mock](docs/meter-reader-mock.html), [deployment guide](docs/deployment.md), the Dubai Investments Park logo |
 | [`api/`](api) | .NET 10 Web API. Reads master data from SQL Server views, stores readings in its own `mr` tables. See [api/README.md](api/README.md). |
 | [`db/`](db) | SQL scripts, numbered in run order. `db/dev/` is test data, development only. |
 | [`android/`](android) | Meter Reader app, Kotlin and Jetpack Compose. See [android/README.md](android/README.md). |
