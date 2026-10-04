@@ -43,8 +43,8 @@ public sealed class ImageStoreOptions
 {
     public const string Section = "ImageStore";
 
-    /// <summary><c>FileSystem</c> (on-premises or development) or <c>AzureBlob</c>.</summary>
-    public string Kind { get; set; } = "FileSystem";
+    /// <summary><c>Database</c> (table mr.ReadingImageData, the default), <c>FileSystem</c> or <c>AzureBlob</c>.</summary>
+    public string Kind { get; set; } = "Database";
 
     /// <summary>FileSystem: folder that holds the photos. The API needs write access.</summary>
     public string Root { get; set; } = "images";

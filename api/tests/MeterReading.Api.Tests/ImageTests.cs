@@ -25,6 +25,7 @@ public sealed class ImageTests(ApiFactory factory) : IAsyncLifetime
         const string sql = """
             DECLARE @t TABLE (id uniqueidentifier);
             INSERT @t SELECT CAST([value] AS uniqueidentifier) FROM OPENJSON(@ids);
+            DELETE d FROM mr.ReadingImageData d JOIN @t t ON d.BlobPath LIKE N'%/' + CAST(t.id AS nvarchar(36)) + N'/%';
             DELETE FROM mr.ReadingImage WHERE TransactionId IN (SELECT id FROM @t);
             DELETE FROM mr.ReadingTransaction WHERE TransactionId IN (SELECT id FROM @t);
             """;
@@ -68,11 +69,20 @@ public sealed class ImageTests(ApiFactory factory) : IAsyncLifetime
         return As(user).SendAsync(request);
     }
 
+    private static async Task<byte[]?> StoredBytes(string path)
+    {
+        await using var c = new SqlConnection(ApiFactory.ConnectionString);
+        await c.OpenAsync();
+        await using var cmd = new SqlCommand("SELECT ImageBytes FROM mr.ReadingImageData WHERE BlobPath = @path", c);
+        cmd.Parameters.AddWithValue("@path", path);
+        return (byte[]?)await cmd.ExecuteScalarAsync();
+    }
+
     private static async Task<string> Code(HttpResponseMessage r) =>
         (await r.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()!;
 
     [Fact]
-    public async Task FR009_photo_is_stored_under_the_period_and_meter_and_can_be_read_back()
+    public async Task FR009_photo_is_stored_in_the_database_under_the_period_and_meter_and_can_be_read_back()
     {
         var reading = await SendReading("BC0003");
         var imageId = Guid.NewGuid();
@@ -80,7 +90,7 @@ public sealed class ImageTests(ApiFactory factory) : IAsyncLifetime
 
         var response = await Upload(reading, imageId, bytes);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        Assert.True(File.Exists(Path.Combine(ApiFactory.ImageRoot, "readings", "2026", "10", "BC0003", reading.ToString(), imageId + ".jpg")));
+        Assert.Equal(bytes, await StoredBytes($"readings/2026/10/BC0003/{reading}/{imageId}.jpg"));
 
         var back = await As(Rashid).GetByteArrayAsync($"/api/v1/readings/{reading}/images/{imageId}");
         Assert.Equal(bytes, back);

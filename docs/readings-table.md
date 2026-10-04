@@ -1,7 +1,8 @@
 # Readings table
 
 Every reading the phone sends is one row in **`mr.ReadingTransaction`** (created by
-`db/002`, extended by `db/003`–`db/005`). Photos are rows in **`mr.ReadingImage`**, one per photo.
+`db/002`, extended by `db/003`–`db/005`). Photos are rows in **`mr.ReadingImage`**, one per photo; the photo itself is in
+**`mr.ReadingImageData`** (`db/007`).
 
 **`mr.vw_MeterReading`** shows the live readings (not superseded by a correction) with the same
 column names as `MaintainMeterReading`, so the existing posting and Baan transfer can read it
@@ -58,11 +59,29 @@ like that table. Times in the view are UAE time; the table keeps UTC.
 | ImageId | uniqueidentifier, key | Made on the phone. |
 | TransactionId | uniqueidentifier | The reading it belongs to. |
 | ImageRole | varchar(20) | `DISPLAY` (the numbers), `CONTEXT`, `OBSTRUCTION`, `DAMAGE`, `OLD_METER_FINAL`, `NEW_METER`. |
-| BlobPath | nvarchar(400) | Where the photo is: `readings/{yyyy}/{MM}/{meter}/{reading}/{image}.jpg` in the photo folder or Azure Blob container. |
+| BlobPath | nvarchar(400) | The photo's name, `readings/{yyyy}/{MM}/{meter}/{reading}/{image}.jpg`: the key of its row in `mr.ReadingImageData` (or its place in the folder or Azure Blob container, if `ImageStore:Kind` is set to one). |
 | Sha256 | char(64) | Checked on upload. |
 | SizeBytes, Width, Height | int | |
 | CapturedAtUtc | datetime2 | When the photo was taken. |
 | ReceivedAtUtc | datetime2, default now | When the server received it. |
+
+## `mr.ReadingImageData` — the photo itself
+
+| Column | Type | Meaning |
+|---|---|---|
+| BlobPath | nvarchar(400), key | Same as `mr.ReadingImage.BlobPath`. |
+| ImageBytes | varbinary(max) | The JPEG, as uploaded (about 500 KB; at most 2 MB). |
+| SavedAtUtc | datetime2, default now | When it was stored. Never updated: a photo is never overwritten. |
+
+```sql
+-- A reading's photos with their bytes
+SELECT i.ImageRole, i.CapturedAtUtc, d.ImageBytes
+FROM mr.ReadingImage i JOIN mr.ReadingImageData d ON d.BlobPath = i.BlobPath
+WHERE i.TransactionId = @transactionId;
+```
+
+The bytes are kept out of `mr.ReadingImage` so lists and counts never read them. Plan for the
+growth: about 1 GB per 2,000 photos, all in the database and its backups.
 
 `mr.vw_MeterReading` adds **PhotoCount** and **PhotoPath** (the display photo) to each reading.
 

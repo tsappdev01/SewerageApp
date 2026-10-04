@@ -13,7 +13,7 @@ public sealed record MeterFilter(IReadOnlyCollection<string>? ZoneCodes = null, 
 /// SQL Server's 2,100-parameter limit. View columns are CAST (or TRY_CAST where a bad value should
 /// read as "unknown" rather than fail the request) to the row types.
 /// </summary>
-public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<SourceViewsOptions> options)
+public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<SourceViewsOptions> options, IOptions<ImageStoreOptions> images)
 {
     private readonly SourceViewNames _v = db.Views;
     private readonly SourceViewsOptions _options = options.Value;
@@ -310,6 +310,9 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             missing.Add("mr.ReadingTransaction.ExpectedPhotos (run db/004_add_expected_photos.sql)");
         else if (await mr.ExecuteScalarAsync<int>(Cmd("SELECT CASE WHEN COL_LENGTH(N'mr.ReadingTransaction', N'TenantCode') IS NULL THEN 0 ELSE 1 END", null, ct)) == 0)
             missing.Add("mr.ReadingTransaction.TenantCode (run db/005_reading_tenant_and_export.sql)");
+        if (string.Equals(images.Value.Kind, "Database", StringComparison.OrdinalIgnoreCase)
+            && await mr.ExecuteScalarAsync<int>(Cmd("SELECT CASE WHEN OBJECT_ID(N'mr.ReadingImageData') IS NULL THEN 0 ELSE 1 END", null, ct)) == 0)
+            missing.Add("mr.ReadingImageData (run db/007_reading_image_data.sql)");
         return missing;
     }
 

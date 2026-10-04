@@ -14,9 +14,9 @@ readings to billing.
 ## Status
 
 - **API:** reader endpoints done, including sending readings and their photos (safe to retry;
-  photos to a folder or Azure Blob); copy of accepted readings into `MaintainMeterReading`
+  photos stored in the database); copy of accepted readings into `MaintainMeterReading`
   (off until switched on, see [docs/readings-table.md](docs/readings-table.md#copying-readings-into-maintainmeterreading));
-  94 tests against SQL Server 2022. Work is not assigned.
+  99 tests against SQL Server 2022. Work is not assigned.
 - **Android:** all reader screens, connected to the API (development sign-in until Entra ID),
   with upload queues for readings and photos taken without signal. Not yet compiled with the
   Android SDK; the plain-Kotlin parts compile and their 35 tests pass, including against the API.

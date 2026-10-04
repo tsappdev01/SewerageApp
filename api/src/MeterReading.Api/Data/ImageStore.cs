@@ -2,6 +2,8 @@ using Azure;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Dapper;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
 
 namespace MeterReading.Api.Data;
@@ -19,7 +21,39 @@ public interface IImageStore
     Task<Stream?> OpenAsync(string path, CancellationToken ct);
 }
 
-/// <summary>Photos under a folder, for on-premises servers and development.</summary>
+/// <summary>
+/// Photos in the API's own database, table <c>mr.ReadingImageData</c> (db/007), next to the readings.
+/// Backed up with the database; no folder or storage account to look after.
+/// </summary>
+public sealed class DatabaseImageStore(SqlConnectionFactory db) : IImageStore
+{
+    public async Task SaveAsync(string path, byte[] bytes, CancellationToken ct)
+    {
+        const string sql = """
+            IF NOT EXISTS (SELECT 1 FROM mr.ReadingImageData WHERE BlobPath = @path)
+                INSERT mr.ReadingImageData (BlobPath, ImageBytes) VALUES (@path, @bytes);
+            """;
+        try
+        {
+            await using var c = await db.OpenMeterReadingAsync(ct);
+            await c.ExecuteAsync(new CommandDefinition(sql, new { path, bytes }, cancellationToken: ct));
+        }
+        catch (SqlException e) when (e.Number is 2627 or 2601)
+        {
+            // Another request saved it first; the first copy is kept.
+        }
+    }
+
+    public async Task<Stream?> OpenAsync(string path, CancellationToken ct)
+    {
+        await using var c = await db.OpenMeterReadingAsync(ct);
+        var bytes = await c.QuerySingleOrDefaultAsync<byte[]>(new CommandDefinition(
+            "SELECT ImageBytes FROM mr.ReadingImageData WHERE BlobPath = @path", new { path }, cancellationToken: ct));
+        return bytes is null ? null : new MemoryStream(bytes, writable: false);
+    }
+}
+
+/// <summary>Photos under a folder, for on-premises servers.</summary>
 public sealed class FileSystemImageStore(IOptions<ImageStoreOptions> options) : IImageStore
 {
     private readonly string _root = Path.GetFullPath(options.Value.Root);

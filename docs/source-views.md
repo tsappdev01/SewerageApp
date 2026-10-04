@@ -131,9 +131,10 @@ database (`ConnectionStrings:MeterReading` in `api/src/MeterReading.Api/appsetti
 - `db/005_reading_tenant_and_export.sql` — adds the `MaintainMeterReading` fields (TenantCode,
   SubTenant, Posted, Transferred, …) and the view `mr.vw_MeterReading`. See `docs/readings-table.md`.
 - `db/006_pms_transfer.sql` — tracks the copy of each reading into `MaintainMeterReading`.
+- `db/007_reading_image_data.sql` — `mr.ReadingImageData`, which holds the photos.
 
-Photos are not kept in the database: they go to a folder or an Azure Blob container
-(`ImageStore` in `appsettings.json`); `mr.ReadingImage` records where.
+Photos are kept in the database, in `mr.ReadingImageData`. A folder or an Azure Blob container can
+be used instead (`ImageStore:Kind` in `appsettings.json`).
 
 The API's login needs **SELECT** on the views and **read/write** on schema `mr`. When the transfer
 is switched on it also needs **INSERT** (and nothing else) on `MaintainMeterReading`.

@@ -16,14 +16,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         Environment.GetEnvironmentVariable("MR_TEST_SQL")
         ?? "Server=localhost,1433;Database=MeterReading;User Id=sa;Password=Dev_Passw0rd!;TrustServerCertificate=True;Encrypt=True";
 
-    /// <summary>Photos go to a fresh folder per test run.</summary>
-    public static readonly string ImageRoot = Path.Combine(Path.GetTempPath(), "mr-images-" + Guid.NewGuid().ToString("N"));
-
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
-        builder.UseSetting("ImageStore:Kind", "FileSystem");
-        builder.UseSetting("ImageStore:Root", ImageRoot);
+        builder.UseSetting("ImageStore:Kind", "Database");
         builder.UseSetting("ConnectionStrings:MeterReading", ConnectionString);
         builder.UseSetting("Auth:Mode", "Development");
     }

@@ -19,6 +19,7 @@ The API reads five `vw_MR_*` views in `PropertyManagementSystem` (plus an option
 | `004_add_expected_photos.sql` | Adds `mr.ReadingTransaction.ExpectedPhotos` (photos the phone will upload). Re-runnable. | Any environment |
 | `005_reading_tenant_and_export.sql` | Adds the source readings-table fields to readings (RowId, PropertyId, PropertyCode, MeterNumber, TenantCode, Type, SubTenant, Posted, Transferred, TransferredToBaan) and the view `mr.vw_MeterReading` in `MaintainMeterReading`'s column names. See `docs/readings-table.md`. Re-runnable. | Any environment |
 | `006_pms_transfer.sql` | Adds the columns that track the copy into `MaintainMeterReading` (`PmsRowId`, `PmsCopiedAtUtc`, `PmsCopyAttempts`, `PmsCopyError`). Re-runnable. | Any environment |
+| `007_reading_image_data.sql` | Creates `mr.ReadingImageData`, which holds the photos when `ImageStore:Kind` is `Database` (the default). Re-runnable. | Any environment |
 | `003_meter_id_as_text.sql` | Brings an `mr` schema from an earlier `002` in line: `MeterId` as text (barcode), readings to 4 decimals. Does nothing on a fresh install. | Any environment |
 | `dev/000_create_dev_source_views.sql` | Test stand-ins shaped like the real views (barcode ids, Status 1, every month OPEN, ISNULL zeros), with sample data. | Development only |
 | `dev/010_seed_dev_readings.sql` | Sample readings already received this period. | Development only |
@@ -82,7 +83,7 @@ The server checks the reading is the caller's (`READING_NOT_FOUND`), the role
 `ImageStore:MaxImageBytes` (`IMAGE_TOO_LARGE`), that it matches its hash
 (`IMAGE_HASH_MISMATCH`), and the limit of `ImageStore:MaxImagesPerReading` (`TOO_MANY_IMAGES`).
 The same photo sent again returns 200; a different photo under the same id is `IMAGE_ID_REUSED`.
-Photos are stored once, never overwritten, at
+Photos are stored once, never overwritten, in `mr.ReadingImageData` under the name
 `readings/{yyyy}/{MM}/{meterId}/{transactionId}/{imageId}.jpg`, and recorded in `mr.ReadingImage`.
 "My readings" and the summary show photos still to come (`photosExpected`, `photosReceived`,
 `photosWaiting`).
@@ -96,7 +97,7 @@ Photos are stored once, never overwritten, at
 | `SourceViews:Schema` | Schema of the views (default `dbo`). |
 | `SourceViews:HasReadingHistory` | `true` only when `vw_MR_ReadingHistory` is provided (default `false`). |
 | `ReadingRules:*` | Average periods, high-consumption factor and floors, default averages (spec BR-007, BR-008). |
-| `ImageStore:Kind` | `FileSystem` (photos under `ImageStore:Root`, which the API must be able to write) or `AzureBlob` (`ImageStore:BlobServiceUri` and `Container`, reached with the API's managed identity; the container stays private). |
+| `ImageStore:Kind` | `Database` (default: photos in `mr.ReadingImageData`, backed up with the readings), `FileSystem` (photos under `ImageStore:Root`, which the API must be able to write) or `AzureBlob` (`ImageStore:BlobServiceUri` and `Container`, reached with the API's managed identity; the container stays private). |
 | `ImageStore:MaxImageBytes`, `MaxImagesPerReading` | Upload limits: 2 MB and 4 photos by default. |
 | `PmsTransfer:Enabled` | Copies accepted readings into `MaintainMeterReading` (default `false`). See `docs/readings-table.md`. |
 | `PmsTransfer:TargetTable` | `dbo.MaintainMeterReading`, or `PropertyManagementSystem.dbo.MaintainMeterReading` when `mr` is in another database on the same server. |
@@ -114,7 +115,7 @@ Use a SQL login or managed identity with **SELECT only** on the views and read/w
 docker run -d --name mrsql -p 1433:1433 -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='Dev_Passw0rd!' mcr.microsoft.com/mssql/server:2022-latest
 # create database MeterReading, then run in order:
 #   ../db/dev/000_create_dev_source_views.sql, ../db/002_create_mr_schema.sql, ../db/003_meter_id_as_text.sql,
-#   ../db/004_add_expected_photos.sql, ../db/005_reading_tenant_and_export.sql, ../db/006_pms_transfer.sql,
+#   ../db/004_add_expected_photos.sql, ../db/005_reading_tenant_and_export.sql, ../db/006_pms_transfer.sql, ../db/007_reading_image_data.sql,
 #   ../db/dev/010_seed_dev_readings.sql, ../db/dev/020_create_dev_maintain_meter_reading.sql
 dotnet run --project src/MeterReading.Api            # Development: http://localhost:5080
 curl -H "X-Dev-User: rashid@dip.example" "http://localhost:5080/api/v1/sync/meters?zone=598"

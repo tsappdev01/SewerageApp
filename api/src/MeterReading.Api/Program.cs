@@ -18,10 +18,13 @@ builder.Services.Configure<ImageStoreOptions>(config.GetSection(ImageStoreOption
 builder.Services.Configure<PmsTransferOptions>(config.GetSection(PmsTransferOptions.Section));
 builder.Services.AddScoped<PmsTransferService>();
 builder.Services.AddHostedService<PmsTransferWorker>();
-if (string.Equals(config[$"{ImageStoreOptions.Section}:Kind"], "AzureBlob", StringComparison.OrdinalIgnoreCase))
-    builder.Services.AddSingleton<IImageStore, AzureBlobImageStore>();
-else
-    builder.Services.AddSingleton<IImageStore, FileSystemImageStore>();
+switch ((config[$"{ImageStoreOptions.Section}:Kind"] ?? "Database").ToUpperInvariant())
+{
+    case "DATABASE": builder.Services.AddSingleton<IImageStore, DatabaseImageStore>(); break;
+    case "FILESYSTEM": builder.Services.AddSingleton<IImageStore, FileSystemImageStore>(); break;
+    case "AZUREBLOB": builder.Services.AddSingleton<IImageStore, AzureBlobImageStore>(); break;
+    default: throw new InvalidOperationException("ImageStore:Kind must be Database, FileSystem or AzureBlob.");
+}
 
 builder.Services.AddSingleton<SqlConnectionFactory>();
 builder.Services.AddScoped<MeterReadingRepository>();
