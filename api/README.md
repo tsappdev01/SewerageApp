@@ -17,6 +17,7 @@ The API reads five `vw_MR_*` views in `PropertyManagementSystem` (plus an option
 | `001_check_source_views.sql` | Checks the views: missing columns, wrong types, duplicate keys, unknown codes, more than one open period. Read-only. | Any environment |
 | `002_create_mr_schema.sql` | Creates the API's own tables `mr.Device`, `mr.ReadingTransaction`, `mr.ReadingImage`. Re-runnable. | Any environment |
 | `004_add_expected_photos.sql` | Adds `mr.ReadingTransaction.ExpectedPhotos` (photos the phone will upload). Re-runnable. | Any environment |
+| `005_reading_tenant_and_export.sql` | Adds the source readings-table fields to readings (RowId, PropertyId, PropertyCode, MeterNumber, TenantCode, Type, SubTenant, Posted, Transferred, TransferredToBaan) and the view `mr.vw_MeterReading` in `MaintainMeterReading`'s column names. See `docs/readings-table.md`. Re-runnable. | Any environment |
 | `003_meter_id_as_text.sql` | Brings an `mr` schema from an earlier `002` in line: `MeterId` as text (barcode), readings to 4 decimals. Does nothing on a fresh install. | Any environment |
 | `dev/000_create_dev_source_views.sql` | Test stand-ins shaped like the real views (barcode ids, Status 1, every month OPEN, ISNULL zeros), with sample data. | Development only |
 | `dev/010_seed_dev_readings.sql` | Sample readings already received this period. | Development only |
@@ -58,7 +59,9 @@ Checks run in the order of spec §7.2. A refusal stores nothing and returns a pr
 (`LOWER_THAN_PREVIOUS`, `HIGH_CONSUMPTION`, `ROLLOVER_OUT_OF_RANGE`, `DAMAGED_METER`,
 `METER_REPLACEMENT`, `METER_REMOVAL`). A meter can be read again only after the supervisor
 rejects its reading or when it was not accessible; the check runs under a lock, so two phones
-cannot both read it. `photoCount` says how many photos will follow.
+cannot both read it. `photoCount` says how many photos will follow; `subTenant` (optional, up to
+100 characters) is the sub-tenant name the reader typed. The server adds the tenant, property,
+meter number and meter type from the views, so the reading keeps them if they change later.
 
 ### Uploading photos
 
@@ -105,7 +108,7 @@ Use a SQL login or managed identity with **SELECT only** on the views and read/w
 docker run -d --name mrsql -p 1433:1433 -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='Dev_Passw0rd!' mcr.microsoft.com/mssql/server:2022-latest
 # create database MeterReading, then run in order:
 #   ../db/dev/000_create_dev_source_views.sql, ../db/002_create_mr_schema.sql, ../db/003_meter_id_as_text.sql,
-#   ../db/004_add_expected_photos.sql, ../db/dev/010_seed_dev_readings.sql
+#   ../db/004_add_expected_photos.sql, ../db/005_reading_tenant_and_export.sql, ../db/dev/010_seed_dev_readings.sql
 dotnet run --project src/MeterReading.Api            # Development: http://localhost:5080
 curl -H "X-Dev-User: rashid@dip.example" "http://localhost:5080/api/v1/sync/meters?zone=598"
 dotnet test                                          # all tests; integration tests need the database above (MR_TEST_SQL to override)

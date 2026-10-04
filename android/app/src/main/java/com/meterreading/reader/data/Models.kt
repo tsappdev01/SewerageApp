@@ -76,6 +76,8 @@ data class ReadingDraft(
     val photos: List<DraftPhoto>,
     val readerConfirmedWarning: Boolean,
     val capturedAt: LocalDateTime,
+    /** Sub-tenant name typed by the reader, if the premises has one. */
+    val subTenant: String? = null,
 ) {
     val value: Long? get() = numbers[NumberTarget.CURRENT] ?: numbers[NumberTarget.OLD_FINAL]
 }

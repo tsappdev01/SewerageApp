@@ -236,6 +236,7 @@ class ApiMeterRepository(
         readerConfirmedWarning = readerConfirmedWarning,
         capturedAtUtc = capturedAt.atZone(zone).toInstant().toString(),
         photoCount = photos.size,
+        subTenant = subTenant?.trim()?.ifEmpty { null },
     )
 
     private fun ReadingDraft.toQueuedReading() = Reading(transactionId, meterId, condition, value, capturedAt, ReadingState.QUEUED, needsCheck = false)

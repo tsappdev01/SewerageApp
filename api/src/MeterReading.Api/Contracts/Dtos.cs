@@ -65,7 +65,10 @@ public sealed record ReadingDto(
     string? Note,
     /// <summary>Photos the phone took for this reading, and how many have arrived.</summary>
     int PhotosExpected,
-    int PhotosReceived);
+    int PhotosReceived,
+    /// <summary>The tenant when the reading was taken, and the sub-tenant the reader typed.</summary>
+    string? TenantCode = null,
+    string? SubTenant = null);
 
 public sealed record ZoneReconciliationDto(string ZoneCode, int Meters, int Read, int NotRead);
 
@@ -111,6 +114,8 @@ public sealed record SubmitReadingRequest(
     DateTime CapturedAtUtc,
     /// <summary>How many photos will follow with PUT /readings/{id}/images/{imageId}.</summary>
     int PhotoCount = 0,
+    /// <summary>Sub-tenant name typed by the reader, if the premises has one.</summary>
+    string? SubTenant = null,
     Guid? DeviceId = null,
     decimal? Latitude = null,
     decimal? Longitude = null,

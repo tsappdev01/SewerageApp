@@ -35,6 +35,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.launch
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 
 @Composable
 fun SignInScreen(onSignedIn: () -> Unit, defaultLogin: String = "") {
@@ -66,18 +68,7 @@ fun SignInScreen(onSignedIn: () -> Unit, defaultLogin: String = "") {
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { SpeakButton(stringResource(R.string.speak_signin)) }
-        // TODO(brand): replace with the Dubai Investments Park logo (res/drawable/dip_logo.png) once supplied.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(AppColors.TaupeTint)
-                .border(2.dp, AppColors.Taupe, RoundedCornerShape(16.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(stringResource(R.string.logo_placeholder), color = AppColors.Taupe, style = MaterialTheme.typography.titleMedium)
-        }
+        DipLogo()
         BrandBar()
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge, color = AppColors.Navy)
@@ -115,6 +106,19 @@ fun SignInScreen(onSignedIn: () -> Unit, defaultLogin: String = "") {
             }
         }
     }
+}
+
+/** The Dubai Investments Park logo (res/drawable-nodpi/dip_logo.png, made from docs/Dubai-Investments-Park (8).jpg). */
+@Composable
+fun DipLogo() {
+    Image(
+        painter = painterResource(R.drawable.dip_logo),
+        contentDescription = stringResource(R.string.logo_description),
+        contentScale = ContentScale.Fit,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(130.dp),
+    )
 }
 
 /** Taupe and navy strip taken from the logo's two colours. */

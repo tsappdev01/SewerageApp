@@ -436,6 +436,31 @@ private fun ConfirmStep(vm: CaptureViewModel) {
             vm.consumption()?.let { Pill(stringResource(R.string.used, formatReading(it)), AppColors.Ok, AppColors.OkTint) }
         }
         if (vm.note.isNotBlank()) Text("“${vm.note}”", color = AppColors.SubInk, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        SubTenantField(vm)
+    }
+}
+
+/** Optional sub-tenant name. Hidden behind a button so it never slows down a normal reading. */
+@Composable
+private fun SubTenantField(vm: CaptureViewModel) {
+    var open by remember { mutableStateOf(vm.subTenant.isNotBlank()) }
+    if (!open) {
+        TextButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth(), enabled = !vm.sending) {
+            Icon(Icons.Rounded.PersonAdd, null)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.sub_tenant_add), style = MaterialTheme.typography.titleMedium)
+        }
+    } else {
+        OutlinedTextField(
+            value = vm.subTenant,
+            onValueChange = { vm.subTenant = it.take(100) },
+            label = { Text(stringResource(R.string.sub_tenant_label)) },
+            singleLine = true,
+            enabled = !vm.sending,
+            textStyle = MaterialTheme.typography.bodyLarge,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

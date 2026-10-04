@@ -7,7 +7,7 @@
 <resources>
     <string name="app_name">Meter Reading</string>
     <string name="app_subtitle">Sewerage and irrigation</string>
-    <string name="logo_placeholder">Dubai Investments Park logo</string>
+    <string name="logo_description">Dubai Investments Park</string>
     <string name="sign_in">Sign in</string>
     <string name="sign_in_hint">Use your company account</string>
     <string name="demo_no_signal">Demo: no signal</string>
@@ -114,6 +114,8 @@
     <string name="used">+%1$s used</string>
     <string name="old_meter">Old meter</string>
     <string name="new_meter">New meter</string>
+    <string name="sub_tenant_add">Add sub-tenant name</string>
+    <string name="sub_tenant_label">Sub-tenant name (if any)</string>
     <string name="change">Change</string>
     <string name="yes_send">Yes, send</string>
 

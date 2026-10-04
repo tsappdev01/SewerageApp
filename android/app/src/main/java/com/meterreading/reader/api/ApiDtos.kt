@@ -89,6 +89,7 @@ data class SubmitReadingRequest(
     val readerConfirmedWarning: Boolean = false,
     val capturedAtUtc: String,
     val photoCount: Int = 0,
+    val subTenant: String? = null,
 )
 
 @Serializable

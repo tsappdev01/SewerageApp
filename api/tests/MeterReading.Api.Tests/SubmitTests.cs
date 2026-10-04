@@ -38,14 +38,14 @@ public sealed class SubmitTests(ApiFactory factory) : IAsyncLifetime
     }
 
     private object Reading(string meterId, string condition = "WORKING", decimal? reading = null, string? reason = null, string? note = null,
-        Guid? id = null, DateTime? capturedAt = null, bool confirmed = false)
+        Guid? id = null, DateTime? capturedAt = null, bool confirmed = false, string? subTenant = null)
     {
         var transactionId = id ?? Guid.NewGuid();
         _created.Add(transactionId);
         return new
         {
             transactionId, meterId, condition, reasonCode = reason, note, newReading = reading,
-            readerConfirmedWarning = confirmed, capturedAtUtc = capturedAt ?? DateTime.UtcNow.AddMinutes(-2),
+            readerConfirmedWarning = confirmed, capturedAtUtc = capturedAt ?? DateTime.UtcNow.AddMinutes(-2), subTenant,
         };
     }
 
@@ -180,5 +180,57 @@ public sealed class SubmitTests(ApiFactory factory) : IAsyncLifetime
         client.DefaultRequestHeaders.Add("X-Dev-User", Anil);
         var mine = await client.GetFromJsonAsync<JsonElement>("/api/v1/readings/mine");
         Assert.Contains(mine.EnumerateArray(), r => r.GetProperty("meterId").GetString() == "BC0003");
+    }
+
+    [Fact]
+    public async Task The_reading_keeps_tenant_property_meter_and_sub_tenant()
+    {
+        var (status, body) = await Post(Reading("BC0007", reading: 17_300, subTenant: "  Al Fajr Workshop  "));
+        Assert.Equal(HttpStatusCode.Created, status);
+        var id = body.GetProperty("transactionId").GetGuid();
+
+        await using var c = new SqlConnection(ApiFactory.ConnectionString);
+        await c.OpenAsync();
+        await using var cmd = new SqlCommand("""
+            SELECT RowId, PropertyId, PropertyCode, MeterNumber, TenantCode, [Type], SubTenant, Current_Reading, Previous_Reading,
+                   MeterReader, Posted, Transferred, MeterStatus
+            FROM mr.vw_MeterReading WHERE TransactionId = @id
+            """, c);
+        cmd.Parameters.AddWithValue("@id", id);
+        await using var r = await cmd.ExecuteReaderAsync();
+        Assert.True(await r.ReadAsync());
+        Assert.True(r.GetInt64(0) > 0);                       // RowId, like the source table
+        Assert.False(r.IsDBNull(1));                          // PropertyId from vw_MR_Property
+        Assert.Equal("1499-W1", r.GetString(2));
+        Assert.Equal("2002-2", r.GetString(3));
+        Assert.Equal("T-0201", r.GetString(4));               // tenant at the time of reading
+        Assert.Equal("Sewerage", r.GetString(5));             // Type as the source writes it
+        Assert.Equal("Al Fajr Workshop", r.GetString(6));     // trimmed
+        Assert.Equal(17_300m, r.GetDecimal(7));
+        Assert.Equal(17_040m, r.GetDecimal(8));
+        Assert.Equal("E1001", r.GetString(9));
+        Assert.False(r.GetBoolean(10));
+        Assert.False(r.GetBoolean(11));
+        Assert.Equal("WORKING", r.GetString(12));
+    }
+
+    [Fact]
+    public async Task My_readings_show_the_tenant_and_sub_tenant()
+    {
+        await Post(Reading("BC0007", reading: 17_300, subTenant: "Al Fajr Workshop"));
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Dev-User", Rashid);
+        var mine = await client.GetFromJsonAsync<JsonElement>("/api/v1/readings/mine");
+        var row = mine.EnumerateArray().First(r => r.GetProperty("meterId").GetString() == "BC0007");
+        Assert.Equal("T-0201", row.GetProperty("tenantCode").GetString());
+        Assert.Equal("Al Fajr Workshop", row.GetProperty("subTenant").GetString());
+    }
+
+    [Fact]
+    public async Task Sub_tenant_name_is_limited_to_100_characters()
+    {
+        var (status, body) = await Post(Reading("BC0007", reading: 17_300, subTenant: new string('x', 101)));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, status);
+        Assert.Equal("VALIDATION_FAILED", Code(body));
     }
 }

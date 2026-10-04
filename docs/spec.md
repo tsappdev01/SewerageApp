@@ -278,6 +278,7 @@ and `Revisit` meters shall be capturable again.
 | FR-006.8 | The app shall capture GPS coordinates and accuracy at submission when location permission is granted; absence of GPS shall not block submission. |
 | FR-006.9 | After submit, the user shall see the outcome: `Accepted`, `Exception` (held for supervisor), `Rejected` (with reason, re-capture needed) or `Queued` (offline). |
 | FR-006.10 | The reader shall confirm a summary (meter, status, reading, consumption) before final submission. |
+| FR-006.11 | Each reading shall record the property's tenant code at the time of reading (from vw_MR_Property). The reader may type a sub-tenant name on the check screen when the premises has one (optional, up to 100 characters). |
 
 ### 4.8 My readings and retry (FR-007)
 

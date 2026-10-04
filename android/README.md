@@ -50,6 +50,10 @@ In the demo build, **Demo: no signal** on the sign-in screen shows the offline p
 - **English only**, short everyday words, no system terms (see `res/values/strings.xml`).
 - **Dubai Investments Park colours**: navy `#12305C` (wordmark) and taupe `#776759` (mark), in
   `ui/theme/Theme.kt`. Light theme only, for use in sun.
+- **Logo**: `res/drawable-nodpi/dip_logo.png` on the sign-in screen and the "D" mark as the launcher
+  icon (`ic_launcher_mark.png`), both made from `docs/Dubai-Investments-Park (8).jpg` with the
+  white background made transparent.
+- **Sub-tenant**: optional "Add sub-tenant name" on the check screen, sent with the reading.
 
 ## Screens
 
@@ -76,14 +80,12 @@ The capture steps for each meter condition come from `data/StatusRules.kt`, whic
 - Readings are whole numbers on the phone; `DecimalDigits` from the server is not used yet.
 - Image quality check, resize to 1,600 px / 500 KB, encrypted image files, SHA-256 (FR-008.4–.6, FR-009).
 - GPS capture (FR-006.8), Play Integrity (FR-002.5), OCR assist (Phase 3).
-- Dubai Investments Park logo: add `res/drawable/dip_logo.png` and replace the placeholder on the
-  sign-in screen and the launcher icon foreground.
 - Dependency injection (Hilt) in place of `AppGraph`.
 
 ## Build status
 
 The project was written in an environment without the Android SDK, so it has **not been
 compiled for Android yet**; expect small compile fixes on first sync. The plain-Kotlin parts
-(`data/`, `api/`, `util/Format.kt`) compile and their 32 unit tests pass on the JVM, including
+(`data/`, `api/`, `util/Format.kt`) compile and their 35 unit tests pass on the JVM, including
 the repository against a scripted server (MockWebServer) and, with `MR_API_URL` set, against
 the running API.

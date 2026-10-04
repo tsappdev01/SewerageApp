@@ -85,6 +85,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                         ELSE UPPER(CAST(m.MeterType AS varchar(20))) END AS MeterType,
                    CAST(p.PropertyCode AS varchar(30)) AS PropertyCode, CAST(p.PropertyName AS nvarchar(150)) AS PropertyName,
                    CAST(p.TenantCode AS varchar(30)) AS TenantCode, LTRIM(RTRIM(CAST(p.CompanyName AS nvarchar(200)))) AS CompanyName,
+                   TRY_CAST(p.PropertyId AS bigint) AS PropertyId, CAST(m.MeterType AS varchar(20)) AS SourceMeterType,
                    TRY_CAST(p.RouteSequence AS int) AS PropertyRoute,
                    TRY_CAST(p.Latitude AS decimal(9,6)) AS Latitude, TRY_CAST(p.Longitude AS decimal(9,6)) AS Longitude,
                    CAST(p.ZoneCode AS varchar(20)) AS ZoneCode, LTRIM(RTRIM(CAST(z.ZoneName AS nvarchar(100)))) AS ZoneName,
@@ -174,7 +175,8 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         const string sql = """
             SELECT t.TransactionId, t.MeterId, t.MeterCondition, t.ReasonCode, t.NewReading, t.Consumption,
                    t.CapturedAtUtc, t.ReceivedAtUtc, t.Status, t.StatusNote, CAST(t.ExpectedPhotos AS int) AS ExpectedPhotos,
-                   (SELECT COUNT(*) FROM mr.ReadingImage i WHERE i.TransactionId = t.TransactionId) AS PhotosReceived
+                   (SELECT COUNT(*) FROM mr.ReadingImage i WHERE i.TransactionId = t.TransactionId) AS PhotosReceived,
+                   t.TenantCode, t.SubTenant
             FROM mr.ReadingTransaction t
             WHERE t.ReaderId = @readerId AND t.PeriodCode = @periodCode AND t.Status <> 'SUPERSEDED'
             ORDER BY t.CapturedAtUtc DESC
@@ -188,7 +190,8 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         const string sql = """
             SELECT t.TransactionId, t.MeterId, t.MeterCondition, t.ReasonCode, t.NewReading, t.Consumption,
                    t.CapturedAtUtc, t.ReceivedAtUtc, t.Status, t.StatusNote, CAST(t.ExpectedPhotos AS int) AS ExpectedPhotos,
-                   (SELECT COUNT(*) FROM mr.ReadingImage i WHERE i.TransactionId = t.TransactionId) AS PhotosReceived
+                   (SELECT COUNT(*) FROM mr.ReadingImage i WHERE i.TransactionId = t.TransactionId) AS PhotosReceived,
+                   t.TenantCode, t.SubTenant
             FROM mr.ReadingTransaction t
             WHERE t.MeterId = @meterId AND t.PeriodCode = @periodCode
             ORDER BY t.ReceivedAtUtc DESC
@@ -202,7 +205,8 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         const string sql = """
             SELECT t.TransactionId, t.MeterId, t.ReaderId, t.PeriodCode, t.MeterCondition, t.ReasonCode, t.NewReading, t.Consumption,
                    t.CapturedAtUtc, t.ReceivedAtUtc, t.Status, t.StatusNote, t.PayloadHash, CAST(t.ExpectedPhotos AS int) AS ExpectedPhotos,
-                   (SELECT COUNT(*) FROM mr.ReadingImage i WHERE i.TransactionId = t.TransactionId) AS PhotosReceived
+                   (SELECT COUNT(*) FROM mr.ReadingImage i WHERE i.TransactionId = t.TransactionId) AS PhotosReceived,
+                   t.TenantCode, t.SubTenant
             FROM mr.ReadingTransaction t
             WHERE t.TransactionId = @transactionId
             """;
@@ -235,10 +239,12 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             END
             INSERT mr.ReadingTransaction (TransactionId, PeriodCode, MeterId, ReaderId, DeviceId, MeterCondition, ReasonCode, Remarks,
                 NewReading, PreviousReading, Consumption, OldFinalReading, NewMeterNumber, NewOpeningReading, NewCurrentReading,
-                Latitude, Longitude, GpsAccuracyM, CapturedAtUtc, Status, StatusNote, StatusChangedAtUtc, PayloadHash, ExpectedPhotos)
+                Latitude, Longitude, GpsAccuracyM, CapturedAtUtc, Status, StatusNote, StatusChangedAtUtc, PayloadHash, ExpectedPhotos,
+                PropertyId, PropertyCode, MeterNumber, MeterType, TenantCode, SubTenant)
             VALUES (@TransactionId, @PeriodCode, @MeterId, @ReaderId, @DeviceId, @MeterCondition, @ReasonCode, @Remarks,
                 @NewReading, @PreviousReading, @Consumption, @OldFinalReading, @NewMeterNumber, @NewOpeningReading, @NewCurrentReading,
-                @Latitude, @Longitude, @GpsAccuracyM, @CapturedAtUtc, @Status, @StatusNote, SYSUTCDATETIME(), @PayloadHash, @ExpectedPhotos);
+                @Latitude, @Longitude, @GpsAccuracyM, @CapturedAtUtc, @Status, @StatusNote, SYSUTCDATETIME(), @PayloadHash, @ExpectedPhotos,
+                @PropertyId, @PropertyCode, @MeterNumber, @MeterType, @TenantCode, @SubTenant);
             COMMIT TRANSACTION;
             SELECT 1;
             """;
@@ -302,6 +308,8 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             missing.Add("mr.ReadingTransaction (run db/002_create_mr_schema.sql)");
         else if (await mr.ExecuteScalarAsync<int>(Cmd("SELECT CASE WHEN COL_LENGTH(N'mr.ReadingTransaction', N'ExpectedPhotos') IS NULL THEN 0 ELSE 1 END", null, ct)) == 0)
             missing.Add("mr.ReadingTransaction.ExpectedPhotos (run db/004_add_expected_photos.sql)");
+        else if (await mr.ExecuteScalarAsync<int>(Cmd("SELECT CASE WHEN COL_LENGTH(N'mr.ReadingTransaction', N'TenantCode') IS NULL THEN 0 ELSE 1 END", null, ct)) == 0)
+            missing.Add("mr.ReadingTransaction.TenantCode (run db/005_reading_tenant_and_export.sql)");
         return missing;
     }
 

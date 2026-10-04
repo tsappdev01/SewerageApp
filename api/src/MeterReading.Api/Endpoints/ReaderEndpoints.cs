@@ -151,7 +151,7 @@ public static partial class ReaderEndpoints
         DateTime.SpecifyKind(r.CapturedAtUtc, DateTimeKind.Utc), DateTime.SpecifyKind(r.ReceivedAtUtc, DateTimeKind.Utc),
         r.Status, AssignmentStates.From(r.Status, r.MeterCondition),
         r.Status is "REJECTED_BY_SUPERVISOR" or "EXCEPTION" ? r.StatusNote : null,
-        r.ExpectedPhotos ?? 0, r.PhotosReceived);
+        r.ExpectedPhotos ?? 0, r.PhotosReceived, r.TenantCode, r.SubTenant);
 
     [GeneratedRegex(@"^\d{4}-(0[1-9]|1[0-2])$")]
     private static partial Regex PeriodCode();

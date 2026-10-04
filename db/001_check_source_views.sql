@@ -21,7 +21,7 @@ INSERT @Expected (ViewName, ColumnName, Family, ViewRequired) VALUES
  (N'vw_MR_Property', N'ZoneCode', 'text', 1), (N'vw_MR_Property', N'RouteSequence', 'int', 1),
  (N'vw_MR_Property', N'Latitude', 'any', 1), (N'vw_MR_Property', N'Longitude', 'any', 1),
  (N'vw_MR_Property', N'IsActive', 'flag', 1),
- (N'vw_MR_Property', N'TenantCode', 'text', 1), (N'vw_MR_Property', N'CompanyName', 'text', 1),
+ (N'vw_MR_Property', N'PropertyId', 'key', 1), (N'vw_MR_Property', N'TenantCode', 'text', 1), (N'vw_MR_Property', N'CompanyName', 'text', 1),
  (N'vw_MR_Meter', N'MeterId', 'key', 1), (N'vw_MR_Meter', N'MeterNumber', 'text', 1),
  (N'vw_MR_Meter', N'PropertyCode', 'text', 1), (N'vw_MR_Meter', N'MeterType', 'text', 1),
  (N'vw_MR_Meter', N'RegisterDigits', 'int', 1), (N'vw_MR_Meter', N'DecimalDigits', 'int', 1),

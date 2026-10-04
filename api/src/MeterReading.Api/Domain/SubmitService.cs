@@ -56,6 +56,8 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
         var meter = (await readers.LoadAsync(period.PeriodCode, new MeterFilter(MeterIds: [r.MeterId]), ct)).Meters.SingleOrDefault();
         if (meter is null) return SubmitOutcome.Reject(404, "METER_NOT_FOUND", "There is no active meter with this id.");
 
+        if (r.SubTenant is { Length: > 100 })
+            return SubmitOutcome.Reject(422, "VALIDATION_FAILED", "The sub-tenant name can be at most 100 characters.");
         if (Missing(r) is { } missing)
             return SubmitOutcome.Reject(422, "MANDATORY_FIELD_MISSING", $"{missing} is needed for a {r.Condition} meter.");
         foreach (var value in new[] { r.NewReading, r.OldFinalReading, r.NewOpeningReading, r.NewCurrentReading })
@@ -65,6 +67,8 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
                 return SubmitOutcome.Reject(422, "READING_EXCEEDS_REGISTER", $"The meter has {meter.RegisterDigits} digits.");
         }
 
+        // Property, meter and tenant as they are now, so the reading keeps them if they change later.
+        var source = (await repo.GetMetersAsync(new MeterFilter(MeterIds: [meter.Id]), ct)).Single();
         var (consumption, exceptions) = Evaluate(r, meter);
         var row = new NewTransactionRow
         {
@@ -91,6 +95,12 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
             StatusNote = exceptions.Count > 0 ? string.Join(',', exceptions) : null,
             PayloadHash = hash,
             ExpectedPhotos = r.PhotoCount,
+            PropertyId = source.PropertyId,
+            PropertyCode = source.PropertyCode,
+            MeterNumber = source.MeterNumber,
+            MeterType = source.SourceMeterType,
+            TenantCode = source.TenantCode,
+            SubTenant = Trimmed(r.SubTenant, 100),
         };
 
         // ALREADY_READ is checked under a lock on the meter's rows, so two phones cannot both read it.

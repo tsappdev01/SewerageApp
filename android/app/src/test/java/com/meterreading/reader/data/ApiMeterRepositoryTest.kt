@@ -242,4 +242,13 @@ class ApiMeterRepositoryTest {
         assertEquals(false, File(p.path).exists())
         assertEquals(0, repo.photosWaiting.value)
     }
+
+    @Test
+    fun `the sub-tenant name typed by the reader is sent with the reading`() {
+        signIn(); takeRequests(3)
+        val d = draft().copy(subTenant = "  Al Fajr Workshop ")
+        enqueue(201, stored(d))
+        runBlocking { repo.submit(d) }
+        assertTrue(server.takeRequest().body.readUtf8().contains("\"subTenant\":\"Al Fajr Workshop\""))
+    }
 }

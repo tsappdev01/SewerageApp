@@ -36,6 +36,9 @@ class CaptureViewModel(private val repo: MeterRepository, meterId: String) : Vie
     var reasonCode by mutableStateOf<String?>(null)
     var note by mutableStateOf("")
     var newMeterNumber by mutableStateOf("")
+
+    /** Optional: typed on the check screen when the premises has a sub-tenant. */
+    var subTenant by mutableStateOf("")
     var readerConfirmedWarning by mutableStateOf(false)
 
     var sending by mutableStateOf(false)
@@ -140,6 +143,7 @@ class CaptureViewModel(private val repo: MeterRepository, meterId: String) : Vie
                 photos = photos.map { (role, file) -> DraftPhoto(UUID.randomUUID().toString(), role, file.path) },
                 readerConfirmedWarning = readerConfirmedWarning,
                 capturedAt = LocalDateTime.now(),
+                subTenant = subTenant.trim().ifEmpty { null },
             )
             val result = repo.submit(draft)
             refusal = result.message

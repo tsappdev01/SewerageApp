@@ -29,6 +29,9 @@ public sealed class MeterRow
     public string? PropertyName { get; init; }
     public string? TenantCode { get; init; }
     public string? CompanyName { get; init; }
+    public long? PropertyId { get; init; }
+    /// <summary>MeterType exactly as the source view gives it, for the readings table's Type column.</summary>
+    public string? SourceMeterType { get; init; }
     public int? PropertyRoute { get; init; }
     public decimal? Latitude { get; init; }
     public decimal? Longitude { get; init; }
@@ -60,6 +63,8 @@ public sealed class TransactionRow
     public string PeriodCode { get; init; } = "";
     public int? ExpectedPhotos { get; init; }
     public int PhotosReceived { get; init; }
+    public string? TenantCode { get; init; }
+    public string? SubTenant { get; init; }
     public Guid TransactionId { get; init; }
     public string MeterId { get; init; } = "";
     public string MeterCondition { get; init; } = "";
@@ -113,6 +118,12 @@ public sealed class NewTransactionRow
     public string? StatusNote { get; init; }
     public string PayloadHash { get; init; } = "";
     public int ExpectedPhotos { get; init; }
+    public long? PropertyId { get; init; }
+    public string? PropertyCode { get; init; }
+    public string? MeterNumber { get; init; }
+    public string? MeterType { get; init; }
+    public string? TenantCode { get; init; }
+    public string? SubTenant { get; init; }
 }
 
 public sealed class ImageRow
