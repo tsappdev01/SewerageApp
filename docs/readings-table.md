@@ -18,7 +18,7 @@ like that table. Times in the view are UAE time; the table keeps UTC.
 | PropertyId | bigint | API, from `vw_MR_Property` | Property id at the time of reading. |
 | PropertyCode | varchar(30) | API, from `vw_MR_Property` | e.g. `1499-W1`. |
 | MeterNumber | varchar(30) | API, from `vw_MR_Meter` | Number printed on the meter. |
-| **TenantCode** | varchar(30) | API, from `vw_MR_Property` | **The tenant when the reading was taken.** Kept even if the tenant changes later. |
+| **TenantCode** | varchar(30) | **reader, checked on site** | **The tenant the reader tapped on the check screen**, which the server confirmed is a current tenant in `vw_MR_Tenant` (spec FR-006.12). Kept even if the tenant changes later. |
 | CapturedAtUtc (**ReadingDate**) | datetime2 | phone | When the reader took the reading. |
 | MeterCondition (**MeterStatus**) | varchar(20) | phone | `WORKING`, `DAMAGED`, `SUBMERSED`, `NOT_ACCESSIBLE`, `METER_REPLACED`, `REMOVED`. |
 | Latitude, Longitude | decimal(9,6) | phone | GPS when the reader allowed location. |

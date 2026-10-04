@@ -93,6 +93,28 @@ Not needed while `AvgConsumption` is in the meter view. If added later, set
 | ReadingDate, ReadingValue, Consumption | |
 | ConsumptionBasis | `ACTUAL` or `AVERAGE` |
 
+## 6a. `vw_MR_Tenant` — current tenants (required)
+
+```sql
+CREATE VIEW dbo.vw_MR_Tenant AS
+SELECT k.PropertyCode, k.TenantCode, mt.CompanyName
+FROM MaintainTransactionKeys k
+JOIN MaintainTenant mt ON mt.TenantCode = k.TenantCode
+WHERE k.TranCode NOT LIKE '%-%'
+```
+
+| Column | Read as | Notes |
+|---|---|---|
+| PropertyCode | text | As in `vw_MR_Property`. |
+| TenantCode | text | Stored on the reading. |
+| CompanyName | text | Shown to the reader to tap. |
+
+**Before a reading is saved, the reader checks the tenant** (spec FR-006.12). The phone lists the
+property's rows from this view; the reader taps the tenant on site. A property can have several
+(the reader picks one). The server checks the tenant against this view again when the reading
+arrives, so a tenant that changed since the phone's last sync is refused (`TENANT_CHANGED`).
+**A property with no row here cannot be read** (`NO_TENANT`); `db/001` counts them.
+
 ## Work is not assigned
 
 There is no assignment view. Every active reader may read every active meter in the open period;
@@ -118,6 +140,9 @@ a meter read by anyone shows as done for everyone. Readers choose zones on the p
    vacant) disappears, and so do its meters, because `vw_MR_Meter` joins the property view. Use a
    `LEFT JOIN` if vacant properties must still be read. A property with **two** tenant rows appears
    twice; the API keeps one row per meter and per property, and the checker reports the duplicate.
+8. **`vw_MR_Tenant` and `vw_MR_Property` can disagree**: the tenant view leaves out `TranCode`s with
+   a dash, the property view does not. A property shown on the phone with no current tenant cannot
+   be read (`NO_TENANT`); `db/001` lists how many. Confirm which tenant rows are current.
 
 ## What the API stores itself (schema `mr`)
 

@@ -37,6 +37,13 @@ class CaptureViewModel(private val repo: MeterRepository, meterId: String) : Vie
     var note by mutableStateOf("")
     var newMeterNumber by mutableStateOf("")
 
+    /**
+     * FR-006.12: the tenant the reader checked on the check screen. Starts empty even when there is only
+     * one, so the reader always looks; saving is blocked until it is set.
+     */
+    var tenantCode by mutableStateOf<String?>(null)
+    val tenantProblem: TenantRules.Problem? get() = TenantRules.problem(property, tenantCode)
+
     /** Optional: typed on the check screen when the premises has a sub-tenant. */
     var subTenant by mutableStateOf("")
     var readerConfirmedWarning by mutableStateOf(false)
@@ -129,7 +136,7 @@ class CaptureViewModel(private val repo: MeterRepository, meterId: String) : Vie
     }
 
     fun submit() {
-        if (sending || outcome != null) return
+        if (sending || outcome != null || tenantProblem != null) return
         sending = true
         viewModelScope.launch {
             val draft = ReadingDraft(
@@ -144,6 +151,7 @@ class CaptureViewModel(private val repo: MeterRepository, meterId: String) : Vie
                 readerConfirmedWarning = readerConfirmedWarning,
                 capturedAt = LocalDateTime.now(),
                 subTenant = subTenant.trim().ifEmpty { null },
+                tenantCode = tenantCode,
             )
             val result = repo.submit(draft)
             refusal = result.message

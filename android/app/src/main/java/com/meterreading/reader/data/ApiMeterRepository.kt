@@ -83,7 +83,12 @@ class ApiMeterRepository(
             val sync = api.meters()
             val mine = api.myReadings()
             val waiting = queue.associateBy { it.meterId }
-            _properties.value = sync.properties.map { Property(it.code, it.name ?: it.code, it.zoneCode, it.routeSequence ?: Int.MAX_VALUE, it.tenantCode, it.companyName) }
+            _properties.value = sync.properties.map {
+                Property(
+                    it.code, it.name ?: it.code, it.zoneCode, it.routeSequence ?: Int.MAX_VALUE, it.tenantCode, it.companyName,
+                    it.tenants.map { t -> Tenant(t.code, t.companyName) },
+                )
+            }
             _meters.value = sync.meters.map { m ->
                 val meter = m.toMeter()
                 if (m.id in waiting) meter.copy(state = ReadingState.QUEUED) else meter
@@ -100,6 +105,7 @@ class ApiMeterRepository(
     }
 
     override suspend fun submit(draft: ReadingDraft): SubmitResult = lock.withLock {
+        tenantRefusal(draft)?.let { return@withLock SubmitResult(SubmitOutcome.REJECTED, it) } // never saved or queued
         try {
             val response = api.submit(draft.toRequest())
             online.value = true
@@ -237,6 +243,7 @@ class ApiMeterRepository(
         capturedAtUtc = capturedAt.atZone(zone).toInstant().toString(),
         photoCount = photos.size,
         subTenant = subTenant?.trim()?.ifEmpty { null },
+        tenantCode = tenantCode,
     )
 
     private fun ReadingDraft.toQueuedReading() = Reading(transactionId, meterId, condition, value, capturedAt, ReadingState.QUEUED, needsCheck = false)

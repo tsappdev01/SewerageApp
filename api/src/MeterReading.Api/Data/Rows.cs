@@ -20,6 +20,14 @@ public sealed class PeriodRow
     public string Status { get; init; } = "";
 }
 
+/// <summary>One tenant of a property, from vw_MR_Tenant.</summary>
+public sealed class TenantRow
+{
+    public string PropertyCode { get; init; } = "";
+    public string TenantCode { get; init; } = "";
+    public string? CompanyName { get; init; }
+}
+
 public sealed class MeterRow
 {
     public string MeterId { get; init; } = "";

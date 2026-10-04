@@ -46,7 +46,7 @@ public sealed class TransferTests(ApiFactory factory) : IAsyncLifetime
         client.DefaultRequestHeaders.Add("X-Dev-User", Rashid);
         var response = await client.PostAsJsonAsync("/api/v1/readings", new
         {
-            transactionId = id, meterId, condition, newReading = reading, reasonCode = reason, note, subTenant,
+            transactionId = id, meterId, condition, newReading = reading, reasonCode = reason, note, subTenant, tenantCode = DevTenants.Of(meterId),
             readerConfirmedWarning = confirmed, capturedAtUtc = Captured,
         });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);

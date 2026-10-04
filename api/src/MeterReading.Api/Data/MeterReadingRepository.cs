@@ -289,6 +289,26 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         }, ct)) == 1;
     }
 
+    /// <summary>
+    /// The current tenants of the given properties (all properties when null), from vw_MR_Tenant.
+    /// A property can have more than one; the reader picks the one on site (FR-006.12).
+    /// </summary>
+    public async Task<IReadOnlyList<TenantRow>> GetTenantsAsync(IReadOnlyCollection<string>? propertyCodes, CancellationToken ct)
+    {
+        var codeClause = propertyCodes is null
+            ? ""
+            : "WHERE CAST(t.PropertyCode AS varchar(30)) IN (SELECT CAST([value] AS varchar(30)) FROM OPENJSON(@codes))";
+        var sql = $"""
+            SELECT DISTINCT CAST(t.PropertyCode AS varchar(30)) AS PropertyCode, LTRIM(RTRIM(CAST(t.TenantCode AS varchar(30)))) AS TenantCode,
+                   LTRIM(RTRIM(CAST(t.CompanyName AS nvarchar(200)))) AS CompanyName
+            FROM {_v.Tenant} t
+            {codeClause}
+            """;
+        await using var c = await db.OpenSourceAsync(ct);
+        var rows = await c.QueryAsync<TenantRow>(Cmd(sql, new { codes = JsonSerializer.Serialize(propertyCodes ?? []) }, ct));
+        return rows.Where(r => r.TenantCode.Length > 0).DistinctBy(r => (r.PropertyCode, r.TenantCode)).ToList();
+    }
+
     /// <summary>Names of required views and tables that are missing, for the readiness check.</summary>
     public async Task<IReadOnlyList<string>> FindMissingViewsAsync(CancellationToken ct)
     {

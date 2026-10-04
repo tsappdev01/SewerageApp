@@ -33,6 +33,11 @@ CREATE TABLE devsrc.ReadingHistory (MeterId bigint NOT NULL, PeriodCode char(7) 
     AverageConsumption decimal(18,3) NULL, PRIMARY KEY (MeterId, PeriodCode));
 GO
 
+/* Like MaintainTransactionKeys.TranCode: vw_MR_Tenant leaves out codes with a dash (ended leases). */
+IF COL_LENGTH(N'devsrc.Tenant', N'TranCode') IS NULL
+    ALTER TABLE devsrc.Tenant ADD TranCode varchar(20) NOT NULL CONSTRAINT DF_devsrc_Tenant_TranCode DEFAULT ('TR');
+GO
+
 /* The real reader view can repeat a sign-in name; earlier dev tables forbade it. */
 DECLARE @unique sysname = (SELECT kc.name FROM sys.key_constraints kc
                            WHERE kc.parent_object_id = OBJECT_ID(N'devsrc.Reader') AND kc.type = 'UQ');
@@ -66,8 +71,10 @@ SELECT v.* FROM (VALUES
 ) v (PropertyCode, PropertyName, ZoneCode, RouteSequence, Latitude, Longitude, IsActive)
 WHERE NOT EXISTS (SELECT 1 FROM devsrc.Property p WHERE p.PropertyCode = v.PropertyCode);
 
-/* Fictional tenants. Property 1101 has two tenant rows, as can happen in the real data, and
-   plot 4001 has none, so the inner join drops it like the real view would. */
+/* Fictional tenants. Property 1101 has two current tenants, as can happen in the real data, and
+   plot 4001 has none, so the inner join drops it like the real view would. Villa 3010's lease has
+   ended (TranCode with a dash, set below): the property view still shows the company, but
+   vw_MR_Tenant has no tenant for it, so its readings are refused with NO_TENANT. */
 INSERT devsrc.Tenant (PropertyCode, TenantCode, CompanyName)
 SELECT v.* FROM (VALUES
     ('1100', 'T-0101', N'Palmgate Foods Trading'),
@@ -79,6 +86,8 @@ SELECT v.* FROM (VALUES
     ('3010', 'T-0301', N'Northgate Marble Works')
 ) v (PropertyCode, TenantCode, CompanyName)
 WHERE NOT EXISTS (SELECT 1 FROM devsrc.Tenant t WHERE t.PropertyCode = v.PropertyCode AND t.TenantCode = v.TenantCode);
+
+UPDATE devsrc.Tenant SET TranCode = 'TR-END' WHERE PropertyCode = '3010' AND TranCode NOT LIKE '%-%';
 
 INSERT devsrc.Meter (MeterId, MeterNumber, PropertyCode, MeterType, RegisterDigits, DecimalDigits, OpeningReading, InstallDate, RouteSequence, SerialNumber, Status)
 SELECT v.* FROM (VALUES
@@ -149,6 +158,10 @@ SELECT ROW_NUMBER() OVER (ORDER BY p.PropertyCode) AS PropertyId,
        t.TenantCode, t.CompanyName
 FROM devsrc.Property p
 JOIN devsrc.Tenant t ON t.PropertyCode = p.PropertyCode;
+GO
+/* Same as the real view: current tenants only (TranCode without a dash). */
+CREATE OR ALTER VIEW dbo.vw_MR_Tenant AS
+SELECT PropertyCode, TenantCode, CompanyName FROM devsrc.Tenant WHERE TranCode NOT LIKE '%-%';
 GO
 /* Shaped like the real view: barcode id, last billed reading as OpeningReading, ISNULL zeros, Status 1/0. */
 CREATE OR ALTER VIEW dbo.vw_MR_Meter AS

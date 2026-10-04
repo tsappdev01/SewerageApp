@@ -56,6 +56,16 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
         var meter = (await readers.LoadAsync(period.PeriodCode, new MeterFilter(MeterIds: [r.MeterId]), ct)).Meters.SingleOrDefault();
         if (meter is null) return SubmitOutcome.Reject(404, "METER_NOT_FOUND", "There is no active meter with this id.");
 
+        // FR-006.12: the reader checked the tenant on site, and it is still a tenant of the property.
+        var tenants = await repo.GetTenantsAsync([meter.PropertyCode], ct);
+        if (tenants.Count == 0)
+            return SubmitOutcome.Reject(422, "NO_TENANT", "This property has no tenant on record. Tell your supervisor.");
+        if (string.IsNullOrWhiteSpace(r.TenantCode))
+            return SubmitOutcome.Reject(422, "TENANT_NOT_CONFIRMED", "Check the tenant before saving the reading.");
+        var tenant = tenants.FirstOrDefault(t => string.Equals(t.TenantCode, r.TenantCode.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (tenant is null)
+            return SubmitOutcome.Reject(409, "TENANT_CHANGED", "The tenant of this property has changed. Refresh and check the tenant again.");
+
         if (r.SubTenant is { Length: > 100 })
             return SubmitOutcome.Reject(422, "VALIDATION_FAILED", "The sub-tenant name can be at most 100 characters.");
         if (Missing(r) is { } missing)
@@ -67,7 +77,7 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
                 return SubmitOutcome.Reject(422, "READING_EXCEEDS_REGISTER", $"The meter has {meter.RegisterDigits} digits.");
         }
 
-        // Property, meter and tenant as they are now, so the reading keeps them if they change later.
+        // Property and meter as they are now, so the reading keeps them if they change later.
         var source = (await repo.GetMetersAsync(new MeterFilter(MeterIds: [meter.Id]), ct)).Single();
         var (consumption, exceptions) = Evaluate(r, meter);
         var row = new NewTransactionRow
@@ -99,7 +109,7 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
             PropertyCode = source.PropertyCode,
             MeterNumber = source.MeterNumber,
             MeterType = source.SourceMeterType,
-            TenantCode = source.TenantCode,
+            TenantCode = tenant.TenantCode,
             SubTenant = Trimmed(r.SubTenant, 100),
         };
 

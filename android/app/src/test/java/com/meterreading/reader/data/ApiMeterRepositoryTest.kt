@@ -29,7 +29,8 @@ class ApiMeterRepositoryTest {
     private val sync = """
         {"period":{"code":"2026-10","startDate":"2026-10-01","endDate":"2026-10-31","status":"OPEN"},
          "zones":[{"code":"598","name":"DIP 2"}],
-         "properties":[{"code":"1499-W1","name":"1499-W1","zoneCode":"598","routeSequence":1,"tenantCode":"T-0201","companyName":"Sandline Logistics LLC"}],
+         "properties":[{"code":"1499-W1","name":"1499-W1","zoneCode":"598","routeSequence":1,"tenantCode":"T-0201","companyName":"Sandline Logistics LLC",
+                         "tenants":[{"code":"T-0201","companyName":"Sandline Logistics LLC"},{"code":"T-0209","companyName":"Sandline Cold Chain"}]}],
          "meters":[
            {"id":"BC0006","number":"2001-2","type":"IRRIGATION","propertyCode":"1499-W1","zoneCode":"598","routeSequence":2,
             "registerDigits":5,"decimalDigits":0,"previousReading":52500.0,"lastConsumption":1200.0,"isFirstReading":false,
@@ -65,6 +66,7 @@ class ApiMeterRepositoryTest {
         transactionId = UUID.randomUUID().toString(), meterId = meterId, condition = MeterCondition.WORKING,
         reasonCode = null, note = "", numbers = mapOf(NumberTarget.CURRENT to reading), newMeterNumber = null,
         photos = photos, readerConfirmedWarning = false, capturedAt = LocalDateTime.of(2026, 10, 4, 7, 15),
+        tenantCode = "T-0201",
     )
 
     private fun photo(bytes: ByteArray = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 1, 2, 3)): DraftPhoto {
@@ -250,5 +252,48 @@ class ApiMeterRepositoryTest {
         enqueue(201, stored(d))
         runBlocking { repo.submit(d) }
         assertTrue(server.takeRequest().body.readUtf8().contains("\"subTenant\":\"Al Fajr Workshop\""))
+    }
+
+    @Test
+    fun `FR006_12 sync gives each property its tenants`() {
+        signIn()
+        assertEquals(listOf("T-0201", "T-0209"), repo.property("1499-W1").tenants.map { it.code })
+    }
+
+    @Test
+    fun `FR006_12 the checked tenant is sent with the reading`() {
+        signIn(); takeRequests(3)
+        val d = draft().copy(tenantCode = "T-0209")
+        enqueue(201, stored(d))
+        assertEquals(SubmitOutcome.SENT, runBlocking { repo.submit(d) }.outcome)
+        assertTrue(server.takeRequest().body.readUtf8().contains("\"tenantCode\":\"T-0209\""))
+    }
+
+    @Test
+    fun `FR006_12 a reading whose tenant was not checked is neither sent nor saved`() {
+        signIn(); takeRequests(3)
+        offline = true // even with no signal it must not be queued
+        val result = runBlocking { repo.submit(draft().copy(tenantCode = null)) }
+        assertEquals(SubmitResult(SubmitOutcome.REJECTED, "Check the tenant first."), result)
+        assertEquals(ReadingState.PENDING, repo.meter("BC0006").state)
+        assertTrue(repo.readings.value.none { it.state == ReadingState.QUEUED })
+    }
+
+    @Test
+    fun `FR006_12 a tenant from another property is refused on the phone`() {
+        signIn(); takeRequests(3)
+        assertEquals(SubmitOutcome.REJECTED, runBlocking { repo.submit(draft().copy(tenantCode = "T-0101")) }.outcome)
+    }
+
+    @Test
+    fun `FR006_12 a queued reading refused for its tenant comes back to read again`() {
+        signIn(); takeRequests(3)
+        offline = true
+        runBlocking { repo.submit(draft()) }
+        offline = false
+        enqueue(409, """{"title":"The tenant of this property has changed. Refresh and check the tenant again.","status":409,"code":"TENANT_CHANGED"}""")
+        assertEquals(0, runBlocking { repo.sendQueued() })
+        assertEquals(ReadingState.READ_AGAIN, repo.meter("BC0006").state)
+        assertEquals("The tenant of this property has changed. Refresh and check the tenant again.", repo.meter("BC0006").supervisorNote)
     }
 }

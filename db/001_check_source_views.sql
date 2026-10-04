@@ -31,6 +31,8 @@ INSERT @Expected (ViewName, ColumnName, Family, ViewRequired) VALUES
  (N'vw_MR_Meter', N'Status', 'flag', 1),
  (N'vw_MR_ReadingPeriod', N'StartDate', 'date', 1), (N'vw_MR_ReadingPeriod', N'EndDate', 'date', 1),
  (N'vw_MR_ReadingPeriod', N'Status', 'text', 1),
+ (N'vw_MR_Tenant', N'PropertyCode', 'text', 1), (N'vw_MR_Tenant', N'TenantCode', 'text', 1),
+ (N'vw_MR_Tenant', N'CompanyName', 'text', 1),
  (N'vw_MR_ReadingHistory', N'MeterId', 'key', 0), (N'vw_MR_ReadingHistory', N'PeriodCode', 'text', 0),
  (N'vw_MR_ReadingHistory', N'ReadingDate', 'date', 0), (N'vw_MR_ReadingHistory', N'ReadingValue', 'decimal', 0),
  (N'vw_MR_ReadingHistory', N'Consumption', 'decimal', 0), (N'vw_MR_ReadingHistory', N'ConsumptionBasis', 'text', 0);
@@ -77,6 +79,9 @@ INSERT @Checks VALUES
  (N'Property without CompanyName (the phone shows the code instead)', N'vw_MR_Property', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Property WHERE CompanyName IS NULL OR LTRIM(CompanyName) = '''''),
  (N'Property with unknown ZoneCode', N'vw_MR_Property', N'vw_MR_Zone', N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Property p WHERE NOT EXISTS (SELECT 1 FROM {s}.vw_MR_Zone z WHERE z.ZoneCode = p.ZoneCode)'),
  (N'Latitude or Longitude not a number', N'vw_MR_Property', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Property WHERE (Latitude IS NOT NULL AND TRY_CAST(Latitude AS decimal(9,6)) IS NULL) OR (Longitude IS NOT NULL AND TRY_CAST(Longitude AS decimal(9,6)) IS NULL)'),
+ (N'Property with no current tenant in vw_MR_Tenant (its readings are refused: NO_TENANT)', N'vw_MR_Property', N'vw_MR_Tenant', N'SELECT @n = COUNT(*) FROM (SELECT DISTINCT p.PropertyCode FROM {s}.vw_MR_Property p WHERE p.IsActive = 1 AND NOT EXISTS (SELECT 1 FROM {s}.vw_MR_Tenant t WHERE t.PropertyCode = p.PropertyCode)) d'),
+ (N'Properties with more than one current tenant (the reader picks one)', N'vw_MR_Tenant', NULL, N'SELECT @n = COUNT(*) FROM (SELECT PropertyCode FROM {s}.vw_MR_Tenant GROUP BY PropertyCode HAVING COUNT(DISTINCT TenantCode) > 1) d'),
+ (N'Tenant row without TenantCode', N'vw_MR_Tenant', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Tenant WHERE TenantCode IS NULL OR LTRIM(TenantCode) = '''''),
  (N'Meter without MeterId (barcode)', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter WHERE MeterId IS NULL OR LTRIM(CAST(MeterId AS varchar(50))) = '''''),
  (N'Duplicate MeterId (barcode)', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM (SELECT MeterId FROM {s}.vw_MR_Meter WHERE MeterId IS NOT NULL GROUP BY MeterId HAVING COUNT(*) > 1) d'),
  (N'MeterId longer than 50 characters', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter WHERE LEN(CAST(MeterId AS varchar(60))) > 50'),

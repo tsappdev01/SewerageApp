@@ -15,6 +15,9 @@ data class MeDto(val readerId: String, val displayName: String, val teamCode: St
 data class ZoneDto(val code: String, val name: String? = null)
 
 @Serializable
+data class TenantDto(val code: String, val companyName: String? = null)
+
+@Serializable
 data class PropertyDto(
     val code: String,
     val name: String? = null,
@@ -24,6 +27,7 @@ data class PropertyDto(
     val longitude: Double? = null,
     val tenantCode: String? = null,
     val companyName: String? = null,
+    val tenants: List<TenantDto> = emptyList(),
 )
 
 @Serializable
@@ -90,6 +94,7 @@ data class SubmitReadingRequest(
     val capturedAtUtc: String,
     val photoCount: Int = 0,
     val subTenant: String? = null,
+    val tenantCode: String? = null,
 )
 
 @Serializable

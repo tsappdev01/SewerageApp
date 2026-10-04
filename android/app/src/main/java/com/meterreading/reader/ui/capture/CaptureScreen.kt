@@ -10,10 +10,12 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -33,6 +35,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -417,7 +420,7 @@ private fun ConfirmStep(vm: CaptureViewModel) {
                 )
                 BigButton(
                     stringResource(if (vm.sending) R.string.sending else R.string.yes_send), vm::submit, Modifier.weight(1f),
-                    icon = Icons.Rounded.Check, kind = BigButtonKind.Success, enabled = !vm.sending,
+                    icon = Icons.Rounded.Check, kind = BigButtonKind.Success, enabled = !vm.sending && vm.tenantProblem == null,
                 )
             }
         },
@@ -436,7 +439,62 @@ private fun ConfirmStep(vm: CaptureViewModel) {
             vm.consumption()?.let { Pill(stringResource(R.string.used, formatReading(it)), AppColors.Ok, AppColors.OkTint) }
         }
         if (vm.note.isNotBlank()) Text("“${vm.note}”", color = AppColors.SubInk, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        TenantCheck(vm)
         SubTenantField(vm)
+    }
+}
+
+/**
+ * FR-006.12: the reader taps the tenant they see on site. Nothing is picked for them, even when there is
+ * only one, and "Yes, send" stays off until they do. A property with no tenant cannot be saved.
+ */
+@Composable
+private fun TenantCheck(vm: CaptureViewModel) {
+    val tenants = vm.property.tenants
+    Text(stringResource(R.string.tenant_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.fillMaxWidth())
+    if (tenants.isEmpty()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().background(AppColors.BadTint, RoundedCornerShape(12.dp)).padding(14.dp),
+        ) {
+            Icon(Icons.Rounded.Warning, null, tint = AppColors.Bad, modifier = Modifier.size(32.dp))
+            Spacer(Modifier.width(12.dp))
+            Text(stringResource(R.string.tenant_none), style = MaterialTheme.typography.titleMedium, color = AppColors.Ink)
+        }
+        return
+    }
+    Text(
+        stringResource(if (tenants.size == 1) R.string.tenant_q_one else R.string.tenant_q_many),
+        style = MaterialTheme.typography.bodyLarge, color = AppColors.SubInk, modifier = Modifier.fillMaxWidth(),
+    )
+    tenants.forEach { t ->
+        val chosen = vm.tenantCode == t.code
+        val shape = RoundedCornerShape(12.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 64.dp)
+                .clip(shape)
+                .background(if (chosen) AppColors.NavyTint else AppColors.Card)
+                .border(if (chosen) 3.dp else 1.dp, if (chosen) AppColors.Navy else AppColors.Line, shape)
+                .selectable(selected = chosen, enabled = !vm.sending, role = Role.RadioButton) { vm.tenantCode = t.code }
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+        ) {
+            Icon(
+                if (chosen) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked, null,
+                tint = if (chosen) AppColors.Navy else AppColors.SubInk, modifier = Modifier.size(32.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(t.displayName, style = MaterialTheme.typography.titleMedium, color = AppColors.Ink)
+                Text(t.code, style = MaterialTheme.typography.bodyMedium, color = AppColors.SubInk)
+            }
+            if (chosen) Text(stringResource(R.string.tenant_checked), style = MaterialTheme.typography.labelLarge, color = AppColors.Navy)
+        }
+    }
+    if (vm.tenantCode == null) {
+        Text(stringResource(R.string.tenant_needed), style = MaterialTheme.typography.bodyMedium, color = AppColors.SubInk, modifier = Modifier.fillMaxWidth())
     }
 }
 

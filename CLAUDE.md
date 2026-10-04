@@ -22,6 +22,9 @@ never run outside development.
   with the `PmsRowId` update.
 - Work is not assigned: meter lists are shared by all active readers and narrowed by zone. A
   reader's own submissions ("my readings", "read by you") are scoped to them; test that.
+- A reading is saved only with the tenant the reader checked on site, which must be a current
+  tenant of the property in `vw_MR_Tenant` (FR-006.12). The phone checks before saving or queueing;
+  the server checks again on arrival.
 - Errors are problem details with a `code` from spec Appendix A.
 - Photos go through `IImageStore` (database by default, table `mr.ReadingImageData`; folder or
   Azure Blob by setting) and are never overwritten; a reading is

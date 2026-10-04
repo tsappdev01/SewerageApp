@@ -10,10 +10,16 @@ public sealed record MeDto(string ReaderId, string DisplayName, string? TeamCode
 
 public sealed record ZoneDto(string Code, string? Name);
 
-/// <summary>A property. The phone shows <c>CompanyName</c> (the tenant) when there is one, else <c>Name</c>.</summary>
+/// <summary>A tenant of a property (vw_MR_Tenant). The reader checks it before saving a reading (FR-006.12).</summary>
+public sealed record TenantDto(string Code, string? CompanyName);
+
+/// <summary>
+/// A property. The phone shows <c>CompanyName</c> (the tenant) when there is one, else <c>Name</c>.
+/// <c>Tenants</c> are the tenants the reader chooses from on the check screen; empty means none on record.
+/// </summary>
 public sealed record PropertyDto(
     string Code, string? Name, string ZoneCode, int? RouteSequence, decimal? Latitude, decimal? Longitude,
-    string? TenantCode = null, string? CompanyName = null);
+    string? TenantCode = null, string? CompanyName = null, IReadOnlyList<TenantDto>? Tenants = null);
 
 public sealed record MeterDto(
     /// <summary>The meter's barcode in the source system.</summary>
@@ -119,7 +125,9 @@ public sealed record SubmitReadingRequest(
     Guid? DeviceId = null,
     decimal? Latitude = null,
     decimal? Longitude = null,
-    decimal? GpsAccuracyM = null);
+    decimal? GpsAccuracyM = null,
+    /// <summary>The tenant the reader checked on site; must be a current tenant of the property (FR-006.12).</summary>
+    string? TenantCode = null);
 
 /// <summary>What the server did with a reading: ACCEPTED, or EXCEPTION with the reason codes.</summary>
 public sealed record SubmitReadingResponse(

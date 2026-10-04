@@ -38,7 +38,7 @@ public sealed class SubmitTests(ApiFactory factory) : IAsyncLifetime
     }
 
     private object Reading(string meterId, string condition = "WORKING", decimal? reading = null, string? reason = null, string? note = null,
-        Guid? id = null, DateTime? capturedAt = null, bool confirmed = false, string? subTenant = null)
+        Guid? id = null, DateTime? capturedAt = null, bool confirmed = false, string? subTenant = null, string? tenant = DevTenants.Own)
     {
         var transactionId = id ?? Guid.NewGuid();
         _created.Add(transactionId);
@@ -46,6 +46,7 @@ public sealed class SubmitTests(ApiFactory factory) : IAsyncLifetime
         {
             transactionId, meterId, condition, reasonCode = reason, note, newReading = reading,
             readerConfirmedWarning = confirmed, capturedAtUtc = capturedAt ?? DateTime.UtcNow.AddMinutes(-2), subTenant,
+            tenantCode = DevTenants.Resolve(tenant, meterId),
         };
     }
 
@@ -232,5 +233,40 @@ public sealed class SubmitTests(ApiFactory factory) : IAsyncLifetime
         var (status, body) = await Post(Reading("BC0007", reading: 17_300, subTenant: new string('x', 101)));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, status);
         Assert.Equal("VALIDATION_FAILED", Code(body));
+    }
+
+    [Fact]
+    public async Task FR006_12_a_reading_without_the_checked_tenant_is_refused()
+    {
+        var (status, body) = await Post(Reading("BC0007", reading: 17_300, tenant: null));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, status);
+        Assert.Equal("TENANT_NOT_CONFIRMED", Code(body));
+    }
+
+    [Fact]
+    public async Task FR006_12_a_tenant_that_is_not_the_propertys_is_refused()
+    {
+        var (status, body) = await Post(Reading("BC0007", reading: 17_300, tenant: "T-0101")); // 1100's tenant
+        Assert.Equal(HttpStatusCode.Conflict, status);
+        Assert.Equal("TENANT_CHANGED", Code(body));
+    }
+
+    [Fact]
+    public async Task FR006_12_a_property_with_no_current_tenant_cannot_be_read()
+    {
+        var (status, body) = await Post(Reading("BC0017", reading: 4_800, tenant: "T-0301")); // 3010: lease ended
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, status);
+        Assert.Equal("NO_TENANT", Code(body));
+    }
+
+    [Fact]
+    public async Task FR006_12_the_tenant_the_reader_picked_is_stored()
+    {
+        var (status, _) = await Post(Reading("BC0003", reading: 30_500, tenant: "t-0199")); // 1101's second tenant
+        Assert.Equal(HttpStatusCode.Created, status);
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Dev-User", Rashid);
+        var mine = await client.GetFromJsonAsync<JsonElement>("/api/v1/readings/mine");
+        Assert.Equal("T-0199", mine.EnumerateArray().First(r => r.GetProperty("meterId").GetString() == "BC0003").GetProperty("tenantCode").GetString());
     }
 }

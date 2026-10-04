@@ -50,7 +50,7 @@ public sealed class ImageTests(ApiFactory factory) : IAsyncLifetime
         _readings.Add(id);
         var response = await As(Rashid).PostAsJsonAsync("/api/v1/readings", new
         {
-            transactionId = id, meterId, condition = "WORKING", newReading = 30_500, photoCount,
+            transactionId = id, meterId, condition = "WORKING", newReading = 30_500, photoCount, tenantCode = DevTenants.Of(meterId),
             readerConfirmedWarning = false, capturedAtUtc = DateTime.UtcNow.AddMinutes(-2),
         });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -194,7 +194,7 @@ public sealed class ImageTests(ApiFactory factory) : IAsyncLifetime
         _readings.Add(id);
         var response = await As(Rashid).PostAsJsonAsync("/api/v1/readings", new
         {
-            transactionId = id, meterId = "BC0003", condition = "WORKING", newReading = 30_500, photoCount = 5,
+            transactionId = id, meterId = "BC0003", condition = "WORKING", newReading = 30_500, photoCount = 5, tenantCode = "T-0102",
             readerConfirmedWarning = false, capturedAtUtc = DateTime.UtcNow.AddMinutes(-2),
         });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);

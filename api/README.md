@@ -57,14 +57,20 @@ POST /api/v1/readings
 
 Checks run in the order of spec §7.2. A refusal stores nothing and returns a problem `code`:
 `VALIDATION_FAILED`, `INVALID_LOV_CODE`, `TRANSACTION_ID_REUSED`, `NO_OPEN_PERIOD`,
-`CAPTURE_TIME_INVALID`, `METER_NOT_FOUND`, `MANDATORY_FIELD_MISSING`, `READING_EXCEEDS_REGISTER`,
-`ALREADY_READ`. A stored reading is `ACCEPTED`, or `EXCEPTION` for the supervisor with reasons
+`CAPTURE_TIME_INVALID`, `METER_NOT_FOUND`, `NO_TENANT`, `TENANT_NOT_CONFIRMED`, `TENANT_CHANGED`,
+`MANDATORY_FIELD_MISSING`, `READING_EXCEEDS_REGISTER`, `ALREADY_READ`. A stored reading is `ACCEPTED`, or `EXCEPTION` for the supervisor with reasons
 (`LOWER_THAN_PREVIOUS`, `HIGH_CONSUMPTION`, `ROLLOVER_OUT_OF_RANGE`, `DAMAGED_METER`,
 `METER_REPLACEMENT`, `METER_REMOVAL`). A meter can be read again only after the supervisor
 rejects its reading or when it was not accessible; the check runs under a lock, so two phones
 cannot both read it. `photoCount` says how many photos will follow; `subTenant` (optional, up to
-100 characters) is the sub-tenant name the reader typed. The server adds the tenant, property,
-meter number and meter type from the views, so the reading keeps them if they change later.
+100 characters) is the sub-tenant name the reader typed.
+
+**`tenantCode` is required** (spec FR-006.12): the tenant the reader tapped on the check screen. It
+must be a current tenant of the meter's property in `vw_MR_Tenant`, checked when the reading arrives:
+none on record → `NO_TENANT`; missing → `TENANT_NOT_CONFIRMED`; not the property's (e.g. changed
+since the phone synced) → `TENANT_CHANGED`. Sync lists each property's `tenants` for the phone.
+The server adds the property, meter number and meter type from the views, so the reading keeps
+them if they change later.
 
 ### Uploading photos
 

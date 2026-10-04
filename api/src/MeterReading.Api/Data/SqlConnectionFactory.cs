@@ -60,7 +60,8 @@ public sealed class SourceViewNames(string schema)
     public string Meter => Name("vw_MR_Meter");
     public string ReadingPeriod => Name("vw_MR_ReadingPeriod");
     public string ReadingHistory => Name("vw_MR_ReadingHistory");
+    public string Tenant => Name("vw_MR_Tenant");
 
     public static readonly string[] Required =
-        ["vw_MR_Reader", "vw_MR_Zone", "vw_MR_Property", "vw_MR_Meter", "vw_MR_ReadingPeriod"];
+        ["vw_MR_Reader", "vw_MR_Zone", "vw_MR_Property", "vw_MR_Meter", "vw_MR_ReadingPeriod", "vw_MR_Tenant"];
 }

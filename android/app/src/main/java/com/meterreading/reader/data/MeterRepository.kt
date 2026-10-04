@@ -32,6 +32,10 @@ abstract class MeterRepository {
 
     abstract suspend fun submit(draft: ReadingDraft): SubmitResult
 
+    /** FR-006.12: why a draft cannot be saved because of its tenant, or null when it can. */
+    protected fun tenantRefusal(draft: ReadingDraft): String? =
+        TenantRules.problem(property(meter(draft.meterId).propertyCode), draft.tenantCode)?.message
+
     /** Sends readings and photos saved on the phone. Returns how many items were sent. */
     abstract suspend fun sendQueued(): Int
 

@@ -21,9 +21,11 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
 
         // Different databases are allowed, so these run on their own connections, side by side.
         var latestTask = repo.GetLatestTransactionsAsync(periodCode, ids, ct);
+        var tenantsTask = repo.GetTenantsAsync(rows.Select(r => r.PropertyCode).Distinct().ToArray(), ct);
         var averagesTask = repo.GetHistoryAveragesAsync(needAverage, rules.Value.AveragePeriods, ct);
         var latest = await latestTask;
         var averages = await averagesTask;
+        var tenants = (await tenantsTask).ToLookup(t => t.PropertyCode);
 
         var ordered = rows
             .OrderBy(r => r.ZoneCode, StringComparer.Ordinal)
@@ -54,7 +56,8 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
 
         var properties = ordered
             .DistinctBy(r => r.PropertyCode)
-            .Select(r => new PropertyDto(r.PropertyCode, r.PropertyName, r.ZoneCode, r.PropertyRoute, r.Latitude, r.Longitude, r.TenantCode, r.CompanyName))
+            .Select(r => new PropertyDto(r.PropertyCode, r.PropertyName, r.ZoneCode, r.PropertyRoute, r.Latitude, r.Longitude, r.TenantCode, r.CompanyName,
+                tenants[r.PropertyCode].Select(t => new TenantDto(t.TenantCode, t.CompanyName)).ToList()))
             .ToList();
         var zones = ordered.DistinctBy(r => r.ZoneCode).Select(r => new ZoneDto(r.ZoneCode, r.ZoneName)).ToList();
         return new MeterSet(meters, properties, zones);

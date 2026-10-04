@@ -20,6 +20,11 @@ enum class ReadingState {
     val canCapture: Boolean get() = this == PENDING || this == READ_AGAIN || this == REVISIT
 }
 
+/** A current tenant of a property (vw_MR_Tenant). */
+data class Tenant(val code: String, val companyName: String?) {
+    val displayName: String get() = companyName?.takeIf { it.isNotBlank() } ?: code
+}
+
 data class Property(
     val code: String,
     val name: String,
@@ -28,6 +33,8 @@ data class Property(
     val tenantCode: String? = null,
     /** The tenant's company, from vw_MR_Property. */
     val companyName: String? = null,
+    /** Current tenants; the reader checks one before saving a reading (FR-006.12). Empty: none on record. */
+    val tenants: List<Tenant> = emptyList(),
 ) {
     /** What the reader sees under the code: the company when there is one, else the property name. */
     val displayName: String get() = companyName?.takeIf { it.isNotBlank() } ?: name
@@ -78,6 +85,8 @@ data class ReadingDraft(
     val capturedAt: LocalDateTime,
     /** Sub-tenant name typed by the reader, if the premises has one. */
     val subTenant: String? = null,
+    /** The tenant the reader checked on site (FR-006.12). */
+    val tenantCode: String? = null,
 ) {
     val value: Long? get() = numbers[NumberTarget.CURRENT] ?: numbers[NumberTarget.OLD_FINAL]
 }

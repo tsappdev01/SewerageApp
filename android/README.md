@@ -55,6 +55,10 @@ In the demo build, **Demo: no signal** on the sign-in screen shows the offline p
 - **App icon**: from `docs/ChatGPT Image Oct 4, 2026, 06_00_11 PM.png`, split into an adaptive
   icon's two layers (`ic_launcher_background.png` brown gradient, `ic_launcher_mark.png` white "D")
   so every phone's icon shape works. `play-store-icon-512.png` is the 512 px icon for Google Play.
+- **Tenant check** (spec FR-006.12): the check screen lists the property's current tenants and the
+  reader taps the one on site; "Yes, send" stays off until they do, even when there is only one.
+  A property with no tenant cannot be read. `data/TenantRules.kt` mirrors the server, and the
+  repository refuses an unchecked reading before it is sent or saved for later.
 - **Sub-tenant**: optional "Add sub-tenant name" on the check screen, sent with the reading.
 
 ## Screens

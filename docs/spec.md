@@ -278,7 +278,8 @@ and `Revisit` meters shall be capturable again.
 | FR-006.8 | The app shall capture GPS coordinates and accuracy at submission when location permission is granted; absence of GPS shall not block submission. |
 | FR-006.9 | After submit, the user shall see the outcome: `Accepted`, `Exception` (held for supervisor), `Rejected` (with reason, re-capture needed) or `Queued` (offline). |
 | FR-006.10 | The reader shall confirm a summary (meter, status, reading, consumption) before final submission. |
-| FR-006.11 | Each reading shall record the property's tenant code at the time of reading (from vw_MR_Property). The reader may type a sub-tenant name on the check screen when the premises has one (optional, up to 100 characters). |
+| FR-006.11 | Each reading shall record the property's tenant code at the time of reading (the tenant checked under FR-006.12). The reader may type a sub-tenant name on the check screen when the premises has one (optional, up to 100 characters). |
+| FR-006.12 | Before a reading is saved or sent, the reader shall check the property's tenant on the check screen: the app lists the property's current tenants (vw_MR_Tenant) and the reader taps the one on site. Nothing is pre-selected, even when there is only one; "Yes, send" stays off until a tenant is tapped. A property with no current tenant cannot be read ("Tell your supervisor"). The server checks again when the reading arrives: the tenant must still be a current tenant of the property, else the reading is refused (`TENANT_NOT_CONFIRMED`, `TENANT_CHANGED`, `NO_TENANT`) and the meter comes back to be read again. Added 2026-10-04. |
 
 ### 4.8 My readings and retry (FR-007)
 
@@ -521,6 +522,7 @@ audit entry.
 | 8 | `CapturedAt` not more than `ClockSkewToleranceMinutes` (5) in the future and not older than `MaxQueueAgeDays` (7) | `CAPTURE_TIME_INVALID` |
 | 9 | Mandatory fields and minimum image roles for the status (§6.1); LOV codes active | `MANDATORY_FIELD_MISSING`, `INVALID_LOV_CODE` |
 | 10 | Reading digits ≤ register size | `READING_EXCEEDS_REGISTER` |
+| 10a | Tenant checked by the reader and still a current tenant of the property in vw_MR_Tenant (FR-006.12) | `NO_TENANT`, `TENANT_NOT_CONFIRMED`, `TENANT_CHANGED` |
 | 11 | Image count ≤ max; each image hash, size and format valid | `IMAGE_HASH_MISMATCH`, `IMAGE_INVALID` |
 | 12 | Status-specific consistency (e.g. FIRST_READING only for meters without history; replacement new meter number not active elsewhere) | `STATUS_NOT_ALLOWED`, `METER_NUMBER_IN_USE` |
 
@@ -1039,6 +1041,9 @@ Each has a proposed default that development can use now. Resolve each with an A
 | IMAGE_TOO_LARGE | 413 | Photo above the size limit | Shrink and retry |
 | IMAGE_ID_REUSED | 409 | Same image id, different photo | Log as defect |
 | TOO_MANY_IMAGES | 422 | More photos than allowed per reading | Drop the extra photo |
+| NO_TENANT | 422 | The property has no current tenant in vw_MR_Tenant (FR-006.12) | Show "tell your supervisor"; nothing saved |
+| TENANT_NOT_CONFIRMED | 422 | The reading came without the tenant the reader checked | Ask the reader to tap the tenant |
+| TENANT_CHANGED | 409 | The checked tenant is no longer a tenant of the property | Refresh; meter back to "read again" |
 
 ## Appendix B — Business rule test vectors
 

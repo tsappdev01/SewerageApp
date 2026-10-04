@@ -25,6 +25,25 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     }
 }
 
+/// <summary>The current tenant of each development meter's property (db/dev/000, vw_MR_Tenant).</summary>
+public static class DevTenants
+{
+    /// <summary>Stands for "the meter's own tenant" in test helpers.</summary>
+    public const string Own = "<own>";
+
+    public static string? Of(string meterId) => int.Parse(meterId[2..]) switch
+    {
+        <= 2 => "T-0101",              // 1100
+        <= 4 => "T-0102",              // 1101 (also T-0199)
+        <= 11 => "T-0201",             // 1499-W1
+        <= 13 => "T-0202",             // 1502
+        <= 15 => "T-0203",             // 1497
+        _ => null,                     // 3010: lease ended; 4001: no tenant
+    };
+
+    public static string? Resolve(string? tenant, string meterId) => tenant == Own ? Of(meterId) : tenant;
+}
+
 /// <summary>Tests that use the shared database run one class at a time.</summary>
 [CollectionDefinition(Name)]
 public sealed class DatabaseCollection : ICollectionFixture<ApiFactory>
@@ -154,6 +173,16 @@ public sealed class ApiTests(ApiFactory factory)
         var ids = sync.GetProperty("meters").EnumerateArray().Select(m => m.GetProperty("id").GetString()).ToList();
         Assert.Equal(ids.Distinct().Count(), ids.Count);
         Assert.Single(sync.GetProperty("properties").EnumerateArray(), p => p.GetProperty("code").GetString() == "1101");
+    }
+
+    [Fact]
+    public async Task FR006_12_sync_lists_each_propertys_current_tenants()
+    {
+        var properties = (await Get(Rashid, "/api/v1/sync/meters")).GetProperty("properties").EnumerateArray()
+            .ToDictionary(p => p.GetProperty("code").GetString()!, p => p.GetProperty("tenants").EnumerateArray().Select(t => t.GetProperty("code").GetString()).Order().ToList());
+        Assert.Equal(["T-0102", "T-0199"], properties["1101"]);
+        Assert.Equal(["T-0201"], properties["1499-W1"]);
+        Assert.Empty(properties["3010"]); // lease ended
     }
 
     [Fact]

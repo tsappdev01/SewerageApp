@@ -114,6 +114,12 @@
     <string name="used">+%1$s used</string>
     <string name="old_meter">Old meter</string>
     <string name="new_meter">New meter</string>
+    <string name="tenant_title">Tenant</string>
+    <string name="tenant_q_one">Is this the tenant here? Tap it.</string>
+    <string name="tenant_q_many">Who is the tenant here? Tap one.</string>
+    <string name="tenant_checked">Checked</string>
+    <string name="tenant_needed">Tap the tenant before you send.</string>
+    <string name="tenant_none">No tenant on record. You cannot send this reading. Tell your supervisor.</string>
     <string name="sub_tenant_add">Add sub-tenant name</string>
     <string name="sub_tenant_label">Sub-tenant name (if any)</string>
     <string name="change">Change</string>
@@ -184,7 +190,7 @@
     <string name="speak_reason">Press the picture that matches.</string>
     <string name="speak_note">Press the microphone and say what you see.</string>
     <string name="speak_new_meter">Type the number written on the new meter.</string>
-    <string name="speak_check">Look at the photo and the number. If they are the same, press the green button.</string>
+    <string name="speak_check">Look at the photo and the number. Tap the tenant you see here. If all is right, press the green button.</string>
     <string name="speak_result_sent">Sent. Press the blue button for the next meter.</string>
     <string name="speak_result_saved">Saved. It will send by itself later. Press the blue button for the next meter.</string>
     <string name="speak_result_checking">Sent. Your supervisor will check it. Press the blue button for the next meter.</string>

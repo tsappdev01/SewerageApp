@@ -17,12 +17,15 @@ class FakeMeterRepository : MeterRepository() {
     override val readerName: StateFlow<String> = MutableStateFlow("Rashid")
 
     override val properties: StateFlow<List<Property>> = MutableStateFlow(listOf(
-        Property("1100", "1100", "597", 1, "T-0101", "Palmgate Foods Trading"),
-        Property("1101", "1101", "597", 2, "T-0102", "Crescent Fabrication LLC"),
-        Property("1499-W1", "1499-W1", "598", 1, "T-0201", "Sandline Logistics LLC"),
-        Property("1502", "1502", "598", 2, "T-0202", "Bluewave Packaging"),
-        Property("1497", "1497", "598", 3, "T-0203", "Oasis Cold Store"),
-        Property("3010", "3010", "602", 1, "T-0301", "Northgate Marble Works"),
+        Property("1100", "1100", "597", 1, "T-0101", "Palmgate Foods Trading", listOf(Tenant("T-0101", "Palmgate Foods Trading"))),
+        Property(
+            "1101", "1101", "597", 2, "T-0102", "Crescent Fabrication LLC",
+            listOf(Tenant("T-0102", "Crescent Fabrication LLC"), Tenant("T-0199", "Crescent Fabrication (Old Lease)")),
+        ),
+        Property("1499-W1", "1499-W1", "598", 1, "T-0201", "Sandline Logistics LLC", listOf(Tenant("T-0201", "Sandline Logistics LLC"))),
+        Property("1502", "1502", "598", 2, "T-0202", "Bluewave Packaging", listOf(Tenant("T-0202", "Bluewave Packaging"))),
+        Property("1497", "1497", "598", 3, "T-0203", "Oasis Cold Store", listOf(Tenant("T-0203", "Oasis Cold Store"))),
+        Property("3010", "3010", "602", 1, "T-0301", "Northgate Marble Works"), // lease ended: no current tenant
     ))
 
     private val _meters = MutableStateFlow(seedMeters())
@@ -44,6 +47,7 @@ class FakeMeterRepository : MeterRepository() {
     override suspend fun refresh(): Boolean = online.value
 
     override suspend fun submit(draft: ReadingDraft): SubmitResult {
+        tenantRefusal(draft)?.let { return SubmitResult(SubmitOutcome.REJECTED, it) }
         delay(700)
         val needsCheck = draft.readerConfirmedWarning || draft.condition in StatusRules.alwaysChecked
         val outcome = when {

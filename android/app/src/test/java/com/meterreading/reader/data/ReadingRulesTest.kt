@@ -82,4 +82,15 @@ class ReconciliationTest {
         assertEquals(3, r.uploaded)
         assertEquals(listOf(ZoneReconciliation("597", 2, 2, 1), ZoneReconciliation("598", 3, 2, 2)), r.zones)
     }
+
+    private val twoTenants = Property("1101", "1101", "597", 2, tenants = listOf(Tenant("T-0102", "Crescent"), Tenant("T-0199", "Crescent Old")))
+
+    @Test
+    fun `FR006_12 tenant must be checked, be the property's, and exist`() {
+        assertEquals(TenantRules.Problem.NOT_CHECKED, TenantRules.problem(twoTenants, null))
+        assertEquals(TenantRules.Problem.NOT_CHECKED, TenantRules.problem(twoTenants, " "))
+        assertEquals(TenantRules.Problem.NOT_THIS_PROPERTY, TenantRules.problem(twoTenants, "T-0101"))
+        assertEquals(null, TenantRules.problem(twoTenants, "t-0199"))
+        assertEquals(TenantRules.Problem.NO_TENANT, TenantRules.problem(Property("3010", "3010", "602", 1), "T-0301"))
+    }
 }
