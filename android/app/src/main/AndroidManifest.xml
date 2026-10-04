@@ -4,6 +4,9 @@
     <uses-feature android:name="android.hardware.camera.any" android:required="true" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- "Signal is back - Send now / Later" while the app is closed (FR-020.4). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Android 11+ package visibility: text-to-speech engine and voice notes. -->
     <queries>
@@ -33,5 +36,8 @@
             </intent-filter>
         </activity>
 
+        <receiver
+            android:name=".settings.SyncActionReceiver"
+            android:exported="false" />
     </application>
 </manifest>

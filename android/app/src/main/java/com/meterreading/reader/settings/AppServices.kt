@@ -11,6 +11,7 @@ import com.meterreading.reader.data.ApiMeterRepository
 import com.meterreading.reader.data.PhotoVault
 import com.meterreading.reader.data.QueueStore
 import java.io.File
+import java.time.Instant
 import com.meterreading.reader.data.AppGraph
 import com.meterreading.reader.data.AppSettings
 import com.meterreading.reader.data.FakeMeterRepository
@@ -43,6 +44,18 @@ object AppServices {
     var settings: AppSettings = defaults()
         private set
 
+    /** True while the app is on screen: then a dialog asks to send, not a notification. */
+    @Volatile
+    var inForeground = false
+
+    /** "Later" was chosen: do not ask to send before this time (FR-020.4). */
+    val snoozedUntil: Instant?
+        get() = prefs.getLong(KEY_SNOOZE, 0).takeIf { it > 0 }?.let(Instant::ofEpochMilli)
+
+    fun snooze(now: Instant, length: java.time.Duration = com.meterreading.reader.data.SyncPrompt.SNOOZE) {
+        prefs.edit().putLong(KEY_SNOOZE, now.plus(length).toEpochMilli()).apply()
+    }
+
     private val _locked = MutableStateFlow(true)
     /** True while the app waits for the phone's lock; screens stay hidden behind the lock screen. */
     val locked: StateFlow<Boolean> = _locked.asStateFlow()
@@ -66,6 +79,7 @@ object AppServices {
         if (storedPin() == null && SupervisorPin.isValid(BuildConfig.SETTINGS_PIN)) setPin(BuildConfig.SETTINGS_PIN)
         apply(load())
         _locked.value = settings.deviceLock
+        Connectivity.start(this.appContext)
     }
 
     /** Saves and switches to the new settings. The app opens again from the start screen. */
@@ -153,7 +167,7 @@ object AppServices {
             FakeMeterRepository()
         } else {
             ApiMeterRepository(
-                client, store = queueStore, vault = photoVault, onWaiting = { UploadWorker.schedule(appContext) }, listCache = listCache,
+                client, store = queueStore, vault = photoVault, onWaiting = { UploadWorker.scheduleCheck(appContext) }, listCache = listCache,
             )
         }
     }
@@ -173,6 +187,7 @@ object AppServices {
         deviceLock = BuildConfig.DEVICE_LOCK,
     )
 
+    private const val KEY_SNOOZE = "sync_snoozed_until"
     private const val KEY_URL = "api_base_url"
     private const val KEY_LOGIN = "reader_login"
     private const val KEY_LOCK = "device_lock"

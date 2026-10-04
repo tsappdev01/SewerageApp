@@ -22,7 +22,8 @@ Last checked against the code on 2026-10-04 (API 104 tests passing; app version 
    check the phone's lock itself.
 2. **Readings waiting to upload are kept, encrypted.** Readings and photos taken without signal are
    saved in an encrypted file on the phone (key in the Android Keystore), survive closing the app
-   or restarting the phone, and are sent in the background as soon as there is a network.
+   or restarting the phone. When signal is back the phone asks the reader **Send now** or **Later**
+   (a notification if the app is closed); Later asks again after 30 minutes.
 
 Also: the app has **not yet been built with the Android SDK**. Expect small compile fixes the
 first time it is opened in Android Studio.
@@ -408,6 +409,7 @@ cd android
 - [ ] Every phone registered with its own code (2.11); `db/ops/list_devices.sql` shows each one.
 - [ ] Each phone has a screen lock, its reader set in Settings, and a supervisor PIN.
 - [ ] Offline test on a real phone: take readings in flight mode, close the app, restart the
-      phone, switch flight mode off, and see them arrive without opening the app.
+      phone, open the app (it opens from the saved list), switch flight mode off, and tap **Send
+      now** on the notification or dialog; check they arrive. Also try **Later**.
 - [ ] Built, signed with the release key, tested on the readers' phone models, and distributed
       through MDM.

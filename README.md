@@ -21,7 +21,7 @@ readings to billing.
 - **Android:** all reader screens, connected to the API; opens with the phone's own lock (PIN,
   pattern, finger or face) as the reader set in Settings; each phone registered with its own key;
   Settings (gear) behind a supervisor PIN;
-  the meter list and an encrypted queue kept for working without signal, sent in the background. Not yet compiled with the
-  Android SDK; the plain-Kotlin parts compile and their 66 tests pass, including against the API.
+  the meter list and an encrypted queue kept for working without signal; when signal returns it asks "Send now or Later". Not yet compiled with the
+  Android SDK; the plain-Kotlin parts compile and their 70 tests pass, including against the API.
 - **Source views:** the six views in `PropertyManagementSystem` (now with `vw_MR_Tenant`) are read as they are. Items to fix
   before go-live are listed in [docs/source-views.md](docs/source-views.md#to-fix-in-the-views-before-go-live).

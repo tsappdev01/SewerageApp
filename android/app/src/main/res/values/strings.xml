@@ -124,7 +124,7 @@
     <string name="result_sent">Sent</string>
     <string name="result_sent_sub">Meter %1$s is done</string>
     <string name="result_saved">Saved</string>
-    <string name="result_saved_sub">No signal here. It will send by itself when signal comes back.</string>
+    <string name="result_saved_sub">No signal here. It is saved on the phone. When signal comes back, the phone will ask you to send it.</string>
     <string name="result_checking">Sent for checking</string>
     <string name="result_checking_sub">Your supervisor will look at this reading.</string>
     <string name="result_rejected">Not sent</string>
@@ -187,6 +187,12 @@
 
     <string name="start_open">Open</string>
     <string name="saved_list_from">No signal: list from %1$s</string>
+    <string name="sync_channel">Readings waiting to send</string>
+    <string name="sync_title">Signal is back</string>
+    <string name="sync_text">Waiting on the phone: %1$d readings, %2$d photos. Send them now?</string>
+    <string name="sync_now">Send now</string>
+    <string name="sync_later">Later</string>
+    <string name="speak_sync">Signal is back. Press Send now to send your saved readings. Press Later to send them later.</string>
     <string name="start_phone_of">Phone of %1$s</string>
     <string name="start_no_reader">No reader is set for this phone. Ask your supervisor (gear button).</string>
     <string name="start_not_accepted">The server did not accept this reader. Ask your supervisor. Your readings are kept on the phone.</string>
@@ -248,7 +254,7 @@
     <string name="speak_new_meter">Type the number written on the new meter.</string>
     <string name="speak_check">Look at the photo and the number. Tap the tenant you see here. If all is right, press the green button.</string>
     <string name="speak_result_sent">Sent. Press the blue button for the next meter.</string>
-    <string name="speak_result_saved">Saved. It will send by itself later. Press the blue button for the next meter.</string>
+    <string name="speak_result_saved">Saved on the phone. When signal comes back, the phone will ask you to send it. Press the blue button for the next meter.</string>
     <string name="speak_result_checking">Sent. Your supervisor will check it. Press the blue button for the next meter.</string>
     <string name="speak_search">To find a property, press its numbers. Or press the microphone and say the number.</string>
     <string name="speak_summary">This shows how many meters you read and how many are uploaded. Purple means some readings are still on the phone. Press the blue button to upload them.</string>

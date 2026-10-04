@@ -9,33 +9,63 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.meterreading.reader.data.AppGraph
+import com.meterreading.reader.data.SyncPrompt
+import java.time.Duration
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 /**
- * FR-020.4: sends readings and photos waiting on the phone as soon as there is a connection, even
- * when the app is closed. The queue is read from its encrypted file, so nothing depends on the
- * app having stayed open.
+ * FR-020.4. "Check" runs once the phone has a network while readings wait: with the app closed it
+ * shows the "Signal is back — Send now / Later" notification (in the app, a dialog asks instead).
+ * "Send" runs when the reader taps Send now on that notification. Nothing is sent without asking.
  */
 class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         AppServices.init(applicationContext)
         val repo = AppGraph.repository
-        repo.sendQueued()
-        // Still waiting (no signal again, server busy, or sign-in needed): try again later.
-        return if (repo.hasWaiting() && !repo.signInNeeded.value) Result.retry() else Result.success()
+        if (inputData.getBoolean(KEY_SEND, false)) {
+            repo.sendQueued()
+            SyncNotification.cancel(applicationContext)
+            // Signal dropped again: the reader will be asked again when it is back.
+            if (repo.hasWaiting() && !repo.signInNeeded.value) scheduleCheck(applicationContext, SyncPrompt.RETRY)
+            return Result.success()
+        }
+        if (!repo.hasWaiting()) return Result.success()
+        val snoozedUntil = AppServices.snoozedUntil
+        val now = Instant.now()
+        if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
+            scheduleCheck(applicationContext, Duration.between(now, snoozedUntil))
+        } else if (!AppServices.inForeground) {
+            SyncNotification.show(applicationContext, repo.readings.value.count { it.state == com.meterreading.reader.data.ReadingState.QUEUED }, repo.photosWaiting.value)
+        }
+        return Result.success()
     }
 
     companion object {
-        private const val NAME = "send-waiting-readings"
+        private const val CHECK = "check-waiting-readings"
+        private const val SEND = "send-waiting-readings"
+        private const val KEY_SEND = "send"
+        private val network = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
-        /** Asks Android to run the upload once a network is available. Safe to call often. */
-        fun schedule(context: Context) {
+        /** Runs the check once a network is there (after [delay]). Safe to call often. */
+        fun scheduleCheck(context: Context, delay: Duration = Duration.ZERO) {
             val request = OneTimeWorkRequestBuilder<UploadWorker>()
-                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .setConstraints(network)
+                .setInitialDelay(delay.toMillis(), TimeUnit.MILLISECONDS)
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(CHECK, if (delay.isZero) ExistingWorkPolicy.KEEP else ExistingWorkPolicy.REPLACE, request)
+        }
+
+        /** The reader tapped Send now on the notification. */
+        fun sendNow(context: Context) {
+            val request = OneTimeWorkRequestBuilder<UploadWorker>()
+                .setConstraints(network)
+                .setInputData(workDataOf(KEY_SEND to true))
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.MINUTES)
                 .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(NAME, ExistingWorkPolicy.KEEP, request)
+            WorkManager.getInstance(context).enqueueUniqueWork(SEND, ExistingWorkPolicy.KEEP, request)
         }
     }
 }

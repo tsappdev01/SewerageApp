@@ -52,8 +52,12 @@ closing the app or restarting the phone loses nothing. A reading's photos are en
 as soon as it is saved (`PhotoVault`) and opened only to upload. Encryption is AES-256-GCM with
 one key held by the Android Keystore (`settings/KeystoreKeys.kt`); GCM also detects tampering.
 
-`settings/UploadWorker.kt` (WorkManager) sends the queue as soon as there is a network, even with
-the app closed, and retries with growing waits. Readings keep their transaction id and photos
+**Sending asks first (FR-020.4).** When signal is back and readings wait, the phone asks **"Signal
+is back — Send now / Later"**: a dialog in the app (never during a capture), or, with the app closed,
+a notification with the same two buttons (`settings/UploadWorker.kt`, `SyncNotification.kt`;
+Android 13+ asks once for permission to notify). **Later** waits 30 minutes before asking again;
+**Send now** that cannot finish asks again after 5 minutes. **Upload now** on Home and My readings
+still sends at once. A reading taken with signal is sent straight away, as before. Readings keep their transaction id and photos
 their image id, so a resend is never stored twice. A queue file that cannot be opened is kept
 aside (`queue.mrq.unreadable-…`), not deleted. The spec named Room + SQLCipher; one encrypted file
 does the same for a queue of a few hundred readings with less to go wrong.

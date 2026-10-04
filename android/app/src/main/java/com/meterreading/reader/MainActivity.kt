@@ -1,6 +1,12 @@
 package com.meterreading.reader
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.os.Build
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.meterreading.reader.settings.SyncNotification
 import android.os.Bundle
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -35,6 +41,7 @@ class MainActivity : FragmentActivity() {
         speaker = Speaker(this)
         // Settings saved on the phone pick the server and the sign-in; done once for the app's life.
         AppServices.init(applicationContext)
+        askForNotificationsOnce()
         setContent {
             MeterReaderTheme {
                 CompositionLocalProvider(LocalSpeaker provides speaker) {
@@ -54,12 +61,27 @@ class MainActivity : FragmentActivity() {
     // FR-001.5: after 15 minutes away the phone's lock is asked for again.
     override fun onStart() {
         super.onStart()
+        AppServices.inForeground = true
         AppServices.onForeground(System.currentTimeMillis())
+        SyncNotification.cancel(this) // the app asks itself while it is open
     }
 
     override fun onStop() {
+        AppServices.inForeground = false
         AppServices.onBackground(System.currentTimeMillis())
         super.onStop()
+    }
+
+    // FR-020.4: the "Signal is back" notification needs this permission on Android 13+. Asked once.
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
+
+    private fun askForNotificationsOnce() {
+        if (Build.VERSION.SDK_INT < 33) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
+        val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+        if (prefs.getBoolean("asked_notifications", false)) return
+        prefs.edit().putBoolean("asked_notifications", true).apply()
+        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     override fun onDestroy() {

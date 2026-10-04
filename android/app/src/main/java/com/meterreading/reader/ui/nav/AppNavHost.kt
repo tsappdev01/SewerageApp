@@ -6,6 +6,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.navigation.compose.currentBackStackEntryAsState
+import com.meterreading.reader.data.SyncPrompt
+import com.meterreading.reader.settings.Connectivity
+import com.meterreading.reader.ui.components.SyncPromptDialog
+import kotlinx.coroutines.launch
+import java.time.Instant
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -57,15 +65,22 @@ fun AppNavHost() {
 
     fun toStart() = nav.navigate(Routes.SIGN_IN) { popUpTo(nav.graph.id) { inclusive = true } }
 
-    // Readings saved without signal go up by themselves when signal returns (spec §9).
-    // In the background UploadWorker does the same once a network is there (FR-020.4).
-    LaunchedEffect(repo, online) { if (online) repo.sendQueued() }
-    // While readings wait on the phone, try again every minute (signal may be back).
-    LaunchedEffect(repo) {
-        while (true) {
-            delay(60_000)
-            if (repo.hasWaiting()) repo.sendQueued()
-        }
+    // FR-020.4: readings saved without signal are never sent silently. When signal is back the
+    // reader is asked "Send now" or "Later" (with the app closed, UploadWorker shows a notification).
+    val connected by Connectivity.connected.collectAsStateWithLifecycle()
+    val readings by repo.readings.collectAsStateWithLifecycle()
+    val photosWaiting by repo.photosWaiting.collectAsStateWithLifecycle()
+    val backStack by nav.currentBackStackEntryAsState()
+    val capturing = backStack?.destination?.route == Routes.CAPTURE
+    var minute by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) { while (true) { delay(60_000); minute++ } } // "Later" runs out while connected
+    var sending by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val queuedReadings = readings.count { it.state == ReadingState.QUEUED }
+    // The demo has no real network: its "no signal" switch stands in.
+    val signal = if (repo.isDemo) online else connected
+    val askToSend = remember(signal, queuedReadings, photosWaiting, capturing, locked, sending, minute) {
+        !locked && !sending && SyncPrompt.shouldAsk(repo.hasWaiting(), signal, AppServices.snoozedUntil, Instant.now(), capturing)
     }
     // The server did not accept this reader: back to the start screen; waiting readings stay on the phone.
     LaunchedEffect(repo) {
@@ -145,6 +160,22 @@ fun AppNavHost() {
     }
     // FR-001.1: the phone's lock covers everything until given; the screens behind keep their state.
     if (locked) LockScreen(onSettings = openSettings)
+    }
+    if (askToSend) {
+        SyncPromptDialog(
+            readings = queuedReadings,
+            photos = photosWaiting,
+            onSendNow = {
+                sending = true
+                scope.launch {
+                    repo.sendQueued()
+                    // Signal dropped again before all went up: ask again a little later.
+                    if (repo.hasWaiting()) AppServices.snooze(Instant.now(), SyncPrompt.RETRY)
+                    sending = false
+                }
+            },
+            onLater = { AppServices.snooze(Instant.now()) },
+        )
     }
     if (askPin) {
         SupervisorPinDialog(
