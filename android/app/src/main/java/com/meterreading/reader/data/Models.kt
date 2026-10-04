@@ -20,7 +20,18 @@ enum class ReadingState {
     val canCapture: Boolean get() = this == PENDING || this == READ_AGAIN || this == REVISIT
 }
 
-data class Property(val code: String, val name: String, val zoneCode: String, val route: Int)
+data class Property(
+    val code: String,
+    val name: String,
+    val zoneCode: String,
+    val route: Int,
+    val tenantCode: String? = null,
+    /** The tenant's company, from vw_MR_Property. */
+    val companyName: String? = null,
+) {
+    /** What the reader sees under the code: the company when there is one, else the property name. */
+    val displayName: String get() = companyName?.takeIf { it.isNotBlank() } ?: name
+}
 
 data class Meter(
     /** The meter's barcode in the source system. */

@@ -18,6 +18,9 @@ CREATE TABLE devsrc.Zone (ZoneCode varchar(20) PRIMARY KEY, ZoneName nvarchar(10
 IF OBJECT_ID(N'devsrc.Property', N'U') IS NULL
 CREATE TABLE devsrc.Property (PropertyCode varchar(30) PRIMARY KEY, PropertyName nvarchar(150) NULL, ZoneCode varchar(20) NOT NULL,
     RouteSequence int NULL, Latitude decimal(9,6) NULL, Longitude decimal(9,6) NULL, IsActive bit NOT NULL);
+IF OBJECT_ID(N'devsrc.Tenant', N'U') IS NULL
+CREATE TABLE devsrc.Tenant (PropertyCode varchar(30) NOT NULL, TenantCode varchar(30) NOT NULL, CompanyName nvarchar(200) NOT NULL,
+    PRIMARY KEY (PropertyCode, TenantCode));
 IF OBJECT_ID(N'devsrc.Meter', N'U') IS NULL
 CREATE TABLE devsrc.Meter (MeterId bigint PRIMARY KEY, MeterNumber varchar(30) NOT NULL, PropertyCode varchar(30) NOT NULL,
     MeterType varchar(20) NOT NULL, RegisterDigits tinyint NOT NULL, DecimalDigits tinyint NOT NULL, OpeningReading decimal(18,3) NULL,
@@ -62,6 +65,20 @@ SELECT v.* FROM (VALUES
     ('4001', N'Plot 4001', '602', 2, NULL, NULL, 1)
 ) v (PropertyCode, PropertyName, ZoneCode, RouteSequence, Latitude, Longitude, IsActive)
 WHERE NOT EXISTS (SELECT 1 FROM devsrc.Property p WHERE p.PropertyCode = v.PropertyCode);
+
+/* Fictional tenants. Property 1101 has two tenant rows, as can happen in the real data, and
+   plot 4001 has none, so the inner join drops it like the real view would. */
+INSERT devsrc.Tenant (PropertyCode, TenantCode, CompanyName)
+SELECT v.* FROM (VALUES
+    ('1100', 'T-0101', N'Palmgate Foods Trading'),
+    ('1101', 'T-0102', N'Crescent Fabrication LLC'),
+    ('1101', 'T-0199', N'Crescent Fabrication (Old Lease)'),
+    ('1499-W1', 'T-0201', N'Sandline Logistics LLC'),
+    ('1502', 'T-0202', N'Bluewave Packaging'),
+    ('1497', 'T-0203', N'Oasis Cold Store'),
+    ('3010', 'T-0301', N'Northgate Marble Works')
+) v (PropertyCode, TenantCode, CompanyName)
+WHERE NOT EXISTS (SELECT 1 FROM devsrc.Tenant t WHERE t.PropertyCode = v.PropertyCode AND t.TenantCode = v.TenantCode);
 
 INSERT devsrc.Meter (MeterId, MeterNumber, PropertyCode, MeterType, RegisterDigits, DecimalDigits, OpeningReading, InstallDate, RouteSequence, SerialNumber, Status)
 SELECT v.* FROM (VALUES
@@ -124,10 +141,14 @@ GO
 CREATE OR ALTER VIEW dbo.vw_MR_Zone AS
 SELECT ZoneCode, ZoneName + ' ' AS ZoneName, CAST(IsActive AS varchar(1)) AS IsActive FROM devsrc.Zone;
 GO
+/* Like the real view: inner join to the tenant, so a property without one is left out and a
+   property with two tenant rows appears twice. */
 CREATE OR ALTER VIEW dbo.vw_MR_Property AS
-SELECT ROW_NUMBER() OVER (ORDER BY PropertyCode) AS PropertyId,
-       PropertyCode, PropertyName, ZoneCode, RouteSequence, Latitude, Longitude, IsActive
-FROM devsrc.Property;
+SELECT ROW_NUMBER() OVER (ORDER BY p.PropertyCode) AS PropertyId,
+       p.PropertyCode, p.PropertyCode AS PropertyName, p.ZoneCode, p.RouteSequence, p.Latitude, p.Longitude, p.IsActive,
+       t.TenantCode, t.CompanyName
+FROM devsrc.Property p
+JOIN devsrc.Tenant t ON t.PropertyCode = p.PropertyCode;
 GO
 /* Shaped like the real view: barcode id, last billed reading as OpeningReading, ISNULL zeros, Status 1/0. */
 CREATE OR ALTER VIEW dbo.vw_MR_Meter AS

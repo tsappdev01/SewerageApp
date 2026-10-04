@@ -54,7 +54,7 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
 
         var properties = ordered
             .DistinctBy(r => r.PropertyCode)
-            .Select(r => new PropertyDto(r.PropertyCode, r.PropertyName, r.ZoneCode, r.PropertyRoute, r.Latitude, r.Longitude))
+            .Select(r => new PropertyDto(r.PropertyCode, r.PropertyName, r.ZoneCode, r.PropertyRoute, r.Latitude, r.Longitude, r.TenantCode, r.CompanyName))
             .ToList();
         var zones = ordered.DistinctBy(r => r.ZoneCode).Select(r => new ZoneDto(r.ZoneCode, r.ZoneName)).ToList();
         return new MeterSet(meters, properties, zones);
@@ -67,7 +67,7 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
         var inScope = work.Properties.Where(p => zone is null || p.ZoneCode == zone).ToList();
 
         var propertyHits = inScope
-            .Where(p => PropertySearch.Matches(p.Code, q) || PropertySearch.Matches(p.Name, q))
+            .Where(p => PropertySearch.Matches(p.Code, q) || PropertySearch.Matches(p.Name, q) || PropertySearch.Matches(p.CompanyName, q))
             .Select(p => new PropertyHitDto(
                 p,
                 byProperty[p.Code].Where(m => PropertySearch.Keep(m.State, m.Type, done, type)).ToList(),

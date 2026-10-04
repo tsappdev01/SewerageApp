@@ -75,7 +75,7 @@ public sealed class ApiTests(ApiFactory factory)
     public async Task Sync_returns_every_active_meter_in_route_order()
     {
         var meters = (await Get(Rashid, "/api/v1/sync/meters")).GetProperty("meters").EnumerateArray().ToList();
-        Assert.Equal(18, meters.Count);
+        Assert.Equal(17, meters.Count); // plot 4001 has no tenant, so the property view leaves it out
         Assert.Equal("1001-I", meters[0].GetProperty("number").GetString());
         Assert.Equal("BC0001", meters[0].GetProperty("id").GetString());          // barcode, text
         Assert.Equal("IRRIGATION", meters[0].GetProperty("type").GetString());   // view says "Irrigation"
@@ -86,7 +86,7 @@ public sealed class ApiTests(ApiFactory factory)
     public async Task Sync_zone_filter_narrows_the_list()
     {
         var meters = (await Get(Rashid, "/api/v1/sync/meters?zone=602")).GetProperty("meters").EnumerateArray();
-        Assert.Equal(["BC0016", "BC0017", "BC0018"], meters.Select(m => m.GetProperty("id").GetString()));
+        Assert.Equal(["BC0016", "BC0017"], meters.Select(m => m.GetProperty("id").GetString()));
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class ApiTests(ApiFactory factory)
             .ToDictionary(m => m.GetProperty("id").GetString()!);
         Assert.Equal("SENT", meters["BC0016"].GetProperty("state").GetString());     // read by Anil
         Assert.Equal("REVISIT", meters["BC0017"].GetProperty("state").GetString());  // Anil could not reach it
-        Assert.Equal("PENDING", meters["BC0018"].GetProperty("state").GetString());
+
     }
 
     [Fact]
@@ -127,9 +127,9 @@ public sealed class ApiTests(ApiFactory factory)
     public async Task Summary_buckets_add_up()
     {
         var s = await Get(Rashid, "/api/v1/summary");
-        Assert.Equal(18, s.GetProperty("meters").GetInt32());
+        Assert.Equal(17, s.GetProperty("meters").GetInt32());
         Assert.Equal(9, s.GetProperty("read").GetInt32());
-        Assert.Equal(9, s.GetProperty("notRead").GetInt32());
+        Assert.Equal(8, s.GetProperty("notRead").GetInt32());
         Assert.Equal(7, s.GetProperty("readByYou").GetInt32());
         Assert.EndsWith("Z", s.GetProperty("lastReceivedUtc").GetString());
     }
@@ -143,10 +143,35 @@ public sealed class ApiTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Properties_carry_the_tenant_company_name()
+    {
+        var properties = (await Get(Rashid, "/api/v1/sync/meters")).GetProperty("properties").EnumerateArray()
+            .ToDictionary(p => p.GetProperty("code").GetString()!);
+        Assert.Equal("Sandline Logistics LLC", properties["1499-W1"].GetProperty("companyName").GetString());
+        Assert.Equal("T-0201", properties["1499-W1"].GetProperty("tenantCode").GetString());
+    }
+
+    [Fact]
+    public async Task A_property_with_two_tenant_rows_lists_its_meters_once()
+    {
+        var sync = await Get(Rashid, "/api/v1/sync/meters?zone=597");
+        var ids = sync.GetProperty("meters").EnumerateArray().Select(m => m.GetProperty("id").GetString()).ToList();
+        Assert.Equal(ids.Distinct().Count(), ids.Count);
+        Assert.Single(sync.GetProperty("properties").EnumerateArray(), p => p.GetProperty("code").GetString() == "1101");
+    }
+
+    [Fact]
+    public async Task FR021_find_a_property_by_company_name()
+    {
+        var result = await Get(Rashid, "/api/v1/properties/search?q=sandline");
+        Assert.Equal(["1499-W1"], result.GetProperty("properties").EnumerateArray().Select(p => p.GetProperty("property").GetProperty("code").GetString()));
+    }
+
+    [Fact]
     public async Task Summary_by_zone_counts_only_that_zone()
     {
         var s = await Get(Rashid, "/api/v1/summary?zone=602");
-        Assert.Equal(3, s.GetProperty("meters").GetInt32());
+        Assert.Equal(2, s.GetProperty("meters").GetInt32());
         Assert.Equal(0, s.GetProperty("readByYou").GetInt32());
     }
 

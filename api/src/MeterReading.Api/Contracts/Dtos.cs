@@ -10,7 +10,10 @@ public sealed record MeDto(string ReaderId, string DisplayName, string? TeamCode
 
 public sealed record ZoneDto(string Code, string? Name);
 
-public sealed record PropertyDto(string Code, string? Name, string ZoneCode, int? RouteSequence, decimal? Latitude, decimal? Longitude);
+/// <summary>A property. The phone shows <c>CompanyName</c> (the tenant) when there is one, else <c>Name</c>.</summary>
+public sealed record PropertyDto(
+    string Code, string? Name, string ZoneCode, int? RouteSequence, decimal? Latitude, decimal? Longitude,
+    string? TenantCode = null, string? CompanyName = null);
 
 public sealed record MeterDto(
     /// <summary>The meter's barcode in the source system.</summary>

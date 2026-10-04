@@ -36,7 +36,7 @@ class SearchTest {
         Meter("BC0004", "1001-I", MeterType.IRRIGATION, "1100", "597", 1, 5, 100, null, 900),
     )
     private val properties = listOf(
-        PropertyProgress(Property("1499-W1", "Building 1499-W1", "598", 1), meters.filter { it.propertyCode == "1499-W1" }),
+        PropertyProgress(Property("1499-W1", "Building 1499-W1", "598", 1, "T-0201", "Sandline Logistics LLC"), meters.filter { it.propertyCode == "1499-W1" }),
         PropertyProgress(Property("1497", "Villa 1497", "598", 2), meters.filter { it.propertyCode == "1497" }),
         PropertyProgress(Property("1100", "Villa 1100", "597", 1), meters.filter { it.propertyCode == "1100" }),
     )
@@ -54,6 +54,14 @@ class SearchTest {
 
     @Test fun `zone scope`() =
         assertEquals(emptyList<String>(), Search.run(SearchQuery("1100", zoneCode = "598"), properties).properties.map { it.property.code })
+
+    @Test fun `FR021 finds a property by its company name`() =
+        assertEquals(listOf("1499-W1"), Search.run(SearchQuery("sandline log"), properties).properties.map { it.property.code })
+
+    @Test fun `display name is the company, else the property name`() {
+        assertEquals("Sandline Logistics LLC", Property("1499-W1", "Building", "598", 1, "T", "Sandline Logistics LLC").displayName)
+        assertEquals("Villa 1100", Property("1100", "Villa 1100", "597", 1, null, " ").displayName)
+    }
 
     @Test fun `highlight skips dash`() = assertEquals(0..5, Search.highlightRange("1499-W1", "1499W"))
 }

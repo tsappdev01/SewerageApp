@@ -27,6 +27,8 @@ public sealed class MeterRow
     public string MeterType { get; init; } = "";
     public string PropertyCode { get; init; } = "";
     public string? PropertyName { get; init; }
+    public string? TenantCode { get; init; }
+    public string? CompanyName { get; init; }
     public int? PropertyRoute { get; init; }
     public decimal? Latitude { get; init; }
     public decimal? Longitude { get; init; }

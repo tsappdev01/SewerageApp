@@ -82,7 +82,7 @@ fun HomeScreen(
                 val property = repo.property(next.propertyCode)
                 BigButton(
                     text = stringResource(R.string.start),
-                    subtitle = stringResource(R.string.next_at, next.zoneCode, property.name),
+                    subtitle = stringResource(R.string.next_at, next.zoneCode, property.displayName),
                     onClick = { onStart(next.id) },
                     icon = Icons.Rounded.PlayArrow,
                     minHeight = 96.dp,

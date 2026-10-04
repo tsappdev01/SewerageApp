@@ -16,6 +16,7 @@ data class SearchResults(val properties: List<PropertyProgress>, val meters: Lis
 }
 
 /**
+ * Finds a property by its code, name or tenant company, or a meter by its number.
  * Matching ignores case, spaces and dashes, so "1499w1", "1499 W1" and "1499-w1" all
  * find 1499-W1. Readers type a few digits; a match anywhere in the code counts.
  */
@@ -50,7 +51,10 @@ object Search {
 
         val inScope = properties.filter { query.zoneCode == null || it.property.zoneCode == query.zoneCode }
         val propertyHits = inScope
-            .filter { matches(it.property.code, query.text) || matches(it.property.name, query.text) }
+            .filter {
+                matches(it.property.code, query.text) || matches(it.property.name, query.text) ||
+                    it.property.companyName?.let { company -> matches(company, query.text) } == true
+            }
             .map { it.copy(meters = it.meters.filter(::keep)) }
             .filter { it.meters.isNotEmpty() }
         // Meter-number hits are only listed when the text is not empty and the building did not match already.

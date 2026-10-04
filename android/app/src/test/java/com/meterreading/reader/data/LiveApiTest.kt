@@ -21,7 +21,8 @@ class LiveApiTest {
         val repo = ApiMeterRepository(ApiClient(url!!))
         assertEquals(SignInResult.Success, runBlocking { repo.signIn("rashid@dip.example") })
         assertEquals("Rashid", repo.readerName.value)
-        assertEquals(18, repo.meters.value.size)
+        assertEquals(17, repo.meters.value.size) // plot 4001 has no tenant, so the property view leaves it out
+        assertEquals("Sandline Logistics LLC", repo.property("1499-W1").displayName)
         assertEquals("BC0003", repo.nextMeter(repo.meters.value)?.id) // first unread meter on the route
         assertEquals(ReadingState.READ_AGAIN, repo.meter("BC0008").state)
     }

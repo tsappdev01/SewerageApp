@@ -84,6 +84,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                         WHEN 'I' THEN 'IRRIGATION' WHEN 'S' THEN 'SEWERAGE'
                         ELSE UPPER(CAST(m.MeterType AS varchar(20))) END AS MeterType,
                    CAST(p.PropertyCode AS varchar(30)) AS PropertyCode, CAST(p.PropertyName AS nvarchar(150)) AS PropertyName,
+                   CAST(p.TenantCode AS varchar(30)) AS TenantCode, LTRIM(RTRIM(CAST(p.CompanyName AS nvarchar(200)))) AS CompanyName,
                    TRY_CAST(p.RouteSequence AS int) AS PropertyRoute,
                    TRY_CAST(p.Latitude AS decimal(9,6)) AS Latitude, TRY_CAST(p.Longitude AS decimal(9,6)) AS Longitude,
                    CAST(p.ZoneCode AS varchar(20)) AS ZoneCode, LTRIM(RTRIM(CAST(z.ZoneName AS nvarchar(100)))) AS ZoneName,
@@ -106,7 +107,9 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             ids = JsonSerializer.Serialize(filter.MeterIds ?? []),
         };
         await using var c = await db.OpenSourceAsync(ct);
-        return (await c.QueryAsync<MeterRow>(Cmd(sql, args, ct))).AsList();
+        // A property with two tenant rows appears twice in vw_MR_Property, and so would its meters:
+        // keep the first row per meter (the view checker reports the duplicate property).
+        return (await c.QueryAsync<MeterRow>(Cmd(sql, args, ct))).DistinctBy(r => r.MeterId, StringComparer.Ordinal).ToList();
     }
 
     /// <summary>Average of the last N actual consumptions, for meters the source gave no average for (BR-007).</summary>

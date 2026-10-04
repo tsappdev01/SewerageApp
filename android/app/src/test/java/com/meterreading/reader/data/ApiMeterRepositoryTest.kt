@@ -29,7 +29,7 @@ class ApiMeterRepositoryTest {
     private val sync = """
         {"period":{"code":"2026-10","startDate":"2026-10-01","endDate":"2026-10-31","status":"OPEN"},
          "zones":[{"code":"598","name":"DIP 2"}],
-         "properties":[{"code":"1499-W1","name":"Building 1499-W1","zoneCode":"598","routeSequence":1}],
+         "properties":[{"code":"1499-W1","name":"1499-W1","zoneCode":"598","routeSequence":1,"tenantCode":"T-0201","companyName":"Sandline Logistics LLC"}],
          "meters":[
            {"id":"BC0006","number":"2001-2","type":"IRRIGATION","propertyCode":"1499-W1","zoneCode":"598","routeSequence":2,
             "registerDigits":5,"decimalDigits":0,"previousReading":52500.0,"lastConsumption":1200.0,"isFirstReading":false,
@@ -93,7 +93,8 @@ class ApiMeterRepositoryTest {
         assertEquals(null, meters.getValue("BC0008").expectedHigh)
         assertEquals(ReadingState.READ_AGAIN, meters.getValue("BC0008").state)
         assertEquals("Photo not clear", meters.getValue("BC0008").supervisorNote)
-        assertEquals("Building 1499-W1", repo.property("1499-W1").name)
+        assertEquals("Sandline Logistics LLC", repo.property("1499-W1").displayName)
+        assertEquals("T-0201", repo.property("1499-W1").tenantCode)
         assertEquals(ReadingState.CHECKING, repo.readings.value.single().state)
         assertTrue(takeRequests(3).all { it.getHeader("X-Dev-User") == "rashid@dip.example" })
     }

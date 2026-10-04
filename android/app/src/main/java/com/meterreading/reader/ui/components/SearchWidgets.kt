@@ -89,7 +89,7 @@ fun ChoiceChip(label: String?, selected: Boolean, onClick: () -> Unit, icon: Ima
 
 /** Code or number with the part that matched the search highlighted. */
 @Composable
-fun HighlightedText(text: String, query: String, style: TextStyle, color: Color = AppColors.Ink) {
+fun HighlightedText(text: String, query: String, style: TextStyle, color: Color = AppColors.Ink, maxLines: Int = 1) {
     val range = Search.highlightRange(text, query)
     val annotated = buildAnnotatedString {
         append(text)
@@ -97,7 +97,7 @@ fun HighlightedText(text: String, query: String, style: TextStyle, color: Color 
             addStyle(SpanStyle(background = AppColors.NavyTint, color = AppColors.Navy), range.first, range.last + 1)
         }
     }
-    Text(annotated, style = style, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Text(annotated, style = style, color = color, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
 }
 
 /** Keypad for search: digits, dash, delete, and ABC to open the letter keyboard for codes like W1. */

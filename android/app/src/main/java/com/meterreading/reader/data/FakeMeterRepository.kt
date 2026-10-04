@@ -17,12 +17,12 @@ class FakeMeterRepository : MeterRepository() {
     override val readerName: StateFlow<String> = MutableStateFlow("Rashid")
 
     override val properties: StateFlow<List<Property>> = MutableStateFlow(listOf(
-        Property("1100", "Villa 1100", "597", 1),
-        Property("1101", "Villa 1101", "597", 2),
-        Property("1499-W1", "Building 1499-W1", "598", 1),
-        Property("1502", "Villa 1502", "598", 2),
-        Property("1497", "Villa 1497", "598", 3),
-        Property("3010", "Villa 3010", "602", 1),
+        Property("1100", "1100", "597", 1, "T-0101", "Palmgate Foods Trading"),
+        Property("1101", "1101", "597", 2, "T-0102", "Crescent Fabrication LLC"),
+        Property("1499-W1", "1499-W1", "598", 1, "T-0201", "Sandline Logistics LLC"),
+        Property("1502", "1502", "598", 2, "T-0202", "Bluewave Packaging"),
+        Property("1497", "1497", "598", 3, "T-0203", "Oasis Cold Store"),
+        Property("3010", "3010", "602", 1, "T-0301", "Northgate Marble Works"),
     ))
 
     private val _meters = MutableStateFlow(seedMeters())

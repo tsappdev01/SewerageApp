@@ -151,10 +151,11 @@ fun PropertyCard(p: PropertyProgress, query: String, onClick: () -> Unit, showZo
     ListCard(onClick = onClick, finished = finished) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             HighlightedText(p.property.code, query, MaterialTheme.typography.headlineMedium.copy(fontFamily = NumberFont))
-            Text(
-                if (showZone) stringResource(R.string.property_meta, p.property.zoneCode, p.done, p.meters.size) else p.property.name,
-                color = AppColors.SubInk,
-            )
+            // The tenant's company; highlighted when the search matched it.
+            HighlightedText(p.property.displayName, query, MaterialTheme.typography.titleMedium, maxLines = 2)
+            if (showZone) {
+                Text(stringResource(R.string.property_meta, p.property.zoneCode, p.done, p.meters.size), color = AppColors.SubInk)
+            }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 p.meters.forEach { MeterTypeIcon(it.type, size = 30.dp, outlined = !it.state.canCapture) }
             }

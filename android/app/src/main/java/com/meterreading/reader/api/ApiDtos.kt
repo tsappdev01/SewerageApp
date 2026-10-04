@@ -22,6 +22,8 @@ data class PropertyDto(
     val routeSequence: Int? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
+    val tenantCode: String? = null,
+    val companyName: String? = null,
 )
 
 @Serializable

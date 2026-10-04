@@ -187,6 +187,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .ztab th:first-child, .ztab td:first-child { text-align: left; }
 .ztab td { text-align: right; padding: 4px; font-family: var(--f-num); font-size: 15px; border-top: 1px solid var(--app-line); font-variant-numeric: tabular-nums; }
 .ztab td.miss { color: var(--queued); font-weight: 700; }
+.card .sub.co, .ctx .s.co { color: var(--app-ink); font-weight: 700; font-size: 14px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card .main, .ctx > div { min-width: 0; }
 /* home */
 .hello { font-size: 22px; font-weight: 700; }
 .ring { display: flex; align-items: center; gap: 14px; background: var(--app-card); border: 1.5px solid var(--app-line); border-radius: 18px; padding: 14px; }
@@ -361,7 +363,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
             <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" stroke="var(--app-line)" stroke-width="12"/><circle cx="50" cy="50" r="42" stroke="var(--ok)" stroke-width="12" stroke-dasharray="227 264" transform="rotate(-90 50 50)"/><path d="M36 51l9 9 19-19" stroke="var(--ok)" stroke-width="7"/></svg>
             <div><div class="n">108</div><div class="of">done of 125 meters</div><div class="chip warn" style="margin-top:6px"><svg><use href="#i-gauge"/></svg>17 left</div></div>
           </div>
-          <div class="big go" style="height:84px;font-size:24px;flex-direction:column;gap:2px"><span style="display:flex;gap:10px;align-items:center"><svg><use href="#i-play"/></svg>Start</span><span style="font-size:14px;font-weight:400">Next: 598 · Building 1499-W1</span></div>
+          <div class="big go" style="height:84px;font-size:24px;flex-direction:column;gap:2px"><span style="display:flex;gap:10px;align-items:center"><svg><use href="#i-play"/></svg>Start</span><span style="font-size:14px;font-weight:400">Next: 598 · Sandline Logistics LLC</span></div>
           <div class="search"><svg><use href="#i-search"/></svg><span class="q">Find a Property</span><span class="mic"><svg><use href="#i-mic"/></svg></span></div>
           <div class="tiles">
             <div class="tile"><svg><use href="#i-map"/></svg>My zones</div>
@@ -395,15 +397,15 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
         <div class="body">
           <div class="search"><svg><use href="#i-search"/></svg><span class="q">Find in zone 598</span><span class="mic"><svg><use href="#i-mic"/></svg></span></div>
           <div class="fchips"><span class="on">To read 2</span><span>Done 1</span><span style="color:var(--irr)"><svg><use href="#i-drop"/></svg></span><span style="color:var(--sew)"><svg><use href="#i-pipe"/></svg></span></div>
-          <div class="card"><div class="main"><div class="code">1499-W1</div><div class="sub">Building 1499-W1</div>
+          <div class="card"><div class="main"><div class="code">1499-W1</div><div class="sub co">Sandline Logistics LLC</div>
             <div class="dots"><i class="irr d"><svg><use href="#i-drop"/></svg></i><i class="irr"><svg><use href="#i-drop"/></svg></i><i class="sew d"><svg><use href="#i-pipe"/></svg></i><i class="sew"><svg><use href="#i-pipe"/></svg></i><i class="sew"><svg><use href="#i-pipe"/></svg></i><i class="sew"><svg><use href="#i-pipe"/></svg></i><i class="sew"><svg><use href="#i-pipe"/></svg></i></div></div><span class="go"><svg><use href="#i-next"/></svg></span></div>
-          <div class="card"><div class="main"><div class="code">1502</div><div class="sub">Villa 1502</div>
+          <div class="card"><div class="main"><div class="code">1502</div><div class="sub co">Bluewave Packaging</div>
             <div class="dots"><i class="irr"><svg><use href="#i-drop"/></svg></i><i class="sew"><svg><use href="#i-pipe"/></svg></i></div></div><span class="go"><svg><use href="#i-next"/></svg></span></div>
-          <div class="card done"><div class="main"><div class="code">1497</div><div class="sub">Villa 1497 · done</div>
+          <div class="card done"><div class="main"><div class="code">1497</div><div class="sub co">Oasis Cold Store</div>
             <div class="dots"><i class="irr d"><svg><use href="#i-drop"/></svg></i><i class="sew d"><svg><use href="#i-pipe"/></svg></i></div></div><span class="go"><svg><use href="#i-check"/></svg></span></div>
         </div>
       </div>
-      <figcaption><b><span class="no">04</span>Properties</b>Search and filter at the top. Each meter is a small picture: drop or pipe. A green outline means that meter is read.</figcaption>
+      <figcaption><b><span class="no">04</span>Properties</b>The tenant's company name sits under each property code. Search and filter at the top. Each meter is a small picture: drop or pipe; a green outline means it is read.</figcaption>
     </figure>
 
     <!-- 04b Find -->
@@ -415,8 +417,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
           <div class="search on"><svg><use href="#i-search"/></svg><span class="q typed">149</span><span class="mic"><svg><use href="#i-mic"/></svg></span></div>
           <div class="fchips"><span class="on">All 3</span><span>To read 2</span><span style="color:var(--irr)"><svg><use href="#i-drop"/></svg></span><span style="color:var(--sew)"><svg><use href="#i-pipe"/></svg></span></div>
           <div class="reslbl">Buildings</div>
-          <div class="card slim"><div class="main"><div class="code"><span class="hl">149</span>9-W1</div><div class="sub">Zone 598 · 2 of 7 done</div></div><span class="go"><svg><use href="#i-next"/></svg></span></div>
-          <div class="card slim done"><div class="main"><div class="code"><span class="hl">149</span>7</div><div class="sub">Zone 598 · all done</div></div><span class="go"><svg><use href="#i-check"/></svg></span></div>
+          <div class="card slim"><div class="main"><div class="code"><span class="hl">149</span>9-W1</div><div class="sub co">Sandline Logistics LLC</div><div class="sub">Zone 598 · 2 of 7 done</div></div><span class="go"><svg><use href="#i-next"/></svg></span></div>
+          <div class="card slim done"><div class="main"><div class="code"><span class="hl">149</span>7</div><div class="sub co">Oasis Cold Store</div><div class="sub">Zone 598 · all done</div></div><span class="go"><svg><use href="#i-check"/></svg></span></div>
           <div class="skeys">
             <b>1</b><b>2</b><b>3</b><b class="del"><svg><use href="#i-del"/></svg></b>
             <b>4</b><b>5</b><b>6</b><b>-</b>
@@ -425,7 +427,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
           </div>
         </div>
       </div>
-      <figcaption><b><span class="no">04b</span>Find a Property</b>Type a few digits or speak them. Matches any zone by building number, name or meter number; the matching part is highlighted. ABC opens letters for codes like W1.</figcaption>
+      <figcaption><b><span class="no">04b</span>Find a Property</b>Type a few digits or speak them. Matches any zone by property code, company name or meter number; the matching part is highlighted. ABC opens letters for codes like W1.</figcaption>
     </figure>
 
     <!-- 5 Meters -->
@@ -450,7 +452,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
         <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">How is the meter?</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
         <div class="body">
           <div class="steps"><i class="on"><svg><use href="#i-gauge"/></svg></i><em></em><i><svg><use href="#i-cam"/></svg></i><em></em><i><svg><use href="#i-num"/></svg></i><em></em><i><svg><use href="#i-check"/></svg></i></div>
-          <div class="ctx"><span class="ico irr"><svg><use href="#i-drop"/></svg></span><div><div class="m">2001-2</div><div class="s">598 · 1499-W1</div></div></div>
+          <div class="ctx"><span class="ico irr"><svg><use href="#i-drop"/></svg></span><div><div class="m">2001-2</div><div class="s co">Sandline Logistics LLC</div><div class="s">598 · 1499-W1</div></div></div>
           <div class="st">
             <div class="sel"><svg><use href="#i-check"/></svg>Working</div>
             <div class="c-dmg"><svg><use href="#i-broken"/></svg><span style="color:var(--app-ink)">Broken</span></div>
@@ -582,7 +584,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
         <div class="sb"><span>10:05</span><span class="sig">4G ▮▮▮</span></div>
         <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">Why can't you reach it?</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
         <div class="body">
-          <div class="ctx"><span class="ico sew"><svg><use href="#i-pipe"/></svg></span><div><div class="m">2002-4</div><div class="s">598 · 1499-W1</div></div></div>
+          <div class="ctx"><span class="ico sew"><svg><use href="#i-pipe"/></svg></span><div><div class="m">2002-4</div><div class="s co">Sandline Logistics LLC</div><div class="s">598 · 1499-W1</div></div></div>
           <div class="st">
             <div class="sel"><svg><use href="#i-lock"/></svg>Gate locked</div>
             <div><svg><use href="#i-bldg"/></svg>Car on top</div>

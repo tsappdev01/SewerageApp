@@ -48,6 +48,8 @@ lists missing columns and wrong types; result 2 lists data problems and notes, w
 | RouteSequence | int | Walking order; the API sorts by it. |
 | Latitude, Longitude | number | A value that is not a number is read as empty. |
 | IsActive | 1/0 | `Billable`. Only `1` is listed. |
+| TenantCode | text | From `MaintainTransactionKeys`. |
+| CompanyName | text | The tenant's company (`MaintainTenant.CompanyName`). **Shown on the phone under the property code**, and searchable in Find a Property. If empty, the phone shows `PropertyName`. |
 
 ## 4. `vw_MR_Meter`
 
@@ -112,6 +114,10 @@ a meter read by anyone shows as done for everyone. Readers choose zones on the p
 5. **`vw_MR_Property`** lists only zones 597 and 598, and only properties that appear in
    `MaintainMeterReadingLog`. Confirm that new properties with no log entry should be left out.
 6. **`MeterType`**: confirm `MaintainPropertyMeter.Type` values start with `I` and `S`.
+7. **Tenant join in `vw_MR_Property`** is an `INNER JOIN`: a property with no tenant row (e.g.
+   vacant) disappears, and so do its meters, because `vw_MR_Meter` joins the property view. Use a
+   `LEFT JOIN` if vacant properties must still be read. A property with **two** tenant rows appears
+   twice; the API keeps one row per meter and per property, and the checker reports the duplicate.
 
 ## What the API stores itself (schema `mr`)
 

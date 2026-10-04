@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -145,6 +146,7 @@ private fun MeterContext(meter: Meter, property: Property) {
             MeterTypeIcon(meter.type, size = 44.dp)
             Column {
                 Text(meter.number, fontFamily = NumberFont, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                Text(property.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text("${meter.zoneCode} · ${property.code}", color = AppColors.SubInk)
             }
         }

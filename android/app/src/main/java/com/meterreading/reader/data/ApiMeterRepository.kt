@@ -83,7 +83,7 @@ class ApiMeterRepository(
             val sync = api.meters()
             val mine = api.myReadings()
             val waiting = queue.associateBy { it.meterId }
-            _properties.value = sync.properties.map { Property(it.code, it.name ?: it.code, it.zoneCode, it.routeSequence ?: Int.MAX_VALUE) }
+            _properties.value = sync.properties.map { Property(it.code, it.name ?: it.code, it.zoneCode, it.routeSequence ?: Int.MAX_VALUE, it.tenantCode, it.companyName) }
             _meters.value = sync.meters.map { m ->
                 val meter = m.toMeter()
                 if (m.id in waiting) meter.copy(state = ReadingState.QUEUED) else meter
