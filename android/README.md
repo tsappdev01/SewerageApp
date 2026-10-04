@@ -60,9 +60,12 @@ stores nothing; Android checks it. Then Home opens directly as the reader set in
   switch to someone else. The PIN is kept only as a salted PBKDF2 hash; five wrong tries block entry
   for a minute. A forgotten PIN is reset by clearing the app's data (MDM or phone settings).
 
-**The server cannot check the phone's lock.** It trusts the reader name the phone sends, which an
-API accepts only in UAT mode (`docs/deployment.md` 2.7): office network or VPN only, until the
-server can recognise registered phones.
+**Registered phones (FR-002).** In Settings, **Register this phone** exchanges a one-time code
+from IT for the phone's own id and secret key (`docs/deployment.md` 2.11). The key is encrypted
+with an Android Keystore key (`settings/DeviceKeyStore.kt`) and sent with every call
+(`X-Device-Id`, `X-Device-Key`, plus `X-Reader`). A blocked phone (`DEVICE_REVOKED`) or an
+unregistered one goes back to the start screen with the server's reason; waiting readings stay on
+the phone. Without registration the app still works with an API in UAT mode.
 
 ## Design rules for low-literacy readers
 
@@ -123,6 +126,6 @@ The capture steps for each meter condition come from `data/StatusRules.kt`, whic
 
 The project was written in an environment without the Android SDK, so it has **not been
 compiled for Android yet**; expect small compile fixes on first sync. The plain-Kotlin parts
-(`data/`, `api/`, `util/Format.kt`) compile and their 53 unit tests pass on the JVM, including
+(`data/`, `api/`, `util/Format.kt`) compile and their 57 unit tests pass on the JVM, including
 the repository against a scripted server (MockWebServer) and, with `MR_API_URL` set, against
 the running API.

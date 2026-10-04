@@ -30,8 +30,9 @@ public sealed class AuthOptions
 {
     public const string Section = "Auth";
 
-    /// <summary><c>Entra</c> validates Microsoft Entra ID tokens. <c>Development</c> trusts the
-    /// X-Dev-User header and is refused outside the Development environment.</summary>
+    /// <summary><c>Device</c>: registered phones with their own key (FR-002; the phone app's mode).
+    /// <c>Entra</c> validates Microsoft Entra ID tokens. <c>Development</c> trusts the X-Dev-User
+    /// header and is refused outside the Development environment.</summary>
     public string Mode { get; set; } = "Entra";
 
     /// <summary>Entra app role required to use the reader endpoints.</summary>

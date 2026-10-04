@@ -66,6 +66,7 @@ class ApiMeterRepository(
                 SignInResult.Failed("There is no open reading period. Ask your supervisor.")
             } else {
                 signInNeeded.value = false
+                signInReason = null
                 refresh()
                 SignInResult.Success
             }
@@ -99,7 +100,7 @@ class ApiMeterRepository(
             online.value = false
             false
         } catch (e: ApiException) {
-            if (e.needsSignIn) signInNeeded.value = true
+            if (e.needsSignIn) { signInReason = e.title; signInNeeded.value = true }
             false
         }
     }
@@ -119,7 +120,7 @@ class ApiMeterRepository(
         } catch (e: ApiException) {
             if (e.isRetryable || e.needsSignIn) {
                 // Not accepted as this reader: keep the reading on the phone; it goes up after signing in again.
-                if (e.needsSignIn) signInNeeded.value = true
+                if (e.needsSignIn) { signInReason = e.title; signInNeeded.value = true }
                 enqueue(draft)
                 SubmitResult(SubmitOutcome.QUEUED)
             } else {
@@ -143,7 +144,7 @@ class ApiMeterRepository(
                     online.value = false
                     break
                 } catch (e: ApiException) {
-                    if (e.needsSignIn) signInNeeded.value = true
+                    if (e.needsSignIn) { signInReason = e.title; signInNeeded.value = true }
                     if (e.isRetryable || e.needsSignIn) break
                     // Final refusal (e.g. already read by someone else): show it as "read again" with the reason.
                     queue.removeFirst()
@@ -187,7 +188,7 @@ class ApiMeterRepository(
                 break
             } catch (e: ApiException) {
                 // A photo damaged on the way is sent again later; any other refusal is final, the file is kept.
-                if (e.needsSignIn) signInNeeded.value = true
+                if (e.needsSignIn) { signInReason = e.title; signInNeeded.value = true }
                 if (e.isRetryable || e.needsSignIn || e.code == "IMAGE_HASH_MISMATCH") break
                 photoQueue.removeFirst()
             }

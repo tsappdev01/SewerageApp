@@ -17,8 +17,11 @@ class ApiException(val status: Int, val code: String?, val title: String) : Exce
     /** 408, 429 and 5xx are worth retrying later; other refusals are final. */
     val isRetryable: Boolean get() = status == 408 || status == 429 || status >= 500
 
-    /** The server did not accept who the phone says the reader is: keep the reader's work, sign in again. */
-    val needsSignIn: Boolean get() = status == 401
+    /**
+     * The server did not accept this phone or reader (not registered, blocked, or not signed in):
+     * keep the reader's work on the phone and go back to the start screen.
+     */
+    val needsSignIn: Boolean get() = status == 401 || code == "DEVICE_NOT_REGISTERED" || code == "DEVICE_REVOKED"
 }
 
 
@@ -36,9 +39,25 @@ class ApiClient(
         explicitNulls = false
     }
 
-    /** The reader this phone belongs to (Settings), sent as X-Dev-User. Accepted by an API in UAT mode. */
+    /**
+     * The reader this phone belongs to (Settings). With [device] set it goes as X-Reader next to the
+     * phone's key; without, as X-Dev-User, which only an API in UAT mode accepts.
+     */
     @Volatile
     var devUser: String? = null
+
+    /** This phone's registration (FR-002); its key goes with every call. */
+    @Volatile
+    var device: DeviceCredentials? = null
+
+    /** Exchanges a one-time code from IT for this phone's id and secret key (POST /devices/register). */
+    suspend fun registerDevice(code: String, model: String?, androidVersion: String?, appVersion: String?): DeviceCredentials {
+        val body = json.encodeToString(RegisterDeviceRequest.serializer(), RegisterDeviceRequest(code, model, androidVersion, appVersion))
+        val response = send(Request.Builder().url("$base/api/v1/devices/register").post(body.toRequestBody(JSON))) {
+            json.decodeFromString(RegisterDeviceResponse.serializer(), it)
+        }
+        return DeviceCredentials(response.deviceId, response.deviceKey, response.label)
+    }
 
     /** True when the server answers /health/live; for the Settings screen's "Test" button. No sign-in needed. */
     suspend fun isReachable(): Boolean = withContext(Dispatchers.IO) {
@@ -81,7 +100,13 @@ class ApiClient(
         send(Request.Builder().url("$base$path".toHttpUrl()).get()) { json.decodeFromString<T>(it) }
 
     private suspend fun <T> send(builder: Request.Builder, parse: (String) -> T): T = withContext(Dispatchers.IO) {
-        devUser?.let { builder.header("X-Dev-User", it) }
+        val registered = device
+        if (registered != null) {
+            builder.header("X-Device-Id", registered.deviceId).header("X-Device-Key", registered.deviceKey)
+            devUser?.let { builder.header("X-Reader", it) }
+        } else {
+            devUser?.let { builder.header("X-Dev-User", it) }
+        }
         http.newCall(builder.build()).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {

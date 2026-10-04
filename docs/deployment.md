@@ -10,16 +10,16 @@ Last checked against the code on 2026-10-04 (API 104 tests passing; app version 
 | Part | Ready? |
 |---|---|
 | Database scripts (`db/`) | Yes |
-| API on a server | Yes, but see point 1 for how it knows who the reader is |
-| Android app (phone lock, supervisor PIN, Settings) | Yes, once it has been built in Android Studio (see 3.1) |
-| Android app for **field use over the internet** | **Not yet.** Two pieces are missing, see below. |
+| API on a server, with **registered phones** (`Auth__Mode=Device`) | Yes: safe over the internet; each phone has its own key (section 2.11) |
+| Android app (phone lock, supervisor PIN, registration, Settings) | Yes, once it has been built in Android Studio (see 3.1) |
+| Android app for **field use** | **Not yet.** One piece is missing, see below. |
 
-1. **The server trusts the reader name the phone sends.** The phone opens with its own lock (PIN,
-   pattern, finger or face) and sends the reader set in its Settings. The server cannot check the
-   phone's lock, so it accepts that name only in **UAT mode** (section 2.7), where anyone who can
-   reach the API could claim to be any reader. **Use it only on the office network or VPN.** For
-   use over mobile data the server must recognise registered phones (device keys, not built yet);
-   the API's Entra ID mode is still there but the phone no longer signs in with Entra.
+1. **How the server knows who is calling.** The phone opens with its own lock (PIN, pattern, finger
+   or face). Each phone is **registered once** with a one-time code from IT and then sends its own
+   secret key with every call, plus the reader set in its Settings (behind the supervisor PIN). The
+   server accepts only registered, unblocked phones, and the reader must be active in
+   `vw_MR_Reader`. A lost phone is blocked with one script (section 2.11). The server cannot
+   check the phone's lock itself.
 2. **Readings waiting to upload are kept in memory.** If the app is closed or the phone restarts
    while there is no signal, those readings and photos are lost. Fine for a supervised UAT trial;
    not acceptable for field use.
@@ -73,6 +73,8 @@ Any compatibility level works: the API passes lists to SQL as XML, not `OPENJSON
 | `db/005_reading_tenant_and_export.sql` | `MaintainMeterReading` fields and view `mr.vw_MeterReading` |
 | `db/006_pms_transfer.sql` | Tracking for the copy into `MaintainMeterReading` |
 | `db/007_reading_image_data.sql` | `mr.ReadingImageData`: the photos themselves |
+| `db/008_create_api_login.sql` | The API's login `mr_api` and its permissions (1.4) |
+| `db/009_device_keys.sql` | Registered phones: key hashes and one-time registration codes |
 
 **Never run anything in `db/dev/`** outside a developer's machine. Those scripts create test
 views and a test `MaintainMeterReading`.
@@ -155,7 +157,8 @@ settings), not in the file.
 | `ConnectionStrings__MeterReading` | `Server=UATWEB01;Database=MRDB;User Id=mr_api;Password=<mr_api's password>;Encrypt=True;TrustServerCertificate=True;Application Name=MeterReadingApi`. `appsettings.json` has the same string with `Password=SET_ON_SERVER`; the API refuses to start until this variable gives the real password. Use `TrustServerCertificate=False` once SQL Server has a certificate the web server trusts. |
 | `ConnectionStrings__Source` | Database with the views. **Leave empty** if it is the same database. |
 | `SourceViews__Schema` | `dbo` |
-| `Auth__Mode` | `Entra` |
+| `Auth__Mode` | `Device` (registered phones, section 2.11). `Entra` is still available for other clients. |
+| `Devices__RegisterPerMinute` | Registration attempts allowed per address per minute (default 10) |
 | `Auth__ReaderRole` | `MeterReader` (the app role in 2.4) |
 | `AzureAd__TenantId` | Your Entra tenant (directory) ID |
 | `AzureAd__ClientId` | The API app registration's client ID |
@@ -262,6 +265,26 @@ or readings are posted twice.
 Phones keep a reading and retry it with the same ID, so a short outage loses nothing that is
 still on the phone (but see section 0, point 2).
 
+### 2.11 Registering phones and blocking lost ones (FR-002)
+
+Every phone registers once. IT's scripts are in `db/ops/` and run in MRDB:
+
+1. **Make a code:** set `@Label` in `db/ops/new_device_code.sql` (e.g. the phone's asset tag,
+   `Phone 07`) and run it. It shows a code like `K7QM-2XPA-9TRB`, valid 24 hours, usable once.
+   Only its hash is stored; if it is lost, make a new one.
+2. **On the phone:** gear → supervisor PIN → **Settings** → check the server address → **Register
+   this phone** → type the code. The phone gets its own secret key, kept in the Android Keystore.
+   Then set the **reader on this phone** and save.
+3. **See phones:** `db/ops/list_devices.sql` (who used each phone last, when, app version) and
+   codes not used yet.
+4. **Lost or retired phone:** set `@Label` (or `@DeviceId`) in `db/ops/revoke_device.sql` and run
+   it. Its next call is refused with `DEVICE_REVOKED`; readings on it stay on the phone. If it is
+   found, set `Status = 'ACTIVE'` again so it can send them.
+
+Reinstalling the app or clearing its data removes the key: register again with a new code. The
+registration endpoint allows `Devices__RegisterPerMinute` tries per address, so codes cannot be
+guessed quickly.
+
 ### 2.10 Logs and backups
 
 - Logs go to the console. On IIS, set `stdoutLogEnabled="true"` in `web.config` only while
@@ -288,6 +311,7 @@ still on the phone (but see section 0, point 2).
   is asked again. A phone without a screen lock cannot open the app: set one first.
 - **Gear icon** (start screen and Home) → **supervisor PIN** → **Settings**:
   - **Server address**, with a **Test** button (asks the API's `/health/live`).
+  - **This phone**: registered or not, and **Register this phone** with a code from IT (2.11).
   - **Reader on this phone**: their `LoginEmail` from `vw_MR_Reader`.
   - **Unlock with the phone's lock**: On/Off.
   - **Change supervisor PIN**.
@@ -314,7 +338,8 @@ cd android
 ```
 
 - Use this with an API in UAT mode (2.7).
-- On each phone, a supervisor opens Settings (gear → PIN) and sets the **reader on this phone**.
+- On each phone, a supervisor opens Settings (gear → PIN), registers the phone with a code from
+  IT (2.11; not needed for an API in UAT mode) and sets the **reader on this phone**.
 - A debug build also allows plain `http://`. Use HTTPS for anything beyond one developer's PC.
 - For a demo with no server: `./gradlew assembleDebug -PuseFakeData=true`.
 
@@ -337,7 +362,7 @@ cd android
      app/build/outputs/apk/release/app-release-unsigned.apk
    ```
 4. Release builds refuse plain `http://`.
-5. First start on each phone: a supervisor sets the reader in Settings. From then on the reader
+5. First start on each phone: a supervisor registers it (2.11) and sets the reader in Settings. From then on the reader
    unlocks with the phone's PIN, finger or face and Home opens.
 
 ### 3.5 Put it on the phones
@@ -374,13 +399,13 @@ cd android
 
 **API**
 - [ ] Deployed with HTTPS and a trusted certificate; `ASPNETCORE_ENVIRONMENT=Production`,
-      `Auth__Mode=Entra`.
+      `Auth__Mode=Device`; `db/009` run.
 - [ ] Entra app registration, `MeterReader` role assigned to the readers.
 - [ ] `/health/ready` = ready.
 - [ ] Transfer into `MaintainMeterReading` either confirmed and on, or knowingly left off.
 
 **App** (blocked until these are built)
-- [ ] Server recognises registered phones (device keys), so the API need not run in UAT mode.
+- [ ] Every phone registered with its own code (2.11); `db/ops/list_devices.sql` shows each one.
 - [ ] Each phone has a screen lock, its reader set in Settings, and a supervisor PIN.
 - [ ] Encrypted on-phone queue that survives the app closing.
 - [ ] Built, signed with the release key, tested on the readers' phone models, and distributed

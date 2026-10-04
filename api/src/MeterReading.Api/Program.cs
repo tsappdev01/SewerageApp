@@ -6,6 +6,7 @@ using MeterReading.Api.Domain;
 using MeterReading.Api.Endpoints;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Identity.Web;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,6 +29,16 @@ switch ((config[$"{ImageStoreOptions.Section}:Kind"] ?? "Database").ToUpperInvar
 
 builder.Services.AddSingleton<SqlConnectionFactory>();
 builder.Services.AddScoped<MeterReadingRepository>();
+builder.Services.AddScoped<DeviceRepository>();
+// Registration codes can be tried at most Devices:RegisterPerMinute (10) times a minute per address.
+var registerPerMinute = config.GetValue("Devices:RegisterPerMinute", 10);
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.AddPolicy(DeviceEndpoints.RateLimitPolicy, http => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+        http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = registerPerMinute, Window = TimeSpan.FromMinutes(1) }));
+});
 builder.Services.AddScoped<ReaderService>();
 builder.Services.AddScoped<SubmitService>();
 builder.Services.AddSingleton(TimeProvider.System);
@@ -44,6 +55,12 @@ if (string.Equals(auth.Mode, "Development", StringComparison.OrdinalIgnoreCase))
         throw new InvalidOperationException("Auth:Mode 'Development' trusts a request header and is refused outside the Development environment.");
     builder.Services.AddAuthentication(DevelopmentAuthHandler.SchemeName)
         .AddScheme<AuthenticationSchemeOptions, DevelopmentAuthHandler>(DevelopmentAuthHandler.SchemeName, null);
+}
+else if (string.Equals(auth.Mode, "Device", StringComparison.OrdinalIgnoreCase))
+{
+    // FR-002: registered phones with their own secret key (db/009, db/ops/). Safe in Production.
+    builder.Services.AddAuthentication(DeviceAuthHandler.SchemeName)
+        .AddScheme<AuthenticationSchemeOptions, DeviceAuthHandler>(DeviceAuthHandler.SchemeName, null);
 }
 else
 {
@@ -63,16 +80,19 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 
 app.MapGet("/health/live", () => Results.Ok(new { status = "live" })).AllowAnonymous().ExcludeFromDescription();
-app.MapGet("/health/ready", async (MeterReadingRepository repo, PmsTransferService transfer, Microsoft.Extensions.Options.IOptions<PmsTransferOptions> transferOptions, ILogger<Program> log, CancellationToken ct) =>
+app.MapGet("/health/ready", async (MeterReadingRepository repo, PmsTransferService transfer, DeviceRepository devices, Microsoft.Extensions.Options.IOptions<PmsTransferOptions> transferOptions, ILogger<Program> log, CancellationToken ct) =>
 {
     try
     {
         var missing = (await repo.FindMissingViewsAsync(ct)).ToList();
         if (transferOptions.Value.Enabled && await transfer.FindProblemAsync(ct) is { } problem) missing.Add(problem);
+        if (string.Equals(auth.Mode, "Device", StringComparison.OrdinalIgnoreCase) && !await devices.TablesExistAsync(ct))
+            missing.Add("mr.DeviceRegistrationCode (run db/009_device_keys.sql)");
         return missing.Count == 0
             ? Results.Ok(new { status = "ready" })
             : Results.Json(new { status = "not ready", missing }, statusCode: StatusCodes.Status503ServiceUnavailable);
@@ -87,6 +107,7 @@ app.MapGet("/health/ready", async (MeterReadingRepository repo, PmsTransferServi
 app.MapReaderEndpoints();
 app.MapReadingEndpoints();
 app.MapImageEndpoints();
+app.MapDeviceEndpoints();
 
 app.Run();
 

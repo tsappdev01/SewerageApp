@@ -55,7 +55,7 @@ fun SignInScreen(onSignedIn: () -> Unit, onSettings: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     val noReader = stringResource(R.string.start_no_reader)
     val notAccepted = stringResource(R.string.start_not_accepted)
-    var error by remember { mutableStateOf<String?>(if (repo.signInNeeded.value) notAccepted else null) }
+    var error by remember { mutableStateOf<String?>(if (repo.signInNeeded.value) repo.signInReason ?: notAccepted else null) }
 
     fun open() {
         if (busy) return
