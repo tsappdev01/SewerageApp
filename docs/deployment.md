@@ -1,6 +1,7 @@
 # Deployment guide — Meter Reading API and Android app
 
-Covers the database, the API and the Android app, in the order they are set up.
+Covers the database, the API and the Android app, in the order they are set up. For a short
+ordered runbook with a check after each step, see `docs/deploy-steps.md`.
 Last checked against the code on 2026-10-04 (API 104 tests passing; app version 0.2.0).
 
 ---
@@ -161,7 +162,7 @@ settings), not in the file.
 | `Auth__Mode` | `Device` (registered phones, section 2.11). `Entra` is still available for other clients. |
 | `Devices__RegisterPerMinute` | Registration attempts allowed per address per minute (default 10) |
 | `Auth__ReaderRole` | `MeterReader` (the app role in 2.4) |
-| `AzureAd__TenantId` | Your Entra tenant (directory) ID |
+| `AzureAd__TenantId` *(only for `Entra` mode)* | Your Entra tenant (directory) ID |
 | `AzureAd__ClientId` | The API app registration's client ID |
 | `AzureAd__Audience` | The API's Application ID URI, e.g. `api://meterreading-api` |
 | `ImageStore__Kind` | `Database` (default) |
@@ -170,7 +171,7 @@ settings), not in the file.
 Other settings (the high-consumption factor, photo limits) have sensible defaults; see
 `api/README.md`.
 
-### 2.4 Microsoft Entra ID (done once by the Entra admin)
+### 2.4 Microsoft Entra ID (optional; not used by the phone app)
 
 1. **App registrations → New registration**: name "Meter Reading API", single tenant.
 2. **Expose an API**: set the Application ID URI (e.g. `api://meterreading-api`) and add the
@@ -266,6 +267,12 @@ or readings are posted twice.
 Phones keep a reading and retry it with the same ID, so a short outage loses nothing that is
 still on the phone (but see section 0, point 2).
 
+### 2.10 Logs and backups
+
+- Logs go to the console. On IIS, set `stdoutLogEnabled="true"` in `web.config` only while
+  investigating, or send logs to your logging tool.
+- Back up the `mr` schema with `PropertyManagementSystem`; it now includes the photos.
+
 ### 2.11 Registering phones and blocking lost ones (FR-002)
 
 Every phone registers once. IT's scripts are in `db/ops/` and run in MRDB:
@@ -285,12 +292,6 @@ Every phone registers once. IT's scripts are in `db/ops/` and run in MRDB:
 Reinstalling the app or clearing its data removes the key: register again with a new code. The
 registration endpoint allows `Devices__RegisterPerMinute` tries per address, so codes cannot be
 guessed quickly.
-
-### 2.10 Logs and backups
-
-- Logs go to the console. On IIS, set `stdoutLogEnabled="true"` in `web.config` only while
-  investigating, or send logs to your logging tool.
-- Back up the `mr` schema with `PropertyManagementSystem`; it now includes the photos.
 
 ---
 
@@ -401,7 +402,6 @@ cd android
 **API**
 - [ ] Deployed with HTTPS and a trusted certificate; `ASPNETCORE_ENVIRONMENT=Production`,
       `Auth__Mode=Device`; `db/009` run.
-- [ ] Entra app registration, `MeterReader` role assigned to the readers.
 - [ ] `/health/ready` = ready.
 - [ ] Transfer into `MaintainMeterReading` either confirmed and on, or knowingly left off.
 
