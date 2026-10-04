@@ -1,0 +1,80 @@
+# Meter Reading API
+
+.NET 10 Web API for the Sewerage & Irrigation Meter Reading System. It **reads** master data
+from SQL Server views your team provides, and keeps what the phones send in its own `mr` tables.
+This first part covers the Meter Reader app's read endpoints; submitting readings comes next.
+
+## Source views
+
+The API reads eight `vw_MR_*` views. Names, columns and types are in
+**[docs/source-views.md](../docs/source-views.md)**. After creating them, run
+`db/001_check_source_views.sql` (repository root): no rows in either result means the API can use them.
+
+## Database scripts (`/db` at the repository root)
+
+| Script | What it does | Where |
+|---|---|---|
+| `001_check_source_views.sql` | Checks the views: missing columns, wrong types, duplicate keys, unknown codes, more than one open period. Read-only. | Any environment |
+| `002_create_mr_schema.sql` | Creates the API's own tables `mr.Device`, `mr.ReadingTransaction`, `mr.ReadingImage`. Re-runnable. | Any environment |
+| `dev/000_create_dev_source_views.sql` | Test stand-ins for your views, with sample data. | Development only |
+| `dev/010_seed_dev_readings.sql` | Sample readings already received this period. | Development only |
+
+## Endpoints
+
+All under `/api/v1`, for the signed-in reader only (Entra app role `MeterReader`).
+Errors are RFC 9457 problem details with a `code` (e.g. `READER_NOT_FOUND`, `NO_OPEN_PERIOD`).
+
+| Endpoint | Returns |
+|---|---|
+| `GET /me` | Reader name and the open reading period |
+| `GET /sync/assignments` | Zones, properties and meters to read, with last reading, expected range and state (`PENDING`, `SENT`, `CHECKING`, `READ_AGAIN`, `REVISIT`) |
+| `GET /properties/search?q=&zone=&done=&type=` | Find a Property: matches code, name or meter number, ignoring case, spaces and dashes |
+| `GET /readings/mine?period=` | The reader's submissions |
+| `GET /summary?period=` | Reconciliation: meters, read, accepted, being checked, read again, visit again, not read, per zone |
+| `GET /meters/{id}` | One assigned meter with 12 periods of history |
+| `GET /health/live`, `GET /health/ready` | Liveness; readiness checks the views and `mr` tables exist |
+
+OpenAPI document (Development): `/openapi/v1.json`.
+
+## Configuration (`appsettings.json`)
+
+| Setting | Meaning |
+|---|---|
+| `ConnectionStrings:MeterReading` | Database with the `mr` tables (write access). |
+| `ConnectionStrings:Source` | Database with the views. Empty = same as `MeterReading`. |
+| `SourceViews:Schema` | Schema of the views (default `dbo`). |
+| `SourceViews:AssignmentMode` | `Meter` (reads `vw_MR_Assignment`) or `Zone` (reads `vw_MR_ZoneReader`). |
+| `SourceViews:HasReadingHistory` | `false` if `vw_MR_ReadingHistory` is not provided. |
+| `ReadingRules:*` | Average periods, high-consumption factor and floors, default averages (spec BR-007, BR-008). |
+| `Auth:Mode` | `Entra` (production) or `Development` (trusts `X-Dev-User` header; refused outside Development). |
+| `AzureAd:*` | Entra tenant and API app registration. |
+
+Use a SQL login or managed identity with **SELECT only** on the views and read/write on schema `mr`.
+
+## Run locally
+
+```bash
+# SQL Server 2022 in Docker
+docker run -d --name mrsql -p 1433:1433 -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='Dev_Passw0rd!' mcr.microsoft.com/mssql/server:2022-latest
+# create database MeterReading, then run in order:
+#   ../db/dev/000_create_dev_source_views.sql, ../db/002_create_mr_schema.sql, ../db/dev/010_seed_dev_readings.sql
+dotnet run --project src/MeterReading.Api            # Development: http://localhost:5080
+curl -H "X-Dev-User: rashid@dip.example" http://localhost:5080/api/v1/sync/assignments
+dotnet test                                          # 34 tests; integration tests need the database above (MR_TEST_SQL to override)
+```
+
+## Design notes
+
+- **Views are read-only** and may be in another database, so view data and `mr` data are queried
+  separately and joined in memory. Lists of meter ids go to SQL as one JSON parameter (`OPENJSON`),
+  which avoids SQL Server's 2,100-parameter limit on big routes.
+- **Every view column is CAST** to a fixed type in the query, so views that use `tinyint`,
+  `numeric` or `nvarchar` still map.
+- **Readers only see their own work.** Asking for another reader's meter returns the same 404 as a
+  meter that does not exist.
+- Dapper rather than EF Core: the API does not own the source schema.
+
+## Next
+
+`POST /api/v1/readings` (idempotent, multipart with photos to Blob storage), device registration,
+supervisor endpoints, and delta sync (`since` token).

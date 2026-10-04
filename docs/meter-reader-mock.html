@@ -1,0 +1,671 @@
+<title>Meter Reader App Screens</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Roboto+Mono:wght@700&display=swap">
+<style>
+/* Layout: a field-guide sheet — principles up top, then the reader's path as a sequence of phone screens, then the icon/colour legend.
+   App palette is Dubai Investments Park: logo navy for the one main action, logo taupe for the brand mark and sewerage, sunlight-readable warm white. */
+:root {
+  --page-bg: #F3F2EC;
+  --page-fg: #1B1D21;
+  --page-muted: #5D6168;
+  --page-line: #D9D7CC;
+  --page-card: #FFFFFF;
+
+  /* app tokens — the app is deliberately light-only for sunlight use */
+  --app-bg: #F8F7F4;
+  --app-ink: #14161A;
+  --app-sub: #4A4F57;
+  --app-line: #DEDDD4;
+  --app-card: #FFFFFF;
+  --primary: #12305C;
+  --primary-ink: #FFFFFF;
+  --primary-tint: #E6ECF5;
+  --taupe: #776759;
+  --taupe-tint: #EFEBE6;
+  --frame: #FFFFFF;
+  --ok: #17803D;
+  --ok-tint: #E3F4E8;
+  --warn: #B35C00;
+  --warn-tint: #FFF0DC;
+  --bad: #C42B1C;
+  --bad-tint: #FDE6E3;
+  --queued: #6B4FBB;
+  --queued-tint: #EEE9FA;
+  --irr: #2E8B3E;
+  --irr-tint: #E5F3E7;
+  --sew: #776759;
+  --sew-tint: #EFEBE6;
+  --bezel: #1F2226;
+  --odo: #1C1E22;
+  --odo-prev: #8A8F96;
+
+  --f-ui: "Atkinson Hyperlegible", "Segoe UI", Roboto, system-ui, sans-serif;
+  --f-num: "Roboto Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page-bg: #15171A; --page-fg: #ECEBE4; --page-muted: #A3A7AE; --page-line: #30333A; --page-card: #1E2125;
+    --bezel: #000000; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page-bg: #15171A; --page-fg: #ECEBE4; --page-muted: #A3A7AE; --page-line: #30333A; --page-card: #1E2125;
+  --bezel: #000000; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--page-bg); color: var(--page-fg); font-family: var(--f-ui); font-size: 16px; line-height: 1.5; }
+.wrap { max-width: 1320px; margin: 0 auto; padding-inline: 20px; padding-block: 32px 64px; }
+header h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.1; margin: 0 0 8px; text-wrap: balance; letter-spacing: -0.01em; }
+header p { margin: 0; color: var(--page-muted); max-width: 68ch; }
+.eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: 12px; font-weight: 700; color: var(--page-muted); margin-bottom: 8px; }
+
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 28px 0 40px; padding: 0; list-style: none; }
+.rules li { background: var(--page-card); border: 1px solid var(--page-line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.rules b { display: block; margin-bottom: 2px; }
+.rules span { color: var(--page-muted); font-size: 14px; }
+
+h2 { font-size: 22px; margin: 0 0 4px; }
+.section-note { color: var(--page-muted); margin: 0 0 20px; max-width: 70ch; }
+
+.screens { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 36px 24px; justify-items: center; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 12px; width: 300px; max-width: 100%; }
+figcaption { font-size: 14px; color: var(--page-muted); min-height: 3em; }
+figcaption b { color: var(--page-fg); font-size: 15px; display: block; }
+figcaption .no { font-family: var(--f-num); font-size: 12px; color: var(--page-muted); margin-right: 6px; }
+
+/* ---------- phone ---------- */
+.phone { width: 300px; max-width: 100%; height: 620px; border: 10px solid var(--bezel); border-radius: 38px; background: var(--app-bg); color: var(--app-ink); overflow: hidden; display: flex; flex-direction: column; position: relative; font-size: 15px; line-height: 1.3; box-shadow: 0 12px 30px -18px rgba(0,0,0,.45); }
+.sb { height: 26px; flex: none; display: flex; justify-content: space-between; align-items: center; padding: 0 16px; font-size: 11px; font-weight: 700; color: var(--app-ink); }
+.sb .sig { display: flex; gap: 4px; align-items: center; }
+.bar { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 10px 10px; }
+.bar .t { flex: 1; font-weight: 700; font-size: 18px; min-width: 0; }
+.ib { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--app-card); border: 1.5px solid var(--app-line); flex: none; }
+.ib svg { width: 24px; height: 24px; }
+.ib.speak { background: var(--primary-tint); border-color: transparent; color: var(--primary); }
+.body { flex: 1; overflow: hidden; padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.big { display: flex; align-items: center; justify-content: center; gap: 10px; height: 64px; border-radius: 16px; font-size: 20px; font-weight: 700; border: none; width: 100%; }
+.big svg { width: 28px; height: 28px; }
+.big.go { background: var(--primary); color: var(--primary-ink); box-shadow: 0 3px 0 #081B38; }
+.big.ok { background: var(--ok); color: #fff; }
+.big.ghost { background: var(--app-card); color: var(--app-ink); border: 2px solid var(--app-line); }
+.big.warnb { background: var(--warn); color: #fff; }
+
+.steps { display: flex; gap: 6px; align-items: center; justify-content: center; padding-bottom: 2px; }
+.steps i { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--app-line); color: var(--app-sub); }
+.steps i svg { width: 18px; height: 18px; }
+.steps i.on { background: var(--primary); color: var(--primary-ink); }
+.steps i.done { background: var(--ok); color: #fff; }
+.steps em { width: 14px; height: 3px; background: var(--app-line); border-radius: 2px; }
+
+.ctx { display: flex; align-items: center; gap: 10px; background: var(--app-card); border: 1.5px solid var(--app-line); border-radius: 14px; padding: 8px 10px; }
+.ctx .ico { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+.ctx .ico svg { width: 24px; height: 24px; }
+.ctx .m { font-family: var(--f-num); font-size: 20px; line-height: 1; }
+.ctx .s { font-size: 13px; color: var(--app-sub); }
+.irr { background: var(--irr-tint); color: var(--irr); }
+.sew { background: var(--sew-tint); color: var(--sew); }
+
+/* odometer */
+.odo { display: flex; gap: 4px; justify-content: center; }
+.odo span { width: 38px; height: 52px; border-radius: 6px; background: var(--odo); color: #fff; font-family: var(--f-num); font-size: 32px; display: grid; place-items: center; }
+.odo.prev span { background: transparent; border: 2px solid var(--app-line); color: var(--odo-prev); height: 40px; font-size: 24px; width: 34px; }
+.odo span.empty { background: var(--app-card); border: 2px dashed var(--app-sub); color: transparent; }
+.odo span.cur { background: var(--app-card); border: 3px solid var(--primary); color: var(--app-ink); }
+.lbl { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--app-sub); font-weight: 700; justify-content: center; }
+.lbl svg { width: 16px; height: 16px; }
+
+.keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: auto; }
+.keys b { height: 46px; border-radius: 12px; background: var(--app-card); border: 1.5px solid var(--app-line); display: grid; place-items: center; font-family: var(--f-num); font-size: 24px; }
+.keys b svg { width: 26px; height: 26px; }
+.keys b.del { color: var(--bad); }
+.keys b.next { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
+
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-weight: 700; font-size: 14px; }
+.chip svg { width: 16px; height: 16px; }
+.chip.ok { background: var(--ok-tint); color: var(--ok); }
+.chip.warn { background: var(--warn-tint); color: var(--warn); }
+.chip.q { background: var(--queued-tint); color: var(--queued); }
+.chip.bad { background: var(--bad-tint); color: var(--bad); }
+
+/* photo placeholder: a drawn meter face */
+.photo { border-radius: 14px; overflow: hidden; background: #2A2D31; position: relative; flex: none; }
+.photo .face { position: absolute; inset: 0; display: grid; place-items: center; }
+.photo .dial { width: 78%; aspect-ratio: 1; max-width: 100%; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #E9E6DC, #BDB8AA); display: grid; place-items: center; box-shadow: inset 0 0 0 6px #6B6E72; }
+.photo .win { display: flex; gap: 2px; background: #111; padding: 4px; border-radius: 4px; }
+.photo .win span { width: 18px; height: 26px; background: #F4F4F0; color: #111; font-family: var(--f-num); font-size: 18px; display: grid; place-items: center; }
+.photo .win span.r { background: #C42B1C; color: #fff; }
+
+.logo-slot { width: 100%; height: 96px; border: 2px dashed var(--taupe); border-radius: 14px; display: grid; place-items: center; color: var(--taupe); font-weight: 700; font-size: 14px; text-align: center; background: var(--taupe-tint); }
+.brandbar { height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--taupe) 0 30%, var(--primary) 30% 100%); }
+
+/* search */
+.search { display: flex; align-items: center; gap: 8px; min-height: 54px; border: 2px solid var(--app-line); border-radius: 14px; background: var(--app-card); padding: 0 5px 0 12px; color: var(--app-sub); font-weight: 700; flex: none; }
+.search > svg { width: 24px; height: 24px; flex: none; }
+.search .q { flex: 1; min-width: 0; font-size: 15px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search .q.typed { font-family: var(--f-num); font-size: 24px; color: var(--app-ink); }
+.search .q.typed::after { content: ""; display: inline-block; width: 2px; height: 24px; background: var(--primary); vertical-align: -4px; margin-left: 2px; }
+.search .mic { width: 44px; height: 44px; border-radius: 50%; background: var(--primary-tint); color: var(--primary); display: grid; place-items: center; flex: none; }
+.search .mic svg { width: 24px; height: 24px; }
+.search.on { border-color: var(--primary); }
+.fchips { display: flex; gap: 6px; flex: none; }
+.fchips span { border-radius: 999px; padding: 5px 11px; font-weight: 700; font-size: 13px; border: 1.5px solid var(--app-line); background: var(--app-card); display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; }
+.fchips span svg { width: 15px; height: 15px; }
+.fchips span.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+.hl { background: var(--primary-tint); color: var(--primary); border-radius: 4px; padding: 0 1px; }
+.skeys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: auto; flex: none; }
+.skeys b { height: 42px; border-radius: 11px; background: var(--app-card); border: 1.5px solid var(--app-line); display: grid; place-items: center; font-family: var(--f-num); font-size: 21px; }
+.skeys b svg { width: 22px; height: 22px; }
+.skeys b.w2 { grid-column: span 2; }
+.skeys b.txt { font-family: var(--f-ui); font-size: 15px; }
+.skeys b.del { color: var(--bad); }
+.card.slim { min-height: 0; padding: 9px 10px; }
+.card.slim .code { font-size: 22px; }
+.reslbl { font-size: 12px; font-weight: 700; color: var(--app-sub); text-transform: uppercase; letter-spacing: .06em; }
+
+/* summary / reconciliation */
+.recon { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; flex: none; }
+.recon > div { background: var(--app-card); border: 1.5px solid var(--app-line); border-radius: 14px; padding: 8px 6px; text-align: center; }
+.recon .n { font-family: var(--f-num); font-size: 26px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.recon .l { font-size: 12px; font-weight: 700; color: var(--app-sub); }
+.recon > div.gap { border-color: var(--queued); background: var(--queued-tint); }
+.recon div.gap .n, .recon div.gap .l { color: var(--queued); }
+.stack { display: flex; gap: 2px; height: 16px; flex: none; }
+.stack i { display: block; height: 100%; }
+.stack i:first-child { border-radius: 4px 0 0 4px; } .stack i:last-child { border-radius: 0 4px 4px 0; }
+.leg { display: flex; flex-direction: column; flex: none; }
+.leg div { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 14px; border-bottom: 1px solid var(--app-line); }
+.leg div:last-child { border-bottom: 0; }
+.leg .sw { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; flex: none; }
+.leg .sw svg { width: 16px; height: 16px; }
+.leg .t { flex: 1; font-weight: 700; }
+.leg .v { font-family: var(--f-num); font-size: 17px; font-variant-numeric: tabular-nums; }
+.ztab { width: 100%; border-collapse: collapse; font-size: 13px; flex: none; }
+.ztab th { text-align: right; font-size: 11px; color: var(--app-sub); text-transform: uppercase; letter-spacing: .05em; padding: 2px 4px; }
+.ztab th:first-child, .ztab td:first-child { text-align: left; }
+.ztab td { text-align: right; padding: 4px; font-family: var(--f-num); font-size: 15px; border-top: 1px solid var(--app-line); font-variant-numeric: tabular-nums; }
+.ztab td.miss { color: var(--queued); font-weight: 700; }
+/* home */
+.hello { font-size: 22px; font-weight: 700; }
+.ring { display: flex; align-items: center; gap: 14px; background: var(--app-card); border: 1.5px solid var(--app-line); border-radius: 18px; padding: 14px; }
+.ring > svg { width: 96px; height: 96px; flex: none; }
+.ring .n { font-family: var(--f-num); font-size: 30px; line-height: 1; }
+.ring .of { color: var(--app-sub); font-size: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tile { background: var(--app-card); border: 1.5px solid var(--app-line); border-radius: 16px; padding: 10px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; text-align: center; position: relative; }
+.tile svg { width: 30px; height: 30px; }
+.tile .badge { position: absolute; top: 6px; right: 8px; background: var(--warn); color: #fff; border-radius: 999px; font-size: 11px; padding: 1px 6px; }
+.syncpill { display: inline-flex; align-items: center; gap: 6px; background: var(--ok-tint); color: var(--ok); border-radius: 999px; padding: 6px 12px; font-weight: 700; font-size: 13px; }
+.syncpill svg { width: 18px; height: 18px; }
+
+/* list cards */
+.card { display: flex; align-items: center; gap: 12px; background: var(--app-card); border: 1.5px solid var(--app-line); border-radius: 16px; padding: 12px; min-height: 76px; }
+.card .main { flex: 1; min-width: 0; }
+.card .code { font-family: var(--f-num); font-size: 26px; line-height: 1.05; }
+.card .sub { font-size: 13px; color: var(--app-sub); }
+.card .go { width: 40px; height: 40px; border-radius: 50%; background: var(--primary); color: var(--primary-ink); display: grid; place-items: center; flex: none; }
+.card .go svg { width: 22px; height: 22px; }
+.card.done { opacity: .7; }
+.card.done .go { background: var(--ok); color: #fff; }
+.prog { height: 8px; border-radius: 4px; background: var(--app-line); overflow: hidden; margin-top: 6px; }
+.prog i { display: block; height: 100%; background: var(--ok); }
+.dots { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+.dots i { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; }
+.dots i svg { width: 16px; height: 16px; }
+.dots i.d { outline: 2px solid var(--ok); outline-offset: -2px; }
+
+/* status tiles */
+.st { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.st div { border-radius: 16px; border: 2px solid var(--app-line); background: var(--app-card); padding: 10px 6px; display: flex; flex-direction: column; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; text-align: center; min-height: 96px; justify-content: center; }
+.st div svg { width: 38px; height: 38px; }
+.st div.sel { border: 3px solid var(--ok); background: var(--ok-tint); color: var(--ok); position: relative; }
+.st div.sel::after { content: ""; position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%; background: var(--ok); box-shadow: inset 0 0 0 4px var(--ok-tint); }
+.c-dmg { color: var(--bad); } .c-sub { color: var(--queued); } .c-lock { color: var(--warn); } .c-swap { color: var(--sew); } .c-rm { color: var(--app-sub); }
+
+/* camera */
+.cam { flex: 1; background: #0E0F11; position: relative; display: grid; place-items: center; margin: 0 -14px; }
+.cam .dial { width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #DCD8CC, #9E998C); display: grid; place-items: center; box-shadow: inset 0 0 0 8px #55585C; max-width: 100%; }
+.cam .frame { position: absolute; width: 190px; height: 64px; border: 3px solid var(--frame); border-radius: 10px; box-shadow: 0 0 0 2000px rgba(0,0,0,.45); }
+.cam .tip { position: absolute; top: 14px; left: 12px; right: 12px; background: rgba(0,0,0,.6); color: #fff; border-radius: 12px; padding: 8px 10px; font-weight: 700; font-size: 15px; display: flex; gap: 8px; align-items: center; }
+.cam .tip svg { width: 22px; height: 22px; color: var(--frame); flex: none; }
+.camctl { flex: none; display: flex; align-items: center; justify-content: space-around; padding: 12px 0 4px; background: #0E0F11; margin: 0 -14px -14px; padding-bottom: 18px; color: #fff; }
+.shutter { width: 76px; height: 76px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 5px #0E0F11, 0 0 0 9px #fff; }
+.camctl .ib { background: #2A2D31; border-color: #2A2D31; color: #fff; }
+
+/* confirm / result */
+.q { font-size: 22px; font-weight: 700; text-align: center; }
+.bigread { font-family: var(--f-num); font-size: 44px; text-align: center; letter-spacing: .04em; line-height: 1; }
+.result { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }
+.result .circle { width: 128px; height: 128px; border-radius: 50%; display: grid; place-items: center; }
+.result .circle svg { width: 72px; height: 72px; stroke-width: 3; }
+.result h3 { font-size: 26px; margin: 0; }
+.result p { margin: 0; color: var(--app-sub); }
+
+.banner { border-radius: 14px; padding: 12px; display: flex; gap: 10px; align-items: center; font-weight: 700; }
+.banner svg { width: 36px; height: 36px; flex: none; }
+.banner.warn { background: var(--warn-tint); color: var(--warn); }
+
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; }
+
+
+/* my readings */
+.rd { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1.5px solid var(--app-line); }
+.rd .ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+.rd .ico svg { width: 20px; height: 20px; }
+.rd .m { font-family: var(--f-num); font-size: 17px; }
+.rd .v { font-size: 13px; color: var(--app-sub); }
+.rd .main { flex: 1; min-width: 0; }
+.filters { display: flex; gap: 6px; overflow: hidden; }
+.filters span { border-radius: 999px; padding: 6px 12px; font-weight: 700; font-size: 13px; border: 1.5px solid var(--app-line); background: var(--app-card); display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; }
+.filters span.on { background: var(--app-ink); color: var(--app-bg); border-color: var(--app-ink); }
+
+/* legend */
+.legend { margin-top: 56px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.legend section { background: var(--page-card); border: 1px solid var(--page-line); border-radius: 12px; padding: 16px; min-width: 0; }
+.legend h3 { margin: 0 0 10px; font-size: 16px; }
+.lg { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 14px; }
+.lg .sw { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: none; }
+.lg .sw svg { width: 20px; height: 20px; }
+.lg span.t { color: var(--page-muted); }
+@media (prefers-reduced-motion: no-preference) { .shutter { transition: transform .15s; } }
+</style>
+
+<!-- shared icon sprite -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/><path d="M9.5 15a2.5 2.5 0 0 0 2.5 2.5"/></symbol>
+    <symbol id="i-pipe" viewBox="0 0 24 24"><path d="M3 8h9a4 4 0 0 1 4 4v9"/><path d="M3 4v8"/><path d="M12 21h8"/><path d="M3 8h9"/><path d="M8 4v8"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+    <symbol id="i-num" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M8 10v4M12 10v4M16 10v4"/></symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 12l4-4"/><path d="M7 15h10"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a4 4 0 0 1-.5-8A5.5 5.5 0 0 1 17 8.5a4.5 4.5 0 0 1 .5 9.5z"/></symbol>
+    <symbol id="i-cloudok" viewBox="0 0 24 24"><path d="M7 18a4 4 0 0 1-.5-8A5.5 5.5 0 0 1 17 8.5a4.5 4.5 0 0 1 .5 9.5z"/><path d="M9.5 13.5l2 2 3.5-3.5"/></symbol>
+    <symbol id="i-cloudup" viewBox="0 0 24 24"><path d="M7 18a4 4 0 0 1-.5-8A5.5 5.5 0 0 1 17 8.5a4.5 4.5 0 0 1 .5 9.5z"/><path d="M12 16v-5M9.8 13l2.2-2.2 2.2 2.2"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></symbol>
+    <symbol id="i-waves" viewBox="0 0 24 24"><path d="M2 15c2 0 2-1.5 4-1.5S8 15 10 15s2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5"/><path d="M2 19c2 0 2-1.5 4-1.5S8 19 10 19s2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5"/><circle cx="12" cy="7" r="3"/></symbol>
+    <symbol id="i-broken" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3l-2 6 4 2-3 4 1 6"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3"/></symbol>
+    <symbol id="i-rm" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+    <symbol id="i-speak" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="currentColor"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M12 21s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+    <symbol id="i-bldg" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M10 21v-4h4v4"/></symbol>
+    <symbol id="i-flash" viewBox="0 0 24 24"><path d="M13 2L5 14h6l-1 8 8-12h-6z"/></symbol>
+    <symbol id="i-del" viewBox="0 0 24 24"><path d="M21 5H9l-6 7 6 7h12z"/><path d="M12 9l5 6M17 9l-5 6"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 24 24"><path d="M12 3a2 2 0 0 1 2 2v5h3a2 2 0 0 1 2 2v3a6 6 0 0 1-6 6h-1a6 6 0 0 1-6-6v-2a2 2 0 0 1 4 0V5a2 2 0 0 1 2-2z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Mock design · Meter Reader role · Android · Dubai Investments Park</div>
+    <h1>Meter Reader app screens</h1>
+    <p>The reader's full path from sign-in to the next meter, designed for field staff who read little and use phones mostly for calls and messages. Sample data from zones 597 and 598.</p>
+  </header>
+
+  <ul class="rules">
+    <li><b>One big blue button per screen</b><span>The solid navy button is always the next step. Everything else is outlined and secondary.</span></li>
+    <li><b>Pictures and colour before words</b><span>Green drop = irrigation, brown pipe = sewerage. Green tick = done, amber = being checked, purple cloud = waiting to send, red = read again.</span></li>
+    <li><b>Speaker button on every screen</b><span>Reads the instruction aloud in simple English (Android text-to-speech), for readers who find reading hard.</span></li>
+    <li><b>Numbers look like the meter</b><span>Odometer-style digit boxes, one per wheel, with the meter's own photo above while typing.</span></li>
+    <li><b>Photo first, then the number</b><span>The reader copies the number from their own photo, so they are not reading a wet or dark meter twice.</span></li>
+    <li><b>The app finds the next meter</b><span>"Start" opens the next unread meter in route order. Search by a few digits or by voice when a reader is sent somewhere specific.</span></li>
+    <li><b>Dubai Investments Park colours</b><span>Logo navy for actions, logo taupe for the brand and sewerage meters. English only, short everyday words.</span></li>
+    <li><b>No typing, no keyboard</b><span>Big in-app keypad, picture tiles for status and reasons. Remarks can be spoken (voice-to-text).</span></li>
+  </ul>
+
+  <h2>The reader's path</h2>
+  <p class="section-note">Screens 6 to 9 are the capture steps. The four circles at the top of those screens show where the reader is: condition, photo, number, check.</p>
+
+  <div class="screens">
+
+    <!-- 1 Sign in -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>07:02</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="body" style="justify-content:center; gap:20px; padding-top:20px;">
+          <div class="logo-slot">Dubai Investments Park logo</div>
+          <div class="brandbar"></div>
+          <div style="display:grid; gap:4px; text-align:center">
+            <div style="font-size:26px;font-weight:700;color:var(--primary)">Meter Reading</div>
+            <div style="color:var(--app-sub)">Sewerage and irrigation</div>
+          </div>
+          <div class="big go" style="margin-top:auto"><svg><use href="#i-user"/></svg>Sign in</div>
+          <div class="lbl" style="font-size:13px;font-weight:400">Use your company account</div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">01</span>Sign in</b>Company logo and one button that opens the company sign-in.</figcaption>
+    </figure>
+
+    <!-- 2 Home -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>07:15</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="bar"><span class="t hello">Hello, Rashid</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+        <div class="body">
+          <span class="syncpill" style="align-self:flex-start"><svg><use href="#i-cloudok"/></svg>All sent · 07:14</span>
+          <div class="ring" style="padding:10px 14px">
+            <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" stroke="var(--app-line)" stroke-width="12"/><circle cx="50" cy="50" r="42" stroke="var(--ok)" stroke-width="12" stroke-dasharray="227 264" transform="rotate(-90 50 50)"/><path d="M36 51l9 9 19-19" stroke="var(--ok)" stroke-width="7"/></svg>
+            <div><div class="n">108</div><div class="of">done of 125 meters</div><div class="chip warn" style="margin-top:6px"><svg><use href="#i-gauge"/></svg>17 left</div></div>
+          </div>
+          <div class="big go" style="height:84px;font-size:24px;flex-direction:column;gap:2px"><span style="display:flex;gap:10px;align-items:center"><svg><use href="#i-play"/></svg>Start</span><span style="font-size:14px;font-weight:400">Next: 598 · Building 1499-W1</span></div>
+          <div class="search"><svg><use href="#i-search"/></svg><span class="q">Find a Property</span><span class="mic"><svg><use href="#i-mic"/></svg></span></div>
+          <div class="tiles">
+            <div class="tile"><svg><use href="#i-map"/></svg>My zones</div>
+            <div class="tile"><span class="badge">2</span><svg><use href="#i-list"/></svg>My readings</div>
+            <div class="tile"><svg><use href="#i-chart"/></svg>Summary</div>
+          </div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">02</span>Home</b>One ring shows the day's progress. Start goes straight to the next meter; the search bar finds any building or meter.</figcaption>
+    </figure>
+
+    <!-- 3 Zones -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>07:16</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">My zones</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+        <div class="body">
+          <div class="card"><div class="ico" style="width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:var(--primary);color:var(--primary-ink)"><svg style="width:28px;height:28px"><use href="#i-map"/></svg></div><div class="main"><div class="code">597</div><div class="sub">58 of 60 done · 2 left</div><div class="prog"><i style="width:96%"></i></div></div><span class="go"><svg><use href="#i-next"/></svg></span></div>
+          <div class="card"><div class="ico" style="width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:var(--primary);color:var(--primary-ink)"><svg style="width:28px;height:28px"><use href="#i-map"/></svg></div><div class="main"><div class="code">598</div><div class="sub">50 of 65 done · 15 left</div><div class="prog"><i style="width:77%"></i></div></div><span class="go"><svg><use href="#i-next"/></svg></span></div>
+          <div class="card done"><div class="ico" style="width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:var(--ok-tint);color:var(--ok)"><svg style="width:28px;height:28px"><use href="#i-check"/></svg></div><div class="main"><div class="code">602</div><div class="sub">All 40 done</div><div class="prog"><i style="width:100%"></i></div></div><span class="go"><svg><use href="#i-check"/></svg></span></div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">03</span>Zones</b>Zone number large, a green bar for progress. Finished zones turn green and drop to the bottom.</figcaption>
+    </figure>
+
+    <!-- 4 Properties -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>07:16</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">Zone 598</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+        <div class="body">
+          <div class="search"><svg><use href="#i-search"/></svg><span class="q">Find in zone 598</span><span class="mic"><svg><use href="#i-mic"/></svg></span></div>
+          <div class="fchips"><span class="on">To read 2</span><span>Done 1</span><span style="color:var(--irr)"><svg><use href="#i-drop"/></svg></span><span style="color:var(--sew)"><svg><use href="#i-pipe"/></svg></span></div>
+          <div class="card"><div class="main"><div class="code">1499-W1</div><div class="sub">Building 1499-W1</div>
+            <div class="dots"><i class="irr d"><svg><use href="#i-drop"/></svg></i><i class="irr"><svg><use href="#i-drop"/></svg></i><i class="sew d"><svg><use href="#i-pipe"/></svg></i><i class="sew"><svg><use href="#i-pipe"/></svg></i><i class="sew"><svg><use href="#i-pipe"/></svg></i><i class="sew"><svg><use href="#i-pipe"/></svg></i><i class="sew"><svg><use href="#i-pipe"/></svg></i></div></div><span class="go"><svg><use href="#i-next"/></svg></span></div>
+          <div class="card"><div class="main"><div class="code">1502</div><div class="sub">Villa 1502</div>
+            <div class="dots"><i class="irr"><svg><use href="#i-drop"/></svg></i><i class="sew"><svg><use href="#i-pipe"/></svg></i></div></div><span class="go"><svg><use href="#i-next"/></svg></span></div>
+          <div class="card done"><div class="main"><div class="code">1497</div><div class="sub">Villa 1497 · done</div>
+            <div class="dots"><i class="irr d"><svg><use href="#i-drop"/></svg></i><i class="sew d"><svg><use href="#i-pipe"/></svg></i></div></div><span class="go"><svg><use href="#i-check"/></svg></span></div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">04</span>Properties</b>Search and filter at the top. Each meter is a small picture: drop or pipe. A green outline means that meter is read.</figcaption>
+    </figure>
+
+    <!-- 04b Find -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>07:16</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">Find a Property</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+        <div class="body" style="gap:8px">
+          <div class="search on"><svg><use href="#i-search"/></svg><span class="q typed">149</span><span class="mic"><svg><use href="#i-mic"/></svg></span></div>
+          <div class="fchips"><span class="on">All 3</span><span>To read 2</span><span style="color:var(--irr)"><svg><use href="#i-drop"/></svg></span><span style="color:var(--sew)"><svg><use href="#i-pipe"/></svg></span></div>
+          <div class="reslbl">Buildings</div>
+          <div class="card slim"><div class="main"><div class="code"><span class="hl">149</span>9-W1</div><div class="sub">Zone 598 · 2 of 7 done</div></div><span class="go"><svg><use href="#i-next"/></svg></span></div>
+          <div class="card slim done"><div class="main"><div class="code"><span class="hl">149</span>7</div><div class="sub">Zone 598 · all done</div></div><span class="go"><svg><use href="#i-check"/></svg></span></div>
+          <div class="skeys">
+            <b>1</b><b>2</b><b>3</b><b class="del"><svg><use href="#i-del"/></svg></b>
+            <b>4</b><b>5</b><b>6</b><b>-</b>
+            <b>7</b><b>8</b><b>9</b><b class="txt">ABC</b>
+            <b class="w2">0</b><b class="w2 txt">Clear</b>
+          </div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">04b</span>Find a Property</b>Type a few digits or speak them. Matches any zone by building number, name or meter number; the matching part is highlighted. ABC opens letters for codes like W1.</figcaption>
+    </figure>
+
+    <!-- 5 Meters -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>07:17</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">1499-W1</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+        <div class="body">
+          <div class="card done"><div class="ico irr" style="width:48px;height:48px;border-radius:12px;display:grid;place-items:center"><svg style="width:28px;height:28px"><use href="#i-drop"/></svg></div><div class="main"><div class="code" style="font-size:22px">2001-I</div><span class="chip ok"><svg><use href="#i-check"/></svg>Done</span></div><span class="go"><svg><use href="#i-check"/></svg></span></div>
+          <div class="card" style="border-color:var(--primary);border-width:3px"><div class="ico irr" style="width:48px;height:48px;border-radius:12px;display:grid;place-items:center"><svg style="width:28px;height:28px"><use href="#i-drop"/></svg></div><div class="main"><div class="code" style="font-size:22px">2001-2</div><div class="sub">Irrigation · last 52,500</div></div><span class="go"><svg><use href="#i-next"/></svg></span></div>
+          <div class="card"><div class="ico sew" style="width:48px;height:48px;border-radius:12px;display:grid;place-items:center"><svg style="width:28px;height:28px"><use href="#i-pipe"/></svg></div><div class="main"><div class="code" style="font-size:22px">2002-2</div><span class="chip q"><svg><use href="#i-cloudup"/></svg>Waiting to send</span></div><span class="go" style="background:var(--queued-tint);color:var(--queued)"><svg><use href="#i-cloud"/></svg></span></div>
+          <div class="card"><div class="ico sew" style="width:48px;height:48px;border-radius:12px;display:grid;place-items:center"><svg style="width:28px;height:28px"><use href="#i-pipe"/></svg></div><div class="main"><div class="code" style="font-size:22px">2002-3</div><span class="chip bad"><svg><use href="#i-x"/></svg>Read again</span></div><span class="go"><svg><use href="#i-next"/></svg></span></div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">05</span>Meters at one property</b>The next meter has a blue border. Status is a coloured chip with an icon, never text alone.</figcaption>
+    </figure>
+
+    <!-- 6 Condition -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>07:17</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">How is the meter?</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+        <div class="body">
+          <div class="steps"><i class="on"><svg><use href="#i-gauge"/></svg></i><em></em><i><svg><use href="#i-cam"/></svg></i><em></em><i><svg><use href="#i-num"/></svg></i><em></em><i><svg><use href="#i-check"/></svg></i></div>
+          <div class="ctx"><span class="ico irr"><svg><use href="#i-drop"/></svg></span><div><div class="m">2001-2</div><div class="s">598 · 1499-W1</div></div></div>
+          <div class="st">
+            <div class="sel"><svg><use href="#i-check"/></svg>Working</div>
+            <div class="c-dmg"><svg><use href="#i-broken"/></svg><span style="color:var(--app-ink)">Broken</span></div>
+            <div class="c-sub"><svg><use href="#i-waves"/></svg><span style="color:var(--app-ink)">Under water</span></div>
+            <div class="c-lock"><svg><use href="#i-lock"/></svg><span style="color:var(--app-ink)">Can't reach</span></div>
+            <div class="c-swap"><svg><use href="#i-swap"/></svg><span style="color:var(--app-ink)">New meter fitted</span></div>
+            <div class="c-rm"><svg><use href="#i-rm"/></svg><span style="color:var(--app-ink)">Meter gone</span></div>
+          </div>
+          <div class="big go" style="margin-top:auto"><svg><use href="#i-cam"/></svg>Next: photo</div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">06</span>Step 1 · Meter condition</b>Six picture tiles in plain words. Working is already selected, so a normal meter is one tap.</figcaption>
+    </figure>
+
+    <!-- 7 Camera -->
+    <figure>
+      <div class="phone">
+        <div class="sb" style="background:#0E0F11;color:#fff"><span>07:18</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="body" style="padding-top:0">
+          <div class="cam">
+            <div class="dial"><div class="photo" style="background:transparent"><div class="win" style="display:flex;gap:2px;background:#111;padding:4px;border-radius:4px"><span style="width:22px;height:30px;background:#F4F4F0;color:#111;font-family:var(--f-num);font-size:20px;display:grid;place-items:center">5</span><span style="width:22px;height:30px;background:#F4F4F0;color:#111;font-family:var(--f-num);font-size:20px;display:grid;place-items:center">2</span><span style="width:22px;height:30px;background:#F4F4F0;color:#111;font-family:var(--f-num);font-size:20px;display:grid;place-items:center">8</span><span style="width:22px;height:30px;background:#F4F4F0;color:#111;font-family:var(--f-num);font-size:20px;display:grid;place-items:center">4</span><span style="width:22px;height:30px;background:#F4F4F0;color:#111;font-family:var(--f-num);font-size:20px;display:grid;place-items:center">0</span></div></div></div>
+            <div class="frame"></div>
+            <div class="tip"><svg><use href="#i-num"/></svg>Put the numbers inside the white box</div>
+          </div>
+          <div class="camctl"><span class="ib"><svg><use href="#i-flash"/></svg></span><span class="shutter" role="img" aria-label="Take photo"></span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">07</span>Step 2 · Photo</b>Full-screen camera, one huge shutter, a white box to aim at. A blurry or dark photo asks for a retake.</figcaption>
+    </figure>
+
+    <!-- 8 Number -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>07:18</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">Type the number</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+        <div class="body" style="gap:8px">
+          <div class="steps"><i class="done"><svg><use href="#i-check"/></svg></i><em></em><i class="done"><svg><use href="#i-check"/></svg></i><em></em><i class="on"><svg><use href="#i-num"/></svg></i><em></em><i><svg><use href="#i-check"/></svg></i></div>
+          <div class="photo" style="height:84px"><div class="face"><div class="win"><span>5</span><span>2</span><span>8</span><span>4</span><span>0</span></div></div></div>
+          <div class="lbl">Last time</div>
+          <div class="odo prev"><span>5</span><span>2</span><span>5</span><span>0</span><span>0</span></div>
+          <div class="lbl" style="color:var(--app-ink)">Now</div>
+          <div class="odo"><span>5</span><span>2</span><span>8</span><span class="cur">4</span><span class="empty">0</span></div>
+          <div class="keys">
+            <b>1</b><b>2</b><b>3</b><b>4</b><b>5</b><b>6</b><b>7</b><b>8</b><b>9</b>
+            <b class="del"><svg><use href="#i-del"/></svg></b><b>0</b><b class="next"><svg><use href="#i-next"/></svg></b>
+          </div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">08</span>Step 3 · Number</b>The reader's own photo sits above the boxes. One box per meter wheel, filled left to right on a big keypad.</figcaption>
+    </figure>
+
+    <!-- 9 Check -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>07:19</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">Check</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+        <div class="body">
+          <div class="steps"><i class="done"><svg><use href="#i-check"/></svg></i><em></em><i class="done"><svg><use href="#i-check"/></svg></i><em></em><i class="done"><svg><use href="#i-check"/></svg></i><em></em><i class="on"><svg><use href="#i-check"/></svg></i></div>
+          <div class="photo" style="height:120px"><div class="face"><div class="dial" style="width:110px"><div class="win"><span>5</span><span>2</span><span>8</span><span>4</span><span>0</span></div></div></div></div>
+          <div class="q">Is this the same?</div>
+          <div class="bigread">52840</div>
+          <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap"><span class="chip ok"><svg><use href="#i-check"/></svg>Working</span><span class="chip ok">+340 used</span></div>
+          <div class="row" style="margin-top:auto">
+            <div class="big ghost" style="color:var(--bad)"><svg><use href="#i-x"/></svg>Change</div>
+            <div class="big ok"><svg><use href="#i-check"/></svg>Yes, send</div>
+          </div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">09</span>Step 4 · Check</b>Photo next to the typed number in large digits. Green to send, red to fix.</figcaption>
+    </figure>
+
+    <!-- 10 Sent -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>07:19</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="body">
+          <div class="result">
+            <div class="circle" style="background:var(--ok-tint);color:var(--ok)"><svg><use href="#i-check"/></svg></div>
+            <h3>Sent</h3>
+            <p>Meter 2001-2 is done</p>
+            <span class="chip ok">109 of 125</span>
+          </div>
+          <div class="big go" style="height:84px;flex-direction:column;gap:2px"><span style="display:flex;gap:10px;align-items:center"><svg><use href="#i-play"/></svg>Next meter</span><span style="font-size:14px;font-weight:400;display:flex;gap:6px;align-items:center"><svg style="width:16px;height:16px"><use href="#i-pipe"/></svg>2002-2 · same building</span></div>
+          <div class="big ghost" style="height:52px;font-size:16px">Home</div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">10</span>Sent</b>Big green tick with a sound and a vibration. The next meter is one tap away.</figcaption>
+    </figure>
+
+    <!-- 11 Offline saved -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>09:42</span><span class="sig">No signal</span></div>
+        <div class="body">
+          <div class="result">
+            <div class="circle" style="background:var(--queued-tint);color:var(--queued)"><svg><use href="#i-cloudup"/></svg></div>
+            <h3>Saved</h3>
+            <p>No signal here. It will send by itself when signal comes back.</p>
+            <span class="chip q"><svg><use href="#i-cloud"/></svg>3 waiting</span>
+          </div>
+          <div class="big go" style="height:84px"><svg><use href="#i-play"/></svg>Next meter</div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">11</span>Saved without signal</b>Purple cloud means "kept safe, sending later". The reader keeps working; nothing to do.</figcaption>
+    </figure>
+
+    <!-- 12 Warning -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>09:50</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">Please look again</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+        <div class="body">
+          <div class="banner warn"><svg><use href="#i-warn"/></svg>The number is smaller than last time</div>
+          <div class="photo" style="height:110px"><div class="face"><div class="win"><span>4</span><span>9</span><span>9</span><span>0</span><span>0</span></div></div></div>
+          <div class="lbl">Last time</div>
+          <div class="odo prev"><span>5</span><span>0</span><span>0</span><span>0</span><span>0</span></div>
+          <div class="lbl" style="color:var(--app-ink)">You typed</div>
+          <div class="odo"><span>4</span><span>9</span><span>9</span><span>0</span><span>0</span></div>
+          <div class="big go" style="margin-top:auto"><svg><use href="#i-num"/></svg>Type again</div>
+          <div class="big ghost" style="height:52px;font-size:16px">It is correct, send</div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">12</span>Check warning</b>A plain sentence and the two numbers side by side. "It is correct" still sends; the supervisor reviews it.</figcaption>
+    </figure>
+
+    <!-- 13 Can't reach: reason -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>10:05</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">Why can't you reach it?</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+        <div class="body">
+          <div class="ctx"><span class="ico sew"><svg><use href="#i-pipe"/></svg></span><div><div class="m">2002-4</div><div class="s">598 · 1499-W1</div></div></div>
+          <div class="st">
+            <div class="sel"><svg><use href="#i-lock"/></svg>Gate locked</div>
+            <div><svg><use href="#i-bldg"/></svg>Car on top</div>
+            <div><svg><use href="#i-warn"/></svg>Dog / danger</div>
+            <div><svg><use href="#i-user"/></svg>Owner said no</div>
+          </div>
+          <div class="big ghost" style="height:56px;font-size:16px"><svg><use href="#i-speak"/></svg>Say a note (optional)</div>
+          <div class="big go" style="margin-top:auto"><svg><use href="#i-cam"/></svg>Next: photo</div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">13</span>Reason picker</b>Reasons are picture tiles from the admin's list. Remarks are spoken and turned into text.</figcaption>
+    </figure>
+
+    <!-- 14 My readings -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>12:30</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">My readings</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+        <div class="body" style="gap:6px">
+          <div class="filters"><span class="on">All 109</span><span><svg style="width:14px;height:14px"><use href="#i-cloud"/></svg>3</span><span style="color:var(--bad)"><svg style="width:14px;height:14px"><use href="#i-x"/></svg>1</span><span style="color:var(--warn)"><svg style="width:14px;height:14px"><use href="#i-warn"/></svg>2</span></div>
+          <div class="rd"><span class="ico sew"><svg><use href="#i-pipe"/></svg></span><div class="main"><div class="m">2002-3</div><div class="v">Supervisor: photo not clear</div></div><span class="chip bad"><svg><use href="#i-x"/></svg>Again</span></div>
+          <div class="rd"><span class="ico sew"><svg><use href="#i-pipe"/></svg></span><div class="main"><div class="m">2002-2</div><div class="v">17,320 · 09:42</div></div><span class="chip q"><svg><use href="#i-cloudup"/></svg></span></div>
+          <div class="rd"><span class="ico irr"><svg><use href="#i-drop"/></svg></span><div class="main"><div class="m">2001-2</div><div class="v">52,840 · 07:19</div></div><span class="chip ok"><svg><use href="#i-check"/></svg></span></div>
+          <div class="rd"><span class="ico irr"><svg><use href="#i-drop"/></svg></span><div class="main"><div class="m">1001-I</div><div class="v">49,900 · 06:58</div></div><span class="chip warn"><svg><use href="#i-warn"/></svg></span></div>
+          <div class="rd"><span class="ico sew"><svg><use href="#i-pipe"/></svg></span><div class="main"><div class="m">1001-S</div><div class="v">8,214 · 06:55</div></div><span class="chip ok"><svg><use href="#i-check"/></svg></span></div>
+          <div class="big go" style="margin-top:auto;height:56px"><svg><use href="#i-cloudup"/></svg>Send now (3)</div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">14</span>My readings</b>Filters are icons with counts. "Read again" items from the supervisor come first.</figcaption>
+    </figure>
+
+  <!-- 15 Summary / reconciliation -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>12:31</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">My summary</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+        <div class="body" style="gap:8px">
+          <div class="recon">
+            <div><div class="n">125</div><div class="l">Meters</div></div>
+            <div><div class="n">109</div><div class="l">Read</div></div>
+            <div class="gap"><div class="n">106</div><div class="l">Uploaded</div></div>
+          </div>
+          <div class="stack" role="img" aria-label="125 meters: 103 accepted, 2 being checked, 1 read again, 3 waiting to upload, 16 not read">
+            <i style="flex:103;background:var(--ok)"></i><i style="flex:2;background:var(--warn)"></i><i style="flex:1;background:var(--bad)"></i><i style="flex:3;background:var(--queued)"></i><i style="flex:16;background:var(--app-line)"></i>
+          </div>
+          <div class="leg">
+            <div><span class="sw" style="background:var(--ok-tint);color:var(--ok)"><svg><use href="#i-check"/></svg></span><span class="t">Accepted</span><span class="v">103</span></div>
+            <div><span class="sw" style="background:var(--warn-tint);color:var(--warn)"><svg><use href="#i-warn"/></svg></span><span class="t">Being checked</span><span class="v">2</span></div>
+            <div><span class="sw" style="background:var(--bad-tint);color:var(--bad)"><svg><use href="#i-x"/></svg></span><span class="t">Read again</span><span class="v">1</span></div>
+            <div><span class="sw" style="background:var(--queued-tint);color:var(--queued)"><svg><use href="#i-cloudup"/></svg></span><span class="t">Waiting to upload</span><span class="v">3</span></div>
+            <div><span class="sw" style="background:var(--app-bg);color:var(--app-sub);border:1.5px solid var(--app-line)"><svg><use href="#i-gauge"/></svg></span><span class="t">Not read yet</span><span class="v">16</span></div>
+          </div>
+          <table class="ztab"><thead><tr><th>Zone</th><th>Meters</th><th>Read</th><th>Uploaded</th></tr></thead>
+            <tbody><tr><td>597</td><td>60</td><td>58</td><td>58</td></tr><tr><td>598</td><td>65</td><td>51</td><td class="miss">48</td></tr></tbody></table>
+          <div class="big go" style="margin-top:auto;height:56px;flex:none"><svg><use href="#i-cloudup"/></svg>Upload now (3)</div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">15</span>My summary (reconciliation)</b>Total meters, readings taken on the phone and readings uploaded, side by side. A purple box means something is still on the phone; the zone table shows where.</figcaption>
+    </figure>
+
+  </div>
+
+  <div class="legend">
+    <section>
+      <h3>Meter type</h3>
+      <div class="lg"><span class="sw irr"><svg><use href="#i-drop"/></svg></span><b>Irrigation</b> <span class="t">green drop</span></div>
+      <div class="lg"><span class="sw sew"><svg><use href="#i-pipe"/></svg></span><b>Sewerage</b> <span class="t">taupe pipe</span></div>
+    </section>
+    <section>
+      <h3>Reading state</h3>
+      <div class="lg"><span class="sw" style="background:var(--ok-tint);color:var(--ok)"><svg><use href="#i-check"/></svg></span><b>Done</b> <span class="t">accepted by the server</span></div>
+      <div class="lg"><span class="sw" style="background:var(--queued-tint);color:var(--queued)"><svg><use href="#i-cloudup"/></svg></span><b>Waiting to send</b> <span class="t">saved on the phone</span></div>
+      <div class="lg"><span class="sw" style="background:var(--warn-tint);color:var(--warn)"><svg><use href="#i-warn"/></svg></span><b>Being checked</b> <span class="t">supervisor will review</span></div>
+      <div class="lg"><span class="sw" style="background:var(--bad-tint);color:var(--bad)"><svg><use href="#i-x"/></svg></span><b>Read again</b> <span class="t">rejected, capture again</span></div>
+    </section>
+    <section>
+      <h3>Meter condition (spec §6.1)</h3>
+      <div class="lg"><span class="sw" style="color:var(--ok)"><svg><use href="#i-check"/></svg></span><b>Working</b> <span class="t">WORKING</span></div>
+      <div class="lg"><span class="sw c-dmg"><svg><use href="#i-broken"/></svg></span><b>Broken</b> <span class="t">DAMAGED</span></div>
+      <div class="lg"><span class="sw c-sub"><svg><use href="#i-waves"/></svg></span><b>Under water</b> <span class="t">SUBMERSED</span></div>
+      <div class="lg"><span class="sw c-lock"><svg><use href="#i-lock"/></svg></span><b>Can't reach</b> <span class="t">NOT_ACCESSIBLE</span></div>
+      <div class="lg"><span class="sw c-swap"><svg><use href="#i-swap"/></svg></span><b>New meter fitted</b> <span class="t">METER_REPLACED</span></div>
+      <div class="lg"><span class="sw c-rm"><svg><use href="#i-rm"/></svg></span><b>Meter gone</b> <span class="t">REMOVED</span></div>
+    </section>
+  </div>
+</div>

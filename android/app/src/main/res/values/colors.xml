@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dubai Investments Park logo colours -->
+    <color name="dip_navy">#FF12305C</color>
+    <color name="dip_taupe">#FF776759</color>
+    <color name="app_background">#FFF8F7F4</color>
+</resources>

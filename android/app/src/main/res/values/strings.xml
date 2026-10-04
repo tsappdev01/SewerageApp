@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Plain, short, everyday English. Readers may read slowly or not at all, so every
+  screen also has a speak_* line that the speaker button reads aloud.
+  Keep sentences under ten words. Avoid system words (sync, submit, transaction).
+-->
+<resources>
+    <string name="app_name">Meter Reading</string>
+    <string name="app_subtitle">Sewerage and irrigation</string>
+    <string name="logo_placeholder">Dubai Investments Park logo</string>
+    <string name="sign_in">Sign in</string>
+    <string name="sign_in_hint">Use your company account</string>
+    <string name="demo_no_signal">Demo: no signal</string>
+
+    <string name="hello">Hello, %1$s</string>
+    <string name="all_sent">All sent</string>
+    <string name="waiting_count">%1$d waiting to send</string>
+    <string name="done_of">done of %1$d meters</string>
+    <string name="left_count">%1$d left</string>
+    <string name="start">Start</string>
+    <string name="next_at">Next: %1$s · %2$s</string>
+    <string name="all_done_today">All meters are done</string>
+    <string name="my_zones">My zones</string>
+    <string name="my_readings">My readings</string>
+    <string name="send">Send</string>
+    <string name="sending">Sending…</string>
+
+    <string name="zone_title">Zone %1$s</string>
+    <string name="zone_progress">%1$d of %2$d done · %3$d left</string>
+    <string name="zone_done">All %1$d done</string>
+    <string name="irrigation">Irrigation</string>
+    <string name="sewerage">Sewerage</string>
+    <string name="last_reading">Last %1$s</string>
+    <string name="new_meter_first">New meter</string>
+
+    <string name="state_pending">To read</string>
+    <string name="state_queued">Waiting to send</string>
+    <string name="state_sent">Done</string>
+    <string name="state_checking">Being checked</string>
+    <string name="state_read_again">Read again</string>
+    <string name="state_revisit">Visit again</string>
+
+    <string name="q_condition">How is the meter?</string>
+    <string name="cond_working">Working</string>
+    <string name="cond_damaged">Broken</string>
+    <string name="cond_submersed">Under water</string>
+    <string name="cond_not_accessible">Can\'t reach</string>
+    <string name="cond_replaced">New meter fitted</string>
+    <string name="cond_removed">Meter gone</string>
+    <string name="next_photo">Next: photo</string>
+    <string name="next">Next</string>
+
+    <string name="photo_hint_display">Put the numbers inside the white box</string>
+    <string name="photo_hint_context">Take a photo of the meter and around it</string>
+    <string name="photo_hint_new_meter">Take a photo of the new meter</string>
+    <string name="photo_hint_old_final">Take a photo of the old meter numbers</string>
+    <string name="photo_hint_obstruction">Take a photo of what is in the way</string>
+    <string name="photo_hint_damage">Take a photo of the damage</string>
+    <string name="photo_good">Good photo</string>
+    <string name="photo_again">Take again</string>
+    <string name="q_photo_clear">Is the photo clear?</string>
+    <string name="take_photo">Take photo</string>
+    <string name="flash">Flash</string>
+    <string name="camera_permission">The app needs the camera to take the meter photo</string>
+    <string name="allow_camera">Allow camera</string>
+    <string name="camera_error">Photo failed. Try again.</string>
+
+    <string name="type_number">Type the number</string>
+    <string name="type_old_final">Old meter: last number</string>
+    <string name="type_new_opening">New meter: number when fitted</string>
+    <string name="type_new_current">New meter: number now</string>
+    <string name="last_time">Last time</string>
+    <string name="now">Now</string>
+    <string name="delete_digit">Delete</string>
+    <string name="done">Done</string>
+    <string name="cant_read">I can\'t read it</string>
+    <string name="warn_lower">The number is smaller than last time</string>
+    <string name="warn_high">The number is much bigger than usual</string>
+    <string name="you_typed">You typed</string>
+    <string name="type_again">Type again</string>
+    <string name="it_is_correct">It is correct</string>
+
+    <string name="q_reason_damage">What is broken?</string>
+    <string name="q_reason_access">Why can\'t you reach it?</string>
+    <string name="q_reason_removed">What happened to the meter?</string>
+    <string name="q_reason_replaced">Why was it changed?</string>
+    <string name="r_glass_broken">Glass broken</string>
+    <string name="r_leaking">Leaking</string>
+    <string name="r_not_moving">Numbers not moving</string>
+    <string name="r_other">Other</string>
+    <string name="r_gate_locked">Gate locked</string>
+    <string name="r_car_on_top">Car on top</string>
+    <string name="r_danger">Dog or danger</string>
+    <string name="r_owner_refused">Owner said no</string>
+    <string name="r_missing">Meter missing</string>
+    <string name="r_removed_owner">Owner removed it</string>
+    <string name="r_old_broken">Old meter broken</string>
+    <string name="r_planned">Planned change</string>
+
+    <string name="note_title">Say what you see</string>
+    <string name="note_speak">Tap and speak</string>
+    <string name="note_type">Type instead</string>
+    <string name="note_required">A note is needed for this meter</string>
+    <string name="note_hint">Your note</string>
+    <string name="new_meter_number_title">New meter number</string>
+    <string name="new_meter_number_hint">Number written on the new meter</string>
+
+    <string name="check_title">Check</string>
+    <string name="q_same">Is this the same?</string>
+    <string name="no_number">No number</string>
+    <string name="used">+%1$s used</string>
+    <string name="old_meter">Old meter</string>
+    <string name="new_meter">New meter</string>
+    <string name="change">Change</string>
+    <string name="yes_send">Yes, send</string>
+
+    <string name="result_sent">Sent</string>
+    <string name="result_sent_sub">Meter %1$s is done</string>
+    <string name="result_saved">Saved</string>
+    <string name="result_saved_sub">No signal here. It will send by itself when signal comes back.</string>
+    <string name="result_checking">Sent for checking</string>
+    <string name="result_checking_sub">Your supervisor will look at this reading.</string>
+    <string name="progress_count">%1$d of %2$d</string>
+    <string name="next_meter">Next meter</string>
+    <string name="home">Home</string>
+
+    <string name="filter_all">All %1$d</string>
+    <string name="send_now">Send now (%1$d)</string>
+    <string name="supervisor_note">Supervisor: %1$s</string>
+    <string name="search_find">Find</string>
+    <string name="search_placeholder">Find a Property</string>
+    <string name="search_in_zone">Find in zone %1$s</string>
+    <string name="search_voice">Search by voice</string>
+    <string name="search_letters">ABC</string>
+    <string name="search_numbers">123</string>
+    <string name="search_clear">Clear</string>
+    <string name="search_buildings">Buildings</string>
+    <string name="search_meters">Meters</string>
+    <string name="search_nothing">Nothing found. Check the number and try again.</string>
+    <string name="search_voice_missing">Voice search is not set up on this phone. Type the number instead.</string>
+    <string name="filter_to_read">To read %1$d</string>
+    <string name="filter_done">Done %1$d</string>
+    <string name="property_meta">Zone %1$s · %2$d of %3$d done</string>
+
+    <string name="summary">Summary</string>
+    <string name="summary_title">My summary</string>
+    <string name="summary_meters">Meters</string>
+    <string name="summary_read">Read</string>
+    <string name="summary_uploaded">Uploaded</string>
+    <string name="summary_accepted">Accepted</string>
+    <string name="summary_waiting">Waiting to upload</string>
+    <string name="summary_not_read">Not read yet</string>
+    <string name="summary_zone">Zone</string>
+    <string name="summary_all_uploaded">Every reading on this phone is uploaded</string>
+    <string name="summary_not_uploaded">%1$d readings are still on this phone</string>
+    <string name="summary_last_upload">Last upload %1$s</string>
+    <string name="summary_chart">%1$d meters: %2$d accepted, %3$d being checked, %4$d read again, %5$d visit again, %6$d waiting to upload, %7$d not read</string>
+    <string name="upload_now">Upload now (%1$d)</string>
+    <string name="no_signal_now">No signal now. It will send by itself later.</string>
+    <string name="back">Back</string>
+    <string name="read_aloud">Read aloud</string>
+    <string name="voice_missing">The phone has no English voice. Ask your supervisor to install one.</string>
+
+    <!-- Read aloud by the speaker button. Use "blue button" for the main navy action. -->
+    <string name="speak_signin">Press the blue Sign in button.</string>
+    <string name="speak_home">Press the big blue Start button to read the next meter.</string>
+    <string name="speak_zones">Pick a zone. Green means it is finished.</string>
+    <string name="speak_properties">Pick a building. Each small picture is one meter. A green border means it is read.</string>
+    <string name="speak_meters">Pick the meter with the blue border.</string>
+    <string name="speak_condition">Look at the meter. If it is working, press the blue button. If not, press the picture that matches.</string>
+    <string name="speak_photo">Hold the phone still. Put the numbers inside the white box. Press the big white button.</string>
+    <string name="speak_photo_context">Hold the phone still. Take a photo of the meter. Press the big white button.</string>
+    <string name="speak_photo_review">Is the photo clear? If it is good, press the green button.</string>
+    <string name="speak_number">Look at your photo. Press the same numbers, from left to right.</string>
+    <string name="speak_warning">Please look at the meter again. If the number is correct, press It is correct.</string>
+    <string name="speak_reason">Press the picture that matches.</string>
+    <string name="speak_note">Press the microphone and say what you see.</string>
+    <string name="speak_new_meter">Type the number written on the new meter.</string>
+    <string name="speak_check">Look at the photo and the number. If they are the same, press the green button.</string>
+    <string name="speak_result_sent">Sent. Press the blue button for the next meter.</string>
+    <string name="speak_result_saved">Saved. It will send by itself later. Press the blue button for the next meter.</string>
+    <string name="speak_result_checking">Sent. Your supervisor will check it. Press the blue button for the next meter.</string>
+    <string name="speak_search">To find a property, press its numbers. Or press the microphone and say the number.</string>
+    <string name="speak_summary">This shows how many meters you read and how many are uploaded. Purple means some readings are still on the phone. Press the blue button to upload them.</string>
+    <string name="speak_readings">These are your readings. Red means read the meter again.</string>
+</resources>
