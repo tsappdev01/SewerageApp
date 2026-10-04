@@ -29,11 +29,35 @@ import com.meterreading.reader.data.*
 import com.meterreading.reader.ui.components.*
 import com.meterreading.reader.ui.theme.AppColors
 import com.meterreading.reader.ui.theme.NumberFont
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import kotlinx.coroutines.launch
 
 @Composable
-fun SignInScreen(onSignedIn: () -> Unit) {
+fun SignInScreen(onSignedIn: () -> Unit, defaultLogin: String = "") {
     val repo = AppGraph.repository
     val online by repo.online.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    var login by rememberSaveable { mutableStateOf(defaultLogin) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    fun signIn() {
+        if (busy) return
+        busy = true
+        error = null
+        scope.launch {
+            when (val result = repo.signIn(login)) {
+                SignInResult.Success -> onSignedIn()
+                is SignInResult.Failed -> error = result.message
+            }
+            busy = false
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -59,13 +83,36 @@ fun SignInScreen(onSignedIn: () -> Unit) {
             Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge, color = AppColors.Navy)
             Text(stringResource(R.string.app_subtitle), style = MaterialTheme.typography.bodyLarge, color = AppColors.SubInk)
         }
-        Spacer(Modifier.height(24.dp))
-        // TODO(FR-001.1): Entra ID sign-in with MSAL (Authorization Code + PKCE).
-        BigButton(stringResource(R.string.sign_in), onSignedIn, icon = Icons.Rounded.Person)
+        Spacer(Modifier.height(8.dp))
+        if (repo.needsDevLogin) {
+            // TODO(FR-001.1): Entra ID sign-in with MSAL replaces this field.
+            OutlinedTextField(
+                value = login,
+                onValueChange = { login = it.trim() },
+                label = { Text(stringResource(R.string.dev_login_label)) },
+                supportingText = { Text(stringResource(R.string.dev_login_hint)) },
+                singleLine = true,
+                enabled = !busy,
+                textStyle = MaterialTheme.typography.titleMedium,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Go),
+                keyboardActions = KeyboardActions(onGo = { signIn() }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        error?.let { Banner(it, Icons.Rounded.Warning, AppColors.Bad, AppColors.BadTint) }
+        BigButton(
+            text = stringResource(if (busy) R.string.signing_in else R.string.sign_in),
+            onClick = { signIn() },
+            icon = Icons.Rounded.Person,
+            enabled = !busy && (!repo.needsDevLogin || login.isNotBlank()),
+        )
+        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = AppColors.Navy)
         Text(stringResource(R.string.sign_in_hint), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = AppColors.SubInk)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Switch(checked = !online, onCheckedChange = { repo.online.value = !it })
-            Text(stringResource(R.string.demo_no_signal), color = AppColors.SubInk)
+        if (repo.isDemo) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Switch(checked = !online, onCheckedChange = { repo.online.value = !it })
+                Text(stringResource(R.string.demo_no_signal), color = AppColors.SubInk)
+            }
         }
     }
 }

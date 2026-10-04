@@ -42,7 +42,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 private enum class ReadingsFilter { ALL, WAITING, READ_AGAIN, CHECKING }
 
 @Composable
-fun MyReadingsScreen(onCapture: (Long) -> Unit, onBack: () -> Unit) {
+fun MyReadingsScreen(onCapture: (String) -> Unit, onBack: () -> Unit) {
     val repo = AppGraph.repository
     val meters by repo.meters.collectAsStateWithLifecycle()
     val readings by repo.readings.collectAsStateWithLifecycle()

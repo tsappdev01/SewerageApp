@@ -23,16 +23,16 @@ object ReadingRules {
         return max - 1
     }
 
-    fun check(previous: Long?, current: Long, registerDigits: Int, expectedHigh: Long): Check {
+    fun check(previous: Long?, current: Long, registerDigits: Int, expectedHigh: Long?): Check {
         val base = previous ?: 0L
         if (current >= base) {
             val consumption = current - base
-            return if (consumption > expectedHigh) Check.High(consumption) else Check.Ok(consumption)
+            return if (expectedHigh != null && consumption > expectedHigh) Check.High(consumption) else Check.Ok(consumption)
         }
         val max = registerMax(registerDigits)
         val nearMax = base >= max - max * ROLLOVER_PROXIMITY_PERCENT / 100
         if (!nearMax) return Check.Lower
         val consumption = (max - base + 1) + current
-        return if (consumption > expectedHigh) Check.High(consumption) else Check.Rollover(consumption)
+        return if (expectedHigh != null && consumption > expectedHigh) Check.High(consumption) else Check.Rollover(consumption)
     }
 }

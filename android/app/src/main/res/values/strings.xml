@@ -11,6 +11,9 @@
     <string name="sign_in">Sign in</string>
     <string name="sign_in_hint">Use your company account</string>
     <string name="demo_no_signal">Demo: no signal</string>
+    <string name="dev_login_label">Your sign-in email</string>
+    <string name="dev_login_hint">Test sign-in. Company sign-in comes later.</string>
+    <string name="signing_in">Signing in…</string>
 
     <string name="hello">Hello, %1$s</string>
     <string name="all_sent">All sent</string>
@@ -120,6 +123,8 @@
     <string name="result_saved_sub">No signal here. It will send by itself when signal comes back.</string>
     <string name="result_checking">Sent for checking</string>
     <string name="result_checking_sub">Your supervisor will look at this reading.</string>
+    <string name="result_rejected">Not sent</string>
+    <string name="result_rejected_sub">The server did not accept this reading.</string>
     <string name="progress_count">%1$d of %2$d</string>
     <string name="next_meter">Next meter</string>
     <string name="home">Home</string>
@@ -182,5 +187,6 @@
     <string name="speak_result_checking">Sent. Your supervisor will check it. Press the blue button for the next meter.</string>
     <string name="speak_search">To find a property, press its numbers. Or press the microphone and say the number.</string>
     <string name="speak_summary">This shows how many meters you read and how many are uploaded. Purple means some readings are still on the phone. Press the blue button to upload them.</string>
+    <string name="speak_result_rejected">Not sent. Press Home and tell your supervisor.</string>
     <string name="speak_readings">These are your readings. Red means read the meter again.</string>
 </resources>

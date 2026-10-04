@@ -24,7 +24,15 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     }
 }
 
-public sealed class ApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
+/// <summary>Tests that use the shared database run one class at a time.</summary>
+[CollectionDefinition(Name)]
+public sealed class DatabaseCollection : ICollectionFixture<ApiFactory>
+{
+    public const string Name = "Database";
+}
+
+[Collection(DatabaseCollection.Name)]
+public sealed class ApiTests(ApiFactory factory)
 {
     private const string Rashid = "rashid@dip.example";
     private const string Anil = "anil@dip.example";

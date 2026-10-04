@@ -51,7 +51,7 @@ fun SearchScreen(
     zoneCode: String?,
     initialText: String?,
     onProperty: (String) -> Unit,
-    onMeter: (Long) -> Unit,
+    onMeter: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     val repo = AppGraph.repository

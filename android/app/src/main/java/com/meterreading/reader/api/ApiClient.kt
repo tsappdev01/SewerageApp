@@ -1,0 +1,89 @@
+package com.meterreading.reader.api
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
+import java.util.concurrent.TimeUnit
+
+/** The server refused the request. [code] is the problem code from spec Appendix A. */
+class ApiException(val status: Int, val code: String?, val title: String) : Exception("$status $code: $title") {
+    /** 408, 429 and 5xx are worth retrying later; other refusals are final. */
+    val isRetryable: Boolean get() = status == 408 || status == 429 || status >= 500
+}
+
+/**
+ * Calls the Meter Reading API (api/README.md). Network failures surface as [IOException],
+ * server refusals as [ApiException].
+ */
+class ApiClient(
+    baseUrl: String,
+    private val http: OkHttpClient = defaultHttpClient(),
+) {
+    private val base = baseUrl.trimEnd('/')
+    private val json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
+
+    /** Development sign-in: sent as X-Dev-User. Only accepted by an API running in Development. */
+    @Volatile
+    var devUser: String? = null
+
+    /** Company sign-in (Entra ID access token). TODO(FR-001): fill from MSAL. */
+    @Volatile
+    var accessToken: String? = null
+
+    suspend fun me(): MeDto = get("/api/v1/me")
+
+    suspend fun meters(zones: List<String> = emptyList()): SyncDto =
+        get(if (zones.isEmpty()) "/api/v1/sync/meters" else "/api/v1/sync/meters?zone=" + zones.joinToString(","))
+
+    suspend fun myReadings(): List<ReadingDto> = get("/api/v1/readings/mine")
+
+    suspend fun submit(request: SubmitReadingRequest): SubmitReadingResponse =
+        send(
+            Request.Builder()
+                .url("$base/api/v1/readings")
+                .post(json.encodeToString(SubmitReadingRequest.serializer(), request).toRequestBody(JSON)),
+        ) { json.decodeFromString(SubmitReadingResponse.serializer(), it) }
+
+    private suspend inline fun <reified T> get(path: String): T =
+        send(Request.Builder().url("$base$path".toHttpUrl()).get()) { json.decodeFromString<T>(it) }
+
+    private suspend fun <T> send(builder: Request.Builder, parse: (String) -> T): T = withContext(Dispatchers.IO) {
+        devUser?.let { builder.header("X-Dev-User", it) }
+        accessToken?.let { builder.header("Authorization", "Bearer $it") }
+        http.newCall(builder.build()).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                val problem = runCatching { json.decodeFromString(ProblemDto.serializer(), body) }.getOrNull()
+                throw ApiException(response.code, problem?.code, problem?.title ?: "The server answered ${response.code}.")
+            }
+            try {
+                parse(body)
+            } catch (e: SerializationException) {
+                // Never crash on an answer the app does not understand; show a message instead.
+                throw ApiException(response.code, "BAD_RESPONSE", "The server's answer could not be read. Ask IT to check the app version.")
+            } catch (e: IllegalArgumentException) {
+                throw ApiException(response.code, "BAD_RESPONSE", "The server's answer could not be read. Ask IT to check the app version.")
+            }
+        }
+    }
+
+    private companion object {
+        val JSON = "application/json; charset=utf-8".toMediaType()
+
+        fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+}

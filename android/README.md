@@ -1,8 +1,8 @@
 # Meter Reader app (Android)
 
-The Meter Reader role of the Sewerage & Irrigation Meter Reading System, built UI-first.
-Every screen runs on in-memory sample data (`data/FakeMeterRepository.kt`), so it can be
-tried with real readers before the API exists. The design is the published mock
+The Meter Reader role of the Sewerage & Irrigation Meter Reading System. The app talks to the
+Meter Reading API (`../api`); a demo build runs on built-in sample data instead
+(`data/FakeMeterRepository.kt`), for showing the screens without a server. The design is the published mock
 ("Meter Reader app screens"); the requirements are `../docs/spec.md`; the screen mock is `../docs/meter-reader-mock.html`.
 
 ## Open and run
@@ -11,8 +11,26 @@ tried with real readers before the API exists. The design is the published mock
 2. Run the `app` configuration on a phone with Android 10 or newer. Use a real phone for the camera.
 3. Unit tests: `./gradlew test` (consumption rules, search, reconciliation — spec Appendix B vectors).
 
-On the sign-in screen, **Demo: no signal** makes the app save readings on the phone, so the
-offline path (purple "waiting to upload", summary mismatch, Upload now) can be shown.
+## Connecting to the API
+
+| Build setting (`-P` on the Gradle command line) | Default | Meaning |
+|---|---|---|
+| `apiBaseUrl` | `http://10.0.2.2:5080/` | API address. `10.0.2.2` is the computer running the emulator; use the server's address on a phone. |
+| `useFakeData` | `false` | `true` builds the demo app on sample data. |
+| `devLogin` | `rashid@dip.example` | Sign-in email pre-filled on the sign-in screen (debug builds only). |
+
+Example: `./gradlew installDebug -PapiBaseUrl=http://192.168.1.20:5080/`
+
+1. Start the API in Development as in `../api/README.md` (it accepts the `X-Dev-User` sign-in).
+2. On the sign-in screen, enter a reader's `LoginEmail` from `vw_MR_Reader` and press **Sign in**.
+   The server's reason is shown if it refuses (not a reader, shared sign-in name, no open period).
+3. Readings go to `POST /api/v1/readings`. Without signal they wait on the phone (purple cloud)
+   and are sent with the same transaction id when signal returns: on Home, from **Upload now**,
+   or by the one-minute retry. A reading the server refuses shows **Not sent** with its reason.
+
+Debug builds allow plain `http` for the development API; release builds do not.
+
+In the demo build, **Demo: no signal** on the sign-in screen shows the offline path.
 
 ## Design rules for low-literacy readers
 
@@ -45,8 +63,13 @@ The capture steps for each meter condition come from `data/StatusRules.kt`, whic
 
 ## Not built yet (marked `TODO(...)` in code)
 
-- Entra ID sign-in with MSAL (FR-001), device registration (FR-002).
-- Real API client and encrypted offline database: Room + SQLCipher outbox, WorkManager upload (§9, FR-020).
+- Entra ID sign-in with MSAL (FR-001): the API client already sends `Authorization: Bearer` when
+  `ApiClient.accessToken` is set; until then debug builds use the development sign-in.
+- Device registration (FR-002).
+- Keep the upload queue in an encrypted Room database and send it with WorkManager (§9, FR-020).
+  Today the queue lives in memory, so readings waiting to upload are lost if the app is closed.
+- Photo upload: photos stay on the phone; the API does not take them yet.
+- Readings are whole numbers on the phone; `DecimalDigits` from the server is not used yet.
 - Image quality check, resize to 1,600 px / 500 KB, encrypted image files, SHA-256 (FR-008.4–.6, FR-009).
 - GPS capture (FR-006.8), Play Integrity (FR-002.5), OCR assist (Phase 3).
 - Dubai Investments Park logo: add `res/drawable/dip_logo.png` and replace the placeholder on the
@@ -56,5 +79,7 @@ The capture steps for each meter condition come from `data/StatusRules.kt`, whic
 ## Build status
 
 The project was written in an environment without the Android SDK, so it has **not been
-compiled for Android yet**. The plain-Kotlin parts (`data/`, `util/Format.kt`) were compiled
-and their 15 unit tests pass on the JVM. Expect to fix small compile issues on first sync.
+compiled for Android yet**; expect small compile fixes on first sync. The plain-Kotlin parts
+(`data/`, `api/`, `util/Format.kt`) compile and their 28 unit tests pass on the JVM, including
+the repository against a scripted server (MockWebServer) and, with `MR_API_URL` set, against
+the running API.

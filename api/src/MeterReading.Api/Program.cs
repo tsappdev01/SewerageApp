@@ -18,6 +18,8 @@ builder.Services.Configure<AuthOptions>(config.GetSection(AuthOptions.Section));
 builder.Services.AddSingleton<SqlConnectionFactory>();
 builder.Services.AddScoped<MeterReadingRepository>();
 builder.Services.AddScoped<ReaderService>();
+builder.Services.AddScoped<SubmitService>();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<CurrentReader>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddProblemDetails();
@@ -71,6 +73,7 @@ app.MapGet("/health/ready", async (MeterReadingRepository repo, ILogger<Program>
 }).AllowAnonymous().ExcludeFromDescription();
 
 app.MapReaderEndpoints();
+app.MapReadingEndpoints();
 
 app.Run();
 

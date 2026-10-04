@@ -57,7 +57,7 @@ import java.io.File
  * server's answer and the next meter. System back goes one step back.
  */
 @Composable
-fun CaptureScreen(meterId: Long, onNextMeter: (Long) -> Unit, onHome: () -> Unit, onExit: () -> Unit) {
+fun CaptureScreen(meterId: String, onNextMeter: (String) -> Unit, onHome: () -> Unit, onExit: () -> Unit) {
     val vm: CaptureViewModel = viewModel(key = "capture-$meterId") { CaptureViewModel(AppGraph.repository, meterId) }
     SecureWindow()
     BackHandler { if (!vm.back()) onExit() }
@@ -452,7 +452,7 @@ private fun BigValue(label: String?, value: Long?) {
 }
 
 @Composable
-private fun ResultStep(vm: CaptureViewModel, outcome: SubmitOutcome, onNextMeter: (Long) -> Unit, onHome: () -> Unit) {
+private fun ResultStep(vm: CaptureViewModel, outcome: SubmitOutcome, onNextMeter: (String) -> Unit, onHome: () -> Unit) {
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(outcome) {
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -468,11 +468,13 @@ private fun ResultStep(vm: CaptureViewModel, outcome: SubmitOutcome, onNextMeter
         SubmitOutcome.SENT -> Look(Icons.Rounded.Check, AppColors.Ok, AppColors.OkTint, R.string.result_sent, R.string.speak_result_sent)
         SubmitOutcome.QUEUED -> Look(Icons.Rounded.CloudUpload, AppColors.Queued, AppColors.QueuedTint, R.string.result_saved, R.string.speak_result_saved)
         SubmitOutcome.CHECKING -> Look(Icons.Rounded.Warning, AppColors.Warn, AppColors.WarnTint, R.string.result_checking, R.string.speak_result_checking)
+        SubmitOutcome.REJECTED -> Look(Icons.Rounded.Close, AppColors.Bad, AppColors.BadTint, R.string.result_rejected, R.string.speak_result_rejected)
     }
     val subtitle = when (outcome) {
         SubmitOutcome.SENT -> stringResource(R.string.result_sent_sub, vm.meter.number)
         SubmitOutcome.QUEUED -> stringResource(R.string.result_saved_sub)
         SubmitOutcome.CHECKING -> stringResource(R.string.result_checking_sub)
+        SubmitOutcome.REJECTED -> vm.refusal ?: stringResource(R.string.result_rejected_sub)
     }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.End) { SpeakButton(stringResource(look.speak)) }

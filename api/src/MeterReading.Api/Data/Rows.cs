@@ -53,6 +53,8 @@ public sealed class LatestTransactionRow
 
 public sealed class TransactionRow
 {
+    public string ReaderId { get; init; } = "";
+    public string? PayloadHash { get; init; }
     public Guid TransactionId { get; init; }
     public string MeterId { get; init; } = "";
     public string MeterCondition { get; init; } = "";
@@ -78,4 +80,31 @@ public sealed class AverageRow
 {
     public string MeterId { get; init; } = "";
     public decimal Average { get; init; }
+}
+
+/// <summary>A reading to insert into mr.ReadingTransaction.</summary>
+public sealed class NewTransactionRow
+{
+    public Guid TransactionId { get; init; }
+    public string PeriodCode { get; init; } = "";
+    public string MeterId { get; init; } = "";
+    public string ReaderId { get; init; } = "";
+    public Guid? DeviceId { get; init; }
+    public string MeterCondition { get; init; } = "";
+    public string? ReasonCode { get; init; }
+    public string? Remarks { get; init; }
+    public decimal? NewReading { get; init; }
+    public decimal? PreviousReading { get; init; }
+    public decimal? Consumption { get; init; }
+    public decimal? OldFinalReading { get; init; }
+    public string? NewMeterNumber { get; init; }
+    public decimal? NewOpeningReading { get; init; }
+    public decimal? NewCurrentReading { get; init; }
+    public decimal? Latitude { get; init; }
+    public decimal? Longitude { get; init; }
+    public decimal? GpsAccuracyM { get; init; }
+    public DateTime CapturedAtUtc { get; init; }
+    public string Status { get; init; } = "";
+    public string? StatusNote { get; init; }
+    public string PayloadHash { get; init; } = "";
 }

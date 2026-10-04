@@ -10,73 +10,37 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 /**
- * In-memory stand-in for the API and the offline database, so the UI can be built and
- * tried with readers before the backend exists. Replace with the real repository
- * (Room + SQLCipher outbox, Retrofit) behind the same functions.
+ * In-memory sample data, so the app can be shown and tried with readers without a server.
+ * Used when the build sets USE_FAKE_DATA.
  */
-class FakeMeterRepository {
-    val readerName = "Rashid"
+class FakeMeterRepository : MeterRepository() {
+    override val readerName: StateFlow<String> = MutableStateFlow("Rashid")
 
-    private val properties = listOf(
+    override val properties: StateFlow<List<Property>> = MutableStateFlow(listOf(
         Property("1100", "Villa 1100", "597", 1),
         Property("1101", "Villa 1101", "597", 2),
         Property("1499-W1", "Building 1499-W1", "598", 1),
         Property("1502", "Villa 1502", "598", 2),
         Property("1497", "Villa 1497", "598", 3),
         Property("3010", "Villa 3010", "602", 1),
-    )
-    private val propertyByCode = properties.associateBy { it.code }
+    ))
 
     private val _meters = MutableStateFlow(seedMeters())
-    val meters: StateFlow<List<Meter>> = _meters.asStateFlow()
+    override val meters: StateFlow<List<Meter>> = _meters.asStateFlow()
 
     private val _readings = MutableStateFlow(seedReadings(_meters.value))
-    val readings: StateFlow<List<Reading>> = _readings.asStateFlow()
+    override val readings: StateFlow<List<Reading>> = _readings.asStateFlow()
 
     /** Demo switch: when false, readings are saved on the phone as if there were no signal. */
-    val online = MutableStateFlow(true)
+    override val online = MutableStateFlow(true)
 
-    fun meter(id: Long): Meter = _meters.value.first { it.id == id }
+    override val isDemo: Boolean = true
 
-    fun property(code: String): Property = propertyByCode.getValue(code)
+    override suspend fun signIn(login: String): SignInResult = SignInResult.Success
 
-    fun zoneProgress(meters: List<Meter>): List<ZoneProgress> =
-        meters.groupBy { it.zoneCode }
-            .map { (code, list) -> ZoneProgress(code, list.size, list.count { !it.state.canCapture }) }
-            .sortedWith(compareBy<ZoneProgress>({ it.done == it.total }, { it.code }))
+    override suspend fun refresh(): Boolean = online.value
 
-    fun propertiesIn(zoneCode: String, meters: List<Meter>): List<PropertyProgress> =
-        properties.filter { it.zoneCode == zoneCode }
-            .sortedBy { it.route }
-            .map { p -> PropertyProgress(p, meters.filter { it.propertyCode == p.code }.sortedBy { it.route }) }
-            .sortedBy { it.done == it.meters.size }
-
-    /** Every property with its meters, in route order, for search. */
-    fun allProperties(meters: List<Meter>): List<PropertyProgress> =
-        properties.sortedWith(compareBy<Property>({ it.zoneCode }, { it.route }))
-            .map { p -> PropertyProgress(p, meters.filter { it.propertyCode == p.code }.sortedBy { it.route }) }
-
-    fun metersAt(propertyCode: String, meters: List<Meter>): List<Meter> =
-        meters.filter { it.propertyCode == propertyCode }.sortedBy { it.route }
-
-    /** Next meter in route order; stays in the same building when it can, revisits last. */
-    fun nextMeter(meters: List<Meter>, after: Long? = null): Meter? {
-        val afterProperty = after?.let { id -> meters.firstOrNull { it.id == id }?.propertyCode }
-        val candidates = meters
-            .filter { it.state.canCapture && it.id != after }
-            .sortedWith(
-                compareBy<Meter>(
-                    { it.state == ReadingState.REVISIT },
-                    { it.zoneCode },
-                    { propertyByCode[it.propertyCode]?.route ?: 0 },
-                    { it.route },
-                ),
-            )
-        return candidates.firstOrNull { it.propertyCode == afterProperty && it.state != ReadingState.REVISIT }
-            ?: candidates.firstOrNull()
-    }
-
-    suspend fun submit(draft: ReadingDraft): SubmitOutcome {
+    override suspend fun submit(draft: ReadingDraft): SubmitResult {
         delay(700)
         val needsCheck = draft.readerConfirmedWarning || draft.condition in StatusRules.alwaysChecked
         val outcome = when {
@@ -99,11 +63,10 @@ class FakeMeterRepository {
                 if (m.id == draft.meterId) m.copy(state = meterState(draft.condition, reading.state), supervisorNote = null) else m
             }
         }
-        return outcome
+        return SubmitResult(outcome)
     }
 
-    /** Sends everything saved on the phone. Returns how many were sent. */
-    suspend fun sendQueued(): Int {
+    override suspend fun sendQueued(): Int {
         val queued = _readings.value.filter { it.state == ReadingState.QUEUED }
         if (queued.isEmpty() || !online.value) return 0
         delay(800)
@@ -132,15 +95,16 @@ class FakeMeterRepository {
         SubmitOutcome.SENT -> ReadingState.SENT
         SubmitOutcome.QUEUED -> ReadingState.QUEUED
         SubmitOutcome.CHECKING -> ReadingState.CHECKING
+        SubmitOutcome.REJECTED -> ReadingState.READ_AGAIN
     }
 
     private fun seedMeters(): List<Meter> {
         val lastRead = LocalDate.of(2026, 9, 3)
         fun m(
-            id: Long, number: String, type: MeterType, property: String, zone: String, route: Int,
+            n: Int, number: String, type: MeterType, property: String, zone: String, route: Int,
             previous: Long?, state: ReadingState = ReadingState.PENDING, note: String? = null,
         ) = Meter(
-            id = id, number = number, type = type, propertyCode = property, zoneCode = zone, route = route,
+            id = "BC%04d".format(n), number = number, type = type, propertyCode = property, zoneCode = zone, route = route,
             registerDigits = 5, previousReading = previous, previousDate = previous?.let { lastRead },
             expectedHigh = if (type == MeterType.IRRIGATION) 3_000 else 900,
             state = state, supervisorNote = note,
@@ -157,7 +121,7 @@ class FakeMeterRepository {
             m(7, "2002-2", s, "1499-W1", "598", 3, 17_040),
             m(8, "2002-3", s, "1499-W1", "598", 4, 22_310, ReadingState.READ_AGAIN, "Photo not clear"),
             m(9, "2002-4", s, "1499-W1", "598", 5, 5_120),
-            m(10, "2002-5", s, "1499-W1", "598", 6, null), // first reading of a new meter (BR-004)
+            m(10, "2002-5", s, "1499-W1", "598", 6, null), // never read (BR-004)
             m(11, "2002-6", s, "1499-W1", "598", 7, 40_400),
             m(12, "1502-I", i, "1502", "598", 1, 12_000),
             m(13, "1502-S", s, "1502", "598", 2, 3_300),
@@ -182,9 +146,4 @@ class FakeMeterRepository {
             )
         }.reversed()
     }
-}
-
-/** Single place the screens get their data from until dependency injection (Hilt) is added. */
-object AppGraph {
-    val repository: FakeMeterRepository by lazy { FakeMeterRepository() }
 }

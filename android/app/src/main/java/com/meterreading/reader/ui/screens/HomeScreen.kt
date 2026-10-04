@@ -37,7 +37,7 @@ import com.meterreading.reader.util.rememberVoiceInput
 
 @Composable
 fun HomeScreen(
-    onStart: (Long) -> Unit,
+    onStart: (String) -> Unit,
     onFind: (voiceText: String?) -> Unit,
     onZones: () -> Unit,
     onReadings: () -> Unit,
@@ -46,6 +46,7 @@ fun HomeScreen(
     val repo = AppGraph.repository
     val meters by repo.meters.collectAsStateWithLifecycle()
     val readings by repo.readings.collectAsStateWithLifecycle()
+    val readerName by repo.readerName.collectAsStateWithLifecycle()
     val total = meters.size
     val done = meters.count { !it.state.canCapture }
     val queued = readings.count { it.state == ReadingState.QUEUED }
@@ -56,8 +57,11 @@ fun HomeScreen(
     val voiceMissing = stringResource(R.string.search_voice_missing)
     val voice = rememberVoiceInput(stringResource(R.string.search_placeholder)) { onFind(it) }
 
+    // Fresh meter states each time Home opens (another reader may have read some).
+    LaunchedEffect(Unit) { repo.refresh() }
+
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(stringResource(R.string.hello, repo.readerName), stringResource(R.string.speak_home))
+        AppTopBar(stringResource(R.string.hello, readerName), stringResource(R.string.speak_home))
         Column(
             modifier = Modifier
                 .weight(1f)

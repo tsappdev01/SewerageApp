@@ -84,3 +84,33 @@ public sealed record SummaryDto(
 public sealed record HistoryDto(string PeriodCode, DateOnly? ReadingDate, decimal? ReadingValue, decimal? Consumption, string ConsumptionBasis);
 
 public sealed record MeterDetailDto(MeterDto Meter, PropertyDto Property, IReadOnlyList<HistoryDto> History, IReadOnlyList<ReadingDto> ThisPeriod);
+
+/// <summary>A reading sent by the phone (spec §14.1). TransactionId is made on the phone and reused on retry.</summary>
+public sealed record SubmitReadingRequest(
+    Guid TransactionId,
+    string MeterId,
+    /// <summary>WORKING, DAMAGED, SUBMERSED, NOT_ACCESSIBLE, METER_REPLACED or REMOVED.</summary>
+    string Condition,
+    string? ReasonCode,
+    string? Note,
+    decimal? NewReading,
+    decimal? OldFinalReading,
+    string? NewMeterNumber,
+    decimal? NewOpeningReading,
+    decimal? NewCurrentReading,
+    /// <summary>The reader saw the app's warning and said the number is correct.</summary>
+    bool ReaderConfirmedWarning,
+    DateTime CapturedAtUtc,
+    Guid? DeviceId = null,
+    decimal? Latitude = null,
+    decimal? Longitude = null,
+    decimal? GpsAccuracyM = null);
+
+/// <summary>What the server did with a reading: ACCEPTED, or EXCEPTION with the reason codes.</summary>
+public sealed record SubmitReadingResponse(
+    Guid TransactionId,
+    string MeterId,
+    string Status,
+    AssignmentState State,
+    decimal? Consumption,
+    IReadOnlyList<string> Exceptions);

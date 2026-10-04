@@ -164,7 +164,7 @@ fun PropertyCard(p: PropertyProgress, query: String, onClick: () -> Unit, showZo
 }
 
 @Composable
-fun MetersScreen(propertyCode: String, onMeter: (Long) -> Unit, onBack: () -> Unit) {
+fun MetersScreen(propertyCode: String, onMeter: (String) -> Unit, onBack: () -> Unit) {
     val repo = AppGraph.repository
     val meters by repo.meters.collectAsStateWithLifecycle()
     val list = remember(meters, propertyCode) { repo.metersAt(propertyCode, meters) }
@@ -189,7 +189,7 @@ fun MeterCard(m: Meter, query: String, highlighted: Boolean, onClick: () -> Unit
             if (m.state == ReadingState.PENDING) {
                 Text(
                     stringResource(meterTypeLabel(m.type)) + " · " +
-                        (m.previousReading?.let { stringResource(R.string.last_reading, formatReading(it)) } ?: stringResource(R.string.new_meter_first)),
+                        (m.previousReading?.takeUnless { m.isFirstReading }?.let { stringResource(R.string.last_reading, formatReading(it)) } ?: stringResource(R.string.new_meter_first)),
                     color = AppColors.SubInk,
                 )
             } else {

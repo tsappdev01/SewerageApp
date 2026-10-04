@@ -35,9 +35,27 @@ Errors are RFC 9457 problem details with a `code` (e.g. `READER_NOT_FOUND`, `NO_
 | `GET /readings/mine?period=` | The reader's submissions |
 | `GET /summary?period=&zone=` | Reconciliation: meters, read, accepted, being checked, read again, visit again, not read, read by you, per zone |
 | `GET /meters/{id}` | One active meter (id = barcode) with history when the history view exists |
+| `POST /readings` | Send one reading (below). 201 when stored, 200 when the same `transactionId` was already stored |
 | `GET /health/live`, `GET /health/ready` | Liveness; readiness checks the views and `mr` tables exist |
 
 OpenAPI document (Development): `/openapi/v1.json`.
+
+### Sending a reading
+
+```json
+POST /api/v1/readings
+{ "transactionId": "7d3c0f0e-…", "meterId": "BC0006", "condition": "WORKING", "newReading": 52840,
+  "readerConfirmedWarning": false, "capturedAtUtc": "2026-10-04T07:15:22Z" }
+```
+
+Checks run in the order of spec §7.2. A refusal stores nothing and returns a problem `code`:
+`VALIDATION_FAILED`, `INVALID_LOV_CODE`, `TRANSACTION_ID_REUSED`, `NO_OPEN_PERIOD`,
+`CAPTURE_TIME_INVALID`, `METER_NOT_FOUND`, `MANDATORY_FIELD_MISSING`, `READING_EXCEEDS_REGISTER`,
+`ALREADY_READ`. A stored reading is `ACCEPTED`, or `EXCEPTION` for the supervisor with reasons
+(`LOWER_THAN_PREVIOUS`, `HIGH_CONSUMPTION`, `ROLLOVER_OUT_OF_RANGE`, `DAMAGED_METER`,
+`METER_REPLACEMENT`, `METER_REMOVAL`). A meter can be read again only after the supervisor
+rejects its reading or when it was not accessible; the check runs under a lock, so two phones
+cannot both read it. Photos are not uploaded yet.
 
 ## Configuration (`appsettings.json`)
 

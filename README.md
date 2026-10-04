@@ -13,9 +13,10 @@ readings to billing.
 
 ## Status
 
-- **API:** reader read endpoints done (`/me`, sync, Find a Property, my readings, summary, meter detail),
-  tested against SQL Server 2022. Work is not assigned; lists narrow by zone. Submitting readings is next.
-- **Android:** all reader screens on sample data, English only, Dubai Investments Park colours. Not
-  yet compiled with the Android SDK; the plain-Kotlin parts compile and their 15 tests pass.
+- **API:** reader endpoints done, including sending readings (`POST /readings`, safe to retry);
+  66 tests against SQL Server 2022. Work is not assigned; lists narrow by zone. Photo upload is next.
+- **Android:** all reader screens, connected to the API (development sign-in until Entra ID),
+  with an upload queue for readings taken without signal. Not yet compiled with the Android SDK;
+  the plain-Kotlin parts compile and their 28 tests pass, including against the running API.
 - **Source views:** the five views in `PropertyManagementSystem` are read as they are. Items to fix
   before go-live are listed in [docs/source-views.md](docs/source-views.md#to-fix-in-the-views-before-go-live).

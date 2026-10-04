@@ -11,6 +11,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.meterreading.reader.data.AppGraph
+import com.meterreading.reader.data.ReadingState
+import kotlinx.coroutines.delay
 import com.meterreading.reader.ui.capture.CaptureScreen
 import com.meterreading.reader.ui.screens.*
 
@@ -27,13 +29,13 @@ private object Routes {
 
     fun zone(code: String) = "zone/${Uri.encode(code)}"
     fun property(code: String) = "property/${Uri.encode(code)}"
-    fun capture(id: Long) = "capture/$id"
+    fun capture(id: String) = "capture/${Uri.encode(id)}"
     fun search(zone: String?, text: String?) =
         "search?zone=${Uri.encode(zone.orEmpty())}&text=${Uri.encode(text.orEmpty())}"
 }
 
 @Composable
-fun AppNavHost() {
+fun AppNavHost(defaultLogin: String = "") {
     val nav = rememberNavController()
     val repo = AppGraph.repository
     val online by repo.online.collectAsStateWithLifecycle()
@@ -41,10 +43,17 @@ fun AppNavHost() {
     // Readings saved without signal go up by themselves when signal returns (spec §9).
     // TODO(FR-020.4): WorkManager job with network constraint instead of the UI.
     LaunchedEffect(online) { if (online) repo.sendQueued() }
+    // While readings wait on the phone, try again every minute (signal may be back).
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000)
+            if (repo.readings.value.any { it.state == ReadingState.QUEUED }) repo.sendQueued()
+        }
+    }
 
     NavHost(nav, startDestination = Routes.SIGN_IN) {
         composable(Routes.SIGN_IN) {
-            SignInScreen(onSignedIn = { nav.navigate(Routes.HOME) { popUpTo(Routes.SIGN_IN) { inclusive = true } } })
+            SignInScreen(defaultLogin = defaultLogin, onSignedIn = { nav.navigate(Routes.HOME) { popUpTo(Routes.SIGN_IN) { inclusive = true } } })
         }
         composable(Routes.HOME) {
             HomeScreen(
@@ -88,9 +97,9 @@ fun AppNavHost() {
                 onBack = { nav.popBackStack() },
             )
         }
-        composable(Routes.CAPTURE, arguments = listOf(navArgument("meterId") { type = NavType.LongType })) { entry ->
+        composable(Routes.CAPTURE, arguments = listOf(navArgument("meterId") { type = NavType.StringType })) { entry ->
             CaptureScreen(
-                meterId = entry.arguments?.getLong("meterId") ?: 0L,
+                meterId = entry.arguments?.getString("meterId").orEmpty(),
                 onNextMeter = { id -> nav.navigate(Routes.capture(id)) { popUpTo(Routes.HOME) } },
                 onHome = { nav.popBackStack(Routes.HOME, inclusive = false) },
                 onExit = { nav.popBackStack() },

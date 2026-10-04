@@ -192,6 +192,54 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         return (await c.QueryAsync<TransactionRow>(Cmd(sql, new { meterId, periodCode }, ct))).AsList();
     }
 
+    public async Task<TransactionRow?> GetTransactionAsync(Guid transactionId, CancellationToken ct)
+    {
+        const string sql = """
+            SELECT TransactionId, MeterId, ReaderId, MeterCondition, ReasonCode, NewReading, Consumption,
+                   CapturedAtUtc, ReceivedAtUtc, Status, StatusNote, PayloadHash
+            FROM mr.ReadingTransaction
+            WHERE TransactionId = @transactionId
+            """;
+        await using var c = await db.OpenMeterReadingAsync(ct);
+        return await c.QuerySingleOrDefaultAsync<TransactionRow>(Cmd(sql, new { transactionId }, ct));
+    }
+
+    /// <summary>
+    /// Inserts the reading unless the meter already has a live reading this period that is done or
+    /// being checked (ALREADY_READ). The check and insert run under a range lock on the meter's rows,
+    /// so two phones submitting at once cannot both succeed. Returns false when already read.
+    /// </summary>
+    public async Task<bool> InsertTransactionUnlessReadAsync(NewTransactionRow row, CancellationToken ct)
+    {
+        const string sql = """
+            SET XACT_ABORT ON;
+            BEGIN TRANSACTION;
+            IF EXISTS (
+                SELECT 1 FROM (
+                    SELECT TOP (1) t.Status, t.MeterCondition
+                    FROM mr.ReadingTransaction t WITH (UPDLOCK, HOLDLOCK)
+                    WHERE t.PeriodCode = @PeriodCode AND t.MeterId = @MeterId AND t.Status <> 'SUPERSEDED'
+                    ORDER BY t.ReceivedAtUtc DESC, t.CapturedAtUtc DESC
+                ) latest
+                WHERE latest.Status <> 'REJECTED_BY_SUPERVISOR' AND latest.MeterCondition <> 'NOT_ACCESSIBLE')
+            BEGIN
+                ROLLBACK TRANSACTION;
+                SELECT 0;
+                RETURN;
+            END
+            INSERT mr.ReadingTransaction (TransactionId, PeriodCode, MeterId, ReaderId, DeviceId, MeterCondition, ReasonCode, Remarks,
+                NewReading, PreviousReading, Consumption, OldFinalReading, NewMeterNumber, NewOpeningReading, NewCurrentReading,
+                Latitude, Longitude, GpsAccuracyM, CapturedAtUtc, Status, StatusNote, StatusChangedAtUtc, PayloadHash)
+            VALUES (@TransactionId, @PeriodCode, @MeterId, @ReaderId, @DeviceId, @MeterCondition, @ReasonCode, @Remarks,
+                @NewReading, @PreviousReading, @Consumption, @OldFinalReading, @NewMeterNumber, @NewOpeningReading, @NewCurrentReading,
+                @Latitude, @Longitude, @GpsAccuracyM, @CapturedAtUtc, @Status, @StatusNote, SYSUTCDATETIME(), @PayloadHash);
+            COMMIT TRANSACTION;
+            SELECT 1;
+            """;
+        await using var c = await db.OpenMeterReadingAsync(ct);
+        return await c.ExecuteScalarAsync<int>(Cmd(sql, row, ct)) == 1;
+    }
+
     /// <summary>Names of required views and tables that are missing, for the readiness check.</summary>
     public async Task<IReadOnlyList<string>> FindMissingViewsAsync(CancellationToken ct)
     {

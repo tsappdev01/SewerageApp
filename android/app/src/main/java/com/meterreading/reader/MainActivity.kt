@@ -14,6 +14,10 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import com.meterreading.reader.api.ApiClient
+import com.meterreading.reader.data.ApiMeterRepository
+import com.meterreading.reader.data.AppGraph
+import com.meterreading.reader.data.FakeMeterRepository
 import com.meterreading.reader.ui.nav.AppNavHost
 import com.meterreading.reader.ui.theme.AppColors
 import com.meterreading.reader.ui.theme.MeterReaderTheme
@@ -31,6 +35,10 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         speaker = Speaker(this)
+        // One repository for the app's life; created once even when the activity is recreated.
+        if (!AppGraph.isReady) {
+            AppGraph.repository = if (BuildConfig.USE_FAKE_DATA) FakeMeterRepository() else ApiMeterRepository(ApiClient(BuildConfig.API_BASE_URL))
+        }
         setContent {
             MeterReaderTheme {
                 CompositionLocalProvider(LocalSpeaker provides speaker) {
@@ -40,7 +48,7 @@ class MainActivity : ComponentActivity() {
                             .background(AppColors.Background)
                             .windowInsetsPadding(WindowInsets.safeDrawing),
                     ) {
-                        AppNavHost()
+                        AppNavHost(defaultLogin = BuildConfig.DEV_LOGIN)
                     }
                 }
             }

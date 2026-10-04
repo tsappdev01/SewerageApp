@@ -23,25 +23,30 @@ enum class ReadingState {
 data class Property(val code: String, val name: String, val zoneCode: String, val route: Int)
 
 data class Meter(
-    val id: Long,
+    /** The meter's barcode in the source system. */
+    val id: String,
     val number: String,
     val type: MeterType,
     val propertyCode: String,
     val zoneCode: String,
     val route: Int,
     val registerDigits: Int,
-    /** Last approved actual reading; null for a new meter's first reading (BR-004). */
+    /** Last billed reading; 0 or null for a meter never read. */
     val previousReading: Long?,
     val previousDate: LocalDate?,
-    /** Upper end of the expected consumption range, sent by the server (BR-008). */
-    val expectedHigh: Long,
+    /** Upper end of the expected consumption range, sent by the server (BR-008). Null: no warning. */
+    val expectedHigh: Long?,
     val state: ReadingState = ReadingState.PENDING,
     val supervisorNote: String? = null,
+    /** Consumption of the last reading, "used last time". */
+    val lastConsumption: Long? = null,
+    /** True when the meter has never been read (BR-004). */
+    val isFirstReading: Boolean = previousReading == null,
 )
 
 data class Reading(
     val transactionId: String,
-    val meterId: Long,
+    val meterId: String,
     val condition: MeterCondition,
     val value: Long?,
     val capturedAt: LocalDateTime,
@@ -51,7 +56,7 @@ data class Reading(
 
 data class ReadingDraft(
     val transactionId: String,
-    val meterId: Long,
+    val meterId: String,
     val condition: MeterCondition,
     val reasonCode: String?,
     val note: String,
@@ -64,7 +69,15 @@ data class ReadingDraft(
     val value: Long? get() = numbers[NumberTarget.CURRENT] ?: numbers[NumberTarget.OLD_FINAL]
 }
 
-enum class SubmitOutcome { SENT, QUEUED, CHECKING }
+enum class SubmitOutcome { SENT, QUEUED, CHECKING, REJECTED }
+
+/** What happened to a reading; [message] explains a rejection in the server's words. */
+data class SubmitResult(val outcome: SubmitOutcome, val message: String? = null)
+
+sealed interface SignInResult {
+    data object Success : SignInResult
+    data class Failed(val message: String) : SignInResult
+}
 
 data class ZoneProgress(val code: String, val total: Int, val done: Int)
 

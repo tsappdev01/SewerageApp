@@ -24,14 +24,16 @@ class ReadingRulesTest {
     @Test fun `B10 first reading counts from zero`() = assertEquals(Check.Ok(35), check(null, 35))
 
     @Test fun `register max`() = assertEquals(99_999L, ReadingRules.registerMax(5))
+
+    @Test fun `no expected range means no high warning`() = assertEquals(Check.Ok(9_000), ReadingRules.check(50_000, 59_000, 5, null))
 }
 
 class SearchTest {
     private val meters = listOf(
-        Meter(1, "2001-I", MeterType.IRRIGATION, "1499-W1", "598", 1, 5, 100, null, 900),
-        Meter(2, "2002-2", MeterType.SEWERAGE, "1499-W1", "598", 2, 5, 100, null, 900, ReadingState.SENT),
-        Meter(3, "1497-S", MeterType.SEWERAGE, "1497", "598", 1, 5, 100, null, 900),
-        Meter(4, "1001-I", MeterType.IRRIGATION, "1100", "597", 1, 5, 100, null, 900),
+        Meter("BC0001", "2001-I", MeterType.IRRIGATION, "1499-W1", "598", 1, 5, 100, null, 900),
+        Meter("BC0002", "2002-2", MeterType.SEWERAGE, "1499-W1", "598", 2, 5, 100, null, 900, ReadingState.SENT),
+        Meter("BC0003", "1497-S", MeterType.SEWERAGE, "1497", "598", 1, 5, 100, null, 900),
+        Meter("BC0004", "1001-I", MeterType.IRRIGATION, "1100", "597", 1, 5, 100, null, 900),
     )
     private val properties = listOf(
         PropertyProgress(Property("1499-W1", "Building 1499-W1", "598", 1), meters.filter { it.propertyCode == "1499-W1" }),
@@ -45,10 +47,10 @@ class SearchTest {
         assertEquals(listOf("1499-W1", "1497"), Search.run(SearchQuery("149"), properties).properties.map { it.property.code })
 
     @Test fun `meter number finds meter in other building`() =
-        assertEquals(listOf(4L), Search.run(SearchQuery("1001"), properties).meters.map { it.id })
+        assertEquals(listOf("BC0004"), Search.run(SearchQuery("1001"), properties).meters.map { it.id })
 
     @Test fun `to read filter drops read meters`() =
-        assertEquals(listOf(1L), Search.run(SearchQuery("1499", DoneFilter.TO_READ), properties).properties.single().meters.map { it.id })
+        assertEquals(listOf("BC0001"), Search.run(SearchQuery("1499", DoneFilter.TO_READ), properties).properties.single().meters.map { it.id })
 
     @Test fun `zone scope`() =
         assertEquals(emptyList<String>(), Search.run(SearchQuery("1100", zoneCode = "598"), properties).properties.map { it.property.code })
@@ -58,8 +60,8 @@ class SearchTest {
 
 class ReconciliationTest {
     @Test fun `buckets add up and uploaded excludes waiting`() {
-        fun m(id: Long, zone: String, state: ReadingState) =
-            Meter(id, "M$id", MeterType.SEWERAGE, "P", zone, 1, 5, 0, null, 900, state)
+        fun m(id: Int, zone: String, state: ReadingState) =
+            Meter("M$id", "M$id", MeterType.SEWERAGE, "P", zone, 1, 5, 0, null, 900, state)
         val r = Reconciliation.from(
             listOf(
                 m(1, "597", ReadingState.SENT), m(2, "597", ReadingState.QUEUED), m(3, "598", ReadingState.PENDING),

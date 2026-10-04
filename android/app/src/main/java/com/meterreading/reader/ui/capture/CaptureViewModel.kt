@@ -14,7 +14,7 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 /** State of one meter capture, from the condition picker to the server's answer. */
-class CaptureViewModel(private val repo: FakeMeterRepository, meterId: Long) : ViewModel() {
+class CaptureViewModel(private val repo: MeterRepository, meterId: String) : ViewModel() {
     val meter: Meter = repo.meter(meterId)
     val property: Property = repo.property(meter.propertyCode)
 
@@ -41,6 +41,10 @@ class CaptureViewModel(private val repo: FakeMeterRepository, meterId: Long) : V
     var sending by mutableStateOf(false)
         private set
     var outcome by mutableStateOf<SubmitOutcome?>(null)
+        private set
+
+    /** The server's reason when it refused the reading. */
+    var refusal by mutableStateOf<String?>(null)
         private set
     var nextMeter by mutableStateOf<Meter?>(null)
         private set
@@ -137,7 +141,9 @@ class CaptureViewModel(private val repo: FakeMeterRepository, meterId: Long) : V
                 readerConfirmedWarning = readerConfirmedWarning,
                 capturedAt = LocalDateTime.now(),
             )
-            outcome = repo.submit(draft)
+            val result = repo.submit(draft)
+            refusal = result.message
+            outcome = result.outcome
             nextMeter = repo.nextMeter(repo.meters.value, after = meter.id)
             sending = false
         }
