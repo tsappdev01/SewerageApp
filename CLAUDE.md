@@ -17,7 +17,8 @@ never run outside development.
   to them** and never hard-code their schema: use `SqlConnectionFactory.Views`. CAST every view
   column to the row type in SQL.
 - The API's own tables are schema `mr`; a new column needs a new numbered script in `db/`.
-- Every endpoint scopes data to the signed-in reader; add an integration test proving it.
+- Work is not assigned: meter lists are shared by all active readers and narrowed by zone. A
+  reader's own submissions ("my readings", "read by you") are scoped to them; test that.
 - Errors are problem details with a `code` from spec Appendix A.
 - `dotnet test api/MeterReading.slnx` needs SQL Server prepared as in `api/README.md`.
 

@@ -1,6 +1,6 @@
 namespace MeterReading.Api;
 
-/// <summary>Where the source views live and how work is assigned (docs/source-views.md).</summary>
+/// <summary>Where the source views live (docs/source-views.md).</summary>
 public sealed class SourceViewsOptions
 {
     public const string Section = "SourceViews";
@@ -8,14 +8,9 @@ public sealed class SourceViewsOptions
     /// <summary>Schema of the vw_MR_* views. Must be a plain SQL identifier.</summary>
     public string Schema { get; set; } = "dbo";
 
-    /// <summary><c>Meter</c> reads vw_MR_Assignment; <c>Zone</c> reads vw_MR_ZoneReader.</summary>
-    public AssignmentMode AssignmentMode { get; set; } = AssignmentMode.Meter;
-
     /// <summary>False when the optional vw_MR_ReadingHistory view is not provided.</summary>
     public bool HasReadingHistory { get; set; } = true;
 }
-
-public enum AssignmentMode { Meter, Zone }
 
 /// <summary>Thresholds from spec BR-007 and BR-008. Settings, not constants.</summary>
 public sealed class ReadingRulesOptions

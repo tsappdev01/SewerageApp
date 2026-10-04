@@ -1,7 +1,7 @@
 # Source views required by the Meter Reading API
 
-The API **reads** master data (readers, zones, properties, meters, periods, assignments and
-previous readings) from SQL Server views that your team provides. It never writes to them.
+The API **reads** master data (readers, zones, properties, meters with their last reading,
+and reading periods) from SQL Server views that your team provides. It never writes to them.
 Readings captured on the phone are stored in the API's own tables (schema `mr`), see the end.
 
 Default schema for the views: `dbo`. It can be changed in `appsettings.json`
@@ -57,7 +57,8 @@ One row per property (villa, building, plot).
 
 ## 4. `vw_MR_Meter` (required)
 
-One row per physical meter.
+One row per physical meter, with its last reading. This is the "Last time" the reader sees
+and the base for consumption.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -67,7 +68,9 @@ One row per physical meter.
 | MeterType | varchar(20) | no | Exactly `IRRIGATION` or `SEWERAGE`. |
 | RegisterDigits | tinyint | no | Number of whole-number wheels, e.g. `5` (max 99,999). |
 | DecimalDigits | tinyint | no | Fractional wheels; `0` if none. |
-| OpeningReading | decimal(18,3) | yes | Reading when installed. NULL = 0. |
+| LastReading | decimal(18,3) | yes | The meter's last reading — your `OpeningReading` column (`OpeningReading AS LastReading`). For a meter never read, the reading when installed. NULL = 0. |
+| LastReadingDate | date | yes | Date of `LastReading`. **NULL means the meter has never been read**: the phone treats the next reading as its first (spec BR-004). |
+| AverageConsumption | decimal(18,3) | yes | Average consumption per period, if billing already calculates it (spec BR-007). If NULL the API calculates it from `vw_MR_ReadingHistory`, or uses the configured default. |
 | InstallDate | date | yes | |
 | RouteSequence | int | yes | Order of meters inside the property. |
 | SerialNumber | varchar(50) | yes | |
@@ -82,35 +85,12 @@ One row per physical meter.
 | EndDate | date | no | Last day readings may be taken. |
 | Status | varchar(10) | no | Exactly `PLANNED`, `OPEN` or `CLOSED`. **At most one `OPEN`.** |
 
-## 6. `vw_MR_Assignment` (required)
+## Work is not assigned
 
-Which reader reads which meter in a period. One row per meter per period.
+There is no assignment view. Every active reader may read every active meter in the open
+period; a meter read by anyone shows as done for everyone. Readers choose zones on the phone.
 
-| Column | Type | Null | Notes |
-|---|---|---|---|
-| **PeriodCode** | char(7) | no | Key part 1. |
-| **MeterId** | bigint | no | Key part 2. |
-| ReaderId | varchar(50) | no | Must exist in `vw_MR_Reader`. |
-| AssignedOn | datetime2 | yes | When it was assigned (UTC). |
-
-If your system assigns **whole zones** rather than meters, provide `vw_MR_ZoneReader`
-(`ZoneCode`, `ReaderId`) instead and set `SourceViews:AssignmentMode` to `Zone`; the API then
-assigns every active meter in the zone to that reader for the open period.
-
-## 7. `vw_MR_LastReading` (required)
-
-The last **approved actual** reading of each meter, before the open period. This is the
-"Last time" the reader sees and the base for consumption.
-
-| Column | Type | Null | Notes |
-|---|---|---|---|
-| **MeterId** | bigint | no | Key. Meters with no reading yet are simply absent. |
-| ReadingValue | decimal(18,3) | no | |
-| ReadingDate | date | no | |
-| PeriodCode | char(7) | yes | Period the reading belongs to. |
-| AverageConsumption | decimal(18,3) | yes | Average consumption per period, if billing already calculates it (spec BR-007). If NULL the API calculates it from `vw_MR_ReadingHistory`, or uses the configured default. |
-
-## 8. `vw_MR_ReadingHistory` (optional, recommended)
+## 6. `vw_MR_ReadingHistory` (optional, recommended)
 
 Past readings, for averages and for the supervisor's history view. Last 12 periods is enough.
 
@@ -138,6 +118,5 @@ the views:
 ## Questions for your team
 
 1. Can the API have a separate schema `mr` with create/write rights in the same database as the views? If not, which database?
-2. Does your system assign work **per meter** (`vw_MR_Assignment`) or **per zone** (`vw_MR_ZoneReader`)?
-3. Is `LoginEmail` the same as the readers' Microsoft 365 sign-in name?
-4. Does billing already calculate average consumption (`AverageConsumption`), or should the API?
+2. Is `LoginEmail` the same as the readers' Microsoft 365 sign-in name?
+3. Does billing already calculate average consumption (`AverageConsumption`), or should the API?

@@ -20,7 +20,7 @@ public sealed class PeriodRow
     public string Status { get; init; } = "";
 }
 
-public sealed class AssignedMeterRow
+public sealed class MeterRow
 {
     public long MeterId { get; init; }
     public string MeterNumber { get; init; } = "";
@@ -35,8 +35,9 @@ public sealed class AssignedMeterRow
     public int? MeterRoute { get; init; }
     public int RegisterDigits { get; init; }
     public int DecimalDigits { get; init; }
-    public decimal? OpeningReading { get; init; }
+    /// <summary>The meter's last reading; for a meter never read, its reading when installed.</summary>
     public decimal? LastReading { get; init; }
+    /// <summary>Null when the meter has never been read.</summary>
     public DateTime? LastReadingDate { get; init; }
     public decimal? AverageConsumption { get; init; }
 }

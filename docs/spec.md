@@ -233,7 +233,7 @@ After login the dashboard shows the current period's assignment counts and three
 
 | ID | Requirement |
 |---|---|
-| FR-004.1 | The app shall list only zones that contain at least one meter assigned to the logged-in user for the open period. |
+| FR-004.1 | Work is not assigned to readers (decided 2026-10-04): every active reader may read every active meter in the open period. The app lists all zones; the reader picks the zones they are working in, and lists are narrowed to those. A meter read by anyone shows as done for everyone. |
 | FR-004.2 | Selecting a zone shall list its properties (that contain assigned meters) as cards showing property code, name, number of assigned meters and number completed. |
 | FR-004.3 | Search shall be provided by property code, property name and meter number, working offline (detailed in FR-021). |
 | FR-004.4 | Properties should be sortable by route sequence, code or completion status. Default: route sequence. |
@@ -999,6 +999,7 @@ Each has a proposed default that development can use now. Resolve each with an A
 | OD-10 | Mobile crash reporting tool | Tool without personal data, e.g. Sentry self-hosted or App Insights | IT architecture |
 | OD-11 | Meter numbering convention and uniqueness scope | Free text, unique among active meters system-wide | Business |
 | OD-12 | Reading period cadence and windows; single open period | Monthly, one open period | Business |
+| OD-17 | Work assignment | **Resolved:** no assignment; shared meter lists, narrowed by zone | Business |
 | OD-13 | Shared devices policy (FR-020.8) | One active user; admin purge | Business + Security |
 | OD-14 | Retention: images and audit | 7 years each | Legal / Records |
 | OD-15 | Who may create a new meter in the field (BR-005) | Created on supervisor approval of the replacement | Business |

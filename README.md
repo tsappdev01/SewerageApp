@@ -13,8 +13,8 @@ readings to billing.
 
 ## Status
 
-- **API:** reader read endpoints done (`/me`, sync, Find a Property, my readings, summary, meter detail);
-  34 tests pass against SQL Server 2022. Submitting readings is next.
+- **API:** reader read endpoints done (`/me`, sync, Find a Property, my readings, summary, meter detail),
+  tested against SQL Server 2022. Work is not assigned; lists narrow by zone. Submitting readings is next.
 - **Android:** all reader screens on sample data, English only, Dubai Investments Park colours. Not
   yet compiled with the Android SDK; the plain-Kotlin parts compile and their 15 tests pass.
 - **Source views:** waiting for the views described in [docs/source-views.md](docs/source-views.md).

@@ -59,19 +59,35 @@ public sealed class ApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task Sync_returns_only_own_active_meters_in_route_order()
+    public async Task Sync_returns_every_active_meter_in_route_order()
     {
-        var sync = await Get(Rashid, "/api/v1/sync/assignments");
-        var meters = sync.GetProperty("meters").EnumerateArray().ToList();
-        Assert.Equal(15, meters.Count);
+        var meters = (await Get(Rashid, "/api/v1/sync/meters")).GetProperty("meters").EnumerateArray().ToList();
+        Assert.Equal(18, meters.Count);
         Assert.Equal("1001-I", meters[0].GetProperty("number").GetString());
-        Assert.DoesNotContain(meters, m => m.GetProperty("zoneCode").GetString() == "602");
+        Assert.DoesNotContain(meters, m => m.GetProperty("id").GetInt64() == 19); // INACTIVE
+    }
+
+    [Fact]
+    public async Task Sync_zone_filter_narrows_the_list()
+    {
+        var meters = (await Get(Rashid, "/api/v1/sync/meters?zone=602")).GetProperty("meters").EnumerateArray();
+        Assert.Equal([16L, 17L, 18L], meters.Select(m => m.GetProperty("id").GetInt64()));
+    }
+
+    [Fact]
+    public async Task A_meter_read_by_another_reader_shows_as_done_for_everyone()
+    {
+        var meters = (await Get(Rashid, "/api/v1/sync/meters?zone=602")).GetProperty("meters").EnumerateArray()
+            .ToDictionary(m => m.GetProperty("id").GetInt64());
+        Assert.Equal("SENT", meters[16].GetProperty("state").GetString());     // read by Anil
+        Assert.Equal("REVISIT", meters[17].GetProperty("state").GetString());  // Anil could not reach it
+        Assert.Equal("PENDING", meters[18].GetProperty("state").GetString());
     }
 
     [Fact]
     public async Task Sync_maps_state_note_first_reading_and_history_average()
     {
-        var meters = (await Get(Rashid, "/api/v1/sync/assignments")).GetProperty("meters").EnumerateArray()
+        var meters = (await Get(Rashid, "/api/v1/sync/meters")).GetProperty("meters").EnumerateArray()
             .ToDictionary(m => m.GetProperty("id").GetInt64());
         Assert.Equal("READ_AGAIN", meters[8].GetProperty("state").GetString());
         Assert.Equal("Photo not clear", meters[8].GetProperty("supervisorNote").GetString());
@@ -94,9 +110,10 @@ public sealed class ApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     public async Task Summary_buckets_add_up()
     {
         var s = await Get(Rashid, "/api/v1/summary");
-        Assert.Equal(15, s.GetProperty("meters").GetInt32());
-        Assert.Equal(7, s.GetProperty("read").GetInt32());
-        Assert.Equal(8, s.GetProperty("notRead").GetInt32());
+        Assert.Equal(18, s.GetProperty("meters").GetInt32());
+        Assert.Equal(9, s.GetProperty("read").GetInt32());
+        Assert.Equal(9, s.GetProperty("notRead").GetInt32());
+        Assert.Equal(7, s.GetProperty("readByYou").GetInt32());
         Assert.EndsWith("Z", s.GetProperty("lastReceivedUtc").GetString());
     }
 
@@ -109,11 +126,26 @@ public sealed class ApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task Another_readers_meter_is_not_found()
+    public async Task Summary_by_zone_counts_only_that_zone()
     {
-        var response = await As(Rashid).GetAsync("/api/v1/meters/16");
+        var s = await Get(Rashid, "/api/v1/summary?zone=602");
+        Assert.Equal(3, s.GetProperty("meters").GetInt32());
+        Assert.Equal(0, s.GetProperty("readByYou").GetInt32());
+    }
+
+    [Fact]
+    public async Task Any_reader_can_open_any_active_meter()
+    {
+        var detail = await Get(Rashid, "/api/v1/meters/16");
+        Assert.Equal("3010-I", detail.GetProperty("meter").GetProperty("number").GetString());
+    }
+
+    [Fact]
+    public async Task Inactive_meter_is_not_found()
+    {
+        var response = await As(Rashid).GetAsync("/api/v1/meters/19");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.Contains("METER_NOT_ASSIGNED", await response.Content.ReadAsStringAsync());
+        Assert.Contains("METER_NOT_FOUND", await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
@@ -128,6 +160,7 @@ public sealed class ApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     [InlineData("/api/v1/summary?period=2026-13", HttpStatusCode.BadRequest)]
     [InlineData("/api/v1/summary?period=2020-01", HttpStatusCode.NotFound)]
     [InlineData("/api/v1/properties/search?done=maybe", HttpStatusCode.BadRequest)]
+    [InlineData("/api/v1/sync/meters?zone=597;drop", HttpStatusCode.BadRequest)]
     public async Task Bad_input_gets_problem_details(string url, HttpStatusCode expected) =>
         Assert.Equal(expected, (await As(Rashid).GetAsync(url)).StatusCode);
 }

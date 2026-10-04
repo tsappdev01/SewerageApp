@@ -23,16 +23,12 @@ INSERT @Expected (ViewName, ColumnName, Family, ViewRequired) VALUES
  (N'vw_MR_Meter', N'MeterId', 'int', 1), (N'vw_MR_Meter', N'MeterNumber', 'text', 1),
  (N'vw_MR_Meter', N'PropertyCode', 'text', 1), (N'vw_MR_Meter', N'MeterType', 'text', 1),
  (N'vw_MR_Meter', N'RegisterDigits', 'int', 1), (N'vw_MR_Meter', N'DecimalDigits', 'int', 1),
- (N'vw_MR_Meter', N'OpeningReading', 'decimal', 1), (N'vw_MR_Meter', N'InstallDate', 'date', 1),
+ (N'vw_MR_Meter', N'LastReading', 'decimal', 1), (N'vw_MR_Meter', N'LastReadingDate', 'date', 1),
+ (N'vw_MR_Meter', N'AverageConsumption', 'decimal', 1), (N'vw_MR_Meter', N'InstallDate', 'date', 1),
  (N'vw_MR_Meter', N'RouteSequence', 'int', 1), (N'vw_MR_Meter', N'SerialNumber', 'text', 1),
  (N'vw_MR_Meter', N'Status', 'text', 1),
  (N'vw_MR_ReadingPeriod', N'PeriodCode', 'text', 1), (N'vw_MR_ReadingPeriod', N'StartDate', 'date', 1),
  (N'vw_MR_ReadingPeriod', N'EndDate', 'date', 1), (N'vw_MR_ReadingPeriod', N'Status', 'text', 1),
- (N'vw_MR_Assignment', N'PeriodCode', 'text', 1), (N'vw_MR_Assignment', N'MeterId', 'int', 1),
- (N'vw_MR_Assignment', N'ReaderId', 'text', 1), (N'vw_MR_Assignment', N'AssignedOn', 'date', 1),
- (N'vw_MR_LastReading', N'MeterId', 'int', 1), (N'vw_MR_LastReading', N'ReadingValue', 'decimal', 1),
- (N'vw_MR_LastReading', N'ReadingDate', 'date', 1), (N'vw_MR_LastReading', N'PeriodCode', 'text', 1),
- (N'vw_MR_LastReading', N'AverageConsumption', 'decimal', 1),
  (N'vw_MR_ReadingHistory', N'MeterId', 'int', 0), (N'vw_MR_ReadingHistory', N'PeriodCode', 'text', 0),
  (N'vw_MR_ReadingHistory', N'ReadingDate', 'date', 0), (N'vw_MR_ReadingHistory', N'ReadingValue', 'decimal', 0),
  (N'vw_MR_ReadingHistory', N'Consumption', 'decimal', 0), (N'vw_MR_ReadingHistory', N'ConsumptionBasis', 'text', 0);
@@ -84,10 +80,8 @@ INSERT @Checks VALUES
  (N'Period Status not PLANNED, OPEN or CLOSED', N'vw_MR_ReadingPeriod', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_ReadingPeriod WHERE Status NOT IN (''PLANNED'', ''OPEN'', ''CLOSED'') OR Status IS NULL'),
  (N'More than one OPEN period (count shown)', N'vw_MR_ReadingPeriod', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_ReadingPeriod WHERE Status = ''OPEN'' HAVING COUNT(*) > 1'),
  (N'No OPEN period', N'vw_MR_ReadingPeriod', NULL, N'SELECT @n = CASE WHEN EXISTS (SELECT 1 FROM {s}.vw_MR_ReadingPeriod WHERE Status = ''OPEN'') THEN 0 ELSE 1 END'),
- (N'Duplicate assignment (PeriodCode, MeterId)', N'vw_MR_Assignment', NULL, N'SELECT @n = COUNT(*) FROM (SELECT PeriodCode, MeterId FROM {s}.vw_MR_Assignment GROUP BY PeriodCode, MeterId HAVING COUNT(*) > 1) d'),
- (N'Assignment with unknown MeterId', N'vw_MR_Assignment', N'vw_MR_Meter', N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Assignment a WHERE NOT EXISTS (SELECT 1 FROM {s}.vw_MR_Meter m WHERE m.MeterId = a.MeterId)'),
- (N'Assignment with unknown ReaderId', N'vw_MR_Assignment', N'vw_MR_Reader', N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Assignment a WHERE NOT EXISTS (SELECT 1 FROM {s}.vw_MR_Reader r WHERE r.ReaderId = a.ReaderId)'),
- (N'Duplicate MeterId in last readings', N'vw_MR_LastReading', NULL, N'SELECT @n = COUNT(*) FROM (SELECT MeterId FROM {s}.vw_MR_LastReading GROUP BY MeterId HAVING COUNT(*) > 1) d'),
+ (N'Negative LastReading', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter WHERE LastReading < 0'),
+ (N'LastReading with more digits than RegisterDigits', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter WHERE RegisterDigits BETWEEN 1 AND 9 AND LastReading >= POWER(CAST(10 AS bigint), RegisterDigits)'),
  (N'ConsumptionBasis not ACTUAL or AVERAGE', N'vw_MR_ReadingHistory', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_ReadingHistory WHERE ConsumptionBasis NOT IN (''ACTUAL'', ''AVERAGE'') OR ConsumptionBasis IS NULL');
 
 DECLARE @Problems TABLE (CheckName nvarchar(200), Rows int);

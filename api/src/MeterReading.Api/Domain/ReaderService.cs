@@ -4,14 +4,18 @@ using Microsoft.Extensions.Options;
 
 namespace MeterReading.Api.Domain;
 
-/// <summary>A reader's work for one period, joined from the source views and the mr tables.</summary>
-public sealed record ReaderWork(IReadOnlyList<MeterDto> Meters, IReadOnlyList<PropertyDto> Properties, IReadOnlyList<ZoneDto> Zones);
+/// <summary>Meters for one period with their state, joined from the source views and the mr tables.</summary>
+public sealed record MeterSet(IReadOnlyList<MeterDto> Meters, IReadOnlyList<PropertyDto> Properties, IReadOnlyList<ZoneDto> Zones);
 
 public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingRulesOptions> rules)
 {
-    public async Task<ReaderWork> LoadAsync(string readerId, string periodCode, CancellationToken ct)
+    /// <summary>
+    /// Meters matching <paramref name="filter"/> for the period. A meter's state comes from the latest
+    /// reading by anyone, so a meter read by one reader shows as done for all.
+    /// </summary>
+    public async Task<MeterSet> LoadAsync(string periodCode, MeterFilter filter, CancellationToken ct)
     {
-        var rows = await repo.GetAssignedMetersAsync(readerId, periodCode, ct);
+        var rows = await repo.GetMetersAsync(filter, ct);
         var ids = rows.Select(r => r.MeterId).ToArray();
         var needAverage = rows.Where(r => r.AverageConsumption is null).Select(r => r.MeterId).ToArray();
 
@@ -32,11 +36,11 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
             latest.TryGetValue(r.MeterId, out var t);
             var average = ExpectedRange.Average(r.AverageConsumption, averages.TryGetValue(r.MeterId, out var a) ? a : null, r.MeterType, rules.Value);
             var state = AssignmentStates.From(t?.Status, t?.MeterCondition);
-            var isFirst = r.LastReading is null;
+            var isFirst = r.LastReadingDate is null; // BR-004: never read, so LastReading is the install reading
             return new MeterDto(
                 r.MeterId, r.MeterNumber, r.MeterType, r.PropertyCode, r.ZoneCode, r.MeterRoute,
                 r.RegisterDigits, r.DecimalDigits,
-                PreviousReading: isFirst ? r.OpeningReading ?? 0m : r.LastReading,
+                PreviousReading: r.LastReading ?? 0m,
                 PreviousReadingDate: r.LastReadingDate is { } d ? DateOnly.FromDateTime(d) : null,
                 IsFirstReading: isFirst,
                 AverageConsumption: average,
@@ -51,10 +55,10 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
             .Select(r => new PropertyDto(r.PropertyCode, r.PropertyName, r.ZoneCode, r.PropertyRoute, r.Latitude, r.Longitude))
             .ToList();
         var zones = ordered.DistinctBy(r => r.ZoneCode).Select(r => new ZoneDto(r.ZoneCode, r.ZoneName)).ToList();
-        return new ReaderWork(meters, properties, zones);
+        return new MeterSet(meters, properties, zones);
     }
 
-    public static SearchResultDto Search(ReaderWork work, string? query, string? zone, DoneFilter done, string? type)
+    public static SearchResultDto Search(MeterSet work, string? query, string? zone, DoneFilter done, string? type)
     {
         var q = PropertySearch.Normalize(query);
         var byProperty = work.Meters.ToLookup(m => m.PropertyCode);
@@ -80,7 +84,8 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
         return new SearchResultDto(query ?? "", propertyHits, meterHits);
     }
 
-    public static SummaryDto Summarize(string periodCode, ReaderWork work, IReadOnlyList<TransactionRow> received)
+    /// <param name="mine">The signed-in reader's live readings this period.</param>
+    public static SummaryDto Summarize(string periodCode, MeterSet work, IReadOnlyList<TransactionRow> mine)
     {
         int Count(AssignmentState s) => work.Meters.Count(m => m.State == s);
         var zones = work.Meters
@@ -98,7 +103,8 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
             ReadAgain: Count(AssignmentState.READ_AGAIN),
             Revisit: Count(AssignmentState.REVISIT),
             NotRead: notRead,
+            ReadByYou: mine.Select(r => r.MeterId).Distinct().Count(),
             Zones: zones,
-            LastReceivedUtc: received.Count == 0 ? null : DateTime.SpecifyKind(received.Max(r => r.ReceivedAtUtc), DateTimeKind.Utc));
+            LastReceivedUtc: mine.Count == 0 ? null : DateTime.SpecifyKind(mine.Max(r => r.ReceivedAtUtc), DateTimeKind.Utc));
     }
 }

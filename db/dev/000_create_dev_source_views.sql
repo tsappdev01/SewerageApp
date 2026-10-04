@@ -23,9 +23,6 @@ CREATE TABLE devsrc.Meter (MeterId bigint PRIMARY KEY, MeterNumber varchar(30) N
     InstallDate date NULL, RouteSequence int NULL, SerialNumber varchar(50) NULL, Status varchar(10) NOT NULL);
 IF OBJECT_ID(N'devsrc.ReadingPeriod', N'U') IS NULL
 CREATE TABLE devsrc.ReadingPeriod (PeriodCode char(7) PRIMARY KEY, StartDate date NOT NULL, EndDate date NOT NULL, Status varchar(10) NOT NULL);
-IF OBJECT_ID(N'devsrc.Assignment', N'U') IS NULL
-CREATE TABLE devsrc.Assignment (PeriodCode char(7) NOT NULL, MeterId bigint NOT NULL, ReaderId varchar(50) NOT NULL,
-    AssignedOn datetime2(0) NULL, PRIMARY KEY (PeriodCode, MeterId));
 IF OBJECT_ID(N'devsrc.ReadingHistory', N'U') IS NULL
 CREATE TABLE devsrc.ReadingHistory (MeterId bigint NOT NULL, PeriodCode char(7) NOT NULL, ReadingDate date NULL,
     ReadingValue decimal(18,3) NULL, Consumption decimal(18,3) NULL, ConsumptionBasis varchar(10) NOT NULL,
@@ -85,13 +82,6 @@ SELECT v.* FROM (VALUES ('2026-08', '2026-08-01', '2026-08-10', 'CLOSED'), ('202
                         ('2026-10', '2026-10-01', '2026-10-10', 'OPEN'), ('2026-11', '2026-11-01', '2026-11-10', 'PLANNED')) v (PeriodCode, StartDate, EndDate, Status)
 WHERE NOT EXISTS (SELECT 1 FROM devsrc.ReadingPeriod p WHERE p.PeriodCode = v.PeriodCode);
 
-/* Rashid reads zones 597 and 598, Anil reads zone 602. Inactive meter 19 is not assigned. */
-INSERT devsrc.Assignment (PeriodCode, MeterId, ReaderId, AssignedOn)
-SELECT '2026-10', m.MeterId, CASE WHEN p.ZoneCode = '602' THEN 'E1002' ELSE 'E1001' END, '2026-09-30T20:00:00'
-FROM devsrc.Meter m JOIN devsrc.Property p ON p.PropertyCode = m.PropertyCode
-WHERE m.Status = 'ACTIVE'
-  AND NOT EXISTS (SELECT 1 FROM devsrc.Assignment a WHERE a.PeriodCode = '2026-10' AND a.MeterId = m.MeterId);
-
 /* Readings for August and September. Meter 10 is new (no history); meter 4 sits near 99,999 (rollover case).
    AverageConsumption is given for most meters; meters 6 and 7 leave it NULL so the API calculates it. */
 INSERT devsrc.ReadingHistory (MeterId, PeriodCode, ReadingDate, ReadingValue, Consumption, ConsumptionBasis, AverageConsumption)
@@ -127,24 +117,31 @@ GO
 CREATE OR ALTER VIEW dbo.vw_MR_Property AS
 SELECT PropertyCode, PropertyName, ZoneCode, RouteSequence, Latitude, Longitude, IsActive FROM devsrc.Property;
 GO
+/* The meter with its last ACTUAL reading. A meter never read shows its OpeningReading and no date. */
 CREATE OR ALTER VIEW dbo.vw_MR_Meter AS
-SELECT MeterId, MeterNumber, PropertyCode, MeterType, RegisterDigits, DecimalDigits, OpeningReading, InstallDate,
-       RouteSequence, SerialNumber, Status
-FROM devsrc.Meter;
+SELECT m.MeterId, m.MeterNumber, m.PropertyCode, m.MeterType, m.RegisterDigits, m.DecimalDigits,
+       COALESCE(h.ReadingValue, m.OpeningReading) AS LastReading,
+       h.ReadingDate AS LastReadingDate,
+       h.AverageConsumption,
+       m.InstallDate, m.RouteSequence, m.SerialNumber, m.Status
+FROM devsrc.Meter m
+OUTER APPLY (
+    SELECT TOP (1) r.ReadingValue, r.ReadingDate, r.AverageConsumption
+    FROM devsrc.ReadingHistory r
+    WHERE r.MeterId = m.MeterId AND r.ConsumptionBasis = 'ACTUAL'
+    ORDER BY r.PeriodCode DESC
+) h;
 GO
 CREATE OR ALTER VIEW dbo.vw_MR_ReadingPeriod AS
 SELECT PeriodCode, StartDate, EndDate, Status FROM devsrc.ReadingPeriod;
 GO
-CREATE OR ALTER VIEW dbo.vw_MR_Assignment AS
-SELECT PeriodCode, MeterId, ReaderId, AssignedOn FROM devsrc.Assignment;
+/* Work is not assigned (docs/source-views.md); earlier versions had an assignment view. */
+DROP VIEW IF EXISTS dbo.vw_MR_Assignment;
 GO
-/* Last ACTUAL reading per meter, before the open period. */
-CREATE OR ALTER VIEW dbo.vw_MR_LastReading AS
-SELECT h.MeterId, h.ReadingValue, h.ReadingDate, h.PeriodCode, h.AverageConsumption
-FROM devsrc.ReadingHistory h
-WHERE h.ConsumptionBasis = 'ACTUAL'
-  AND h.PeriodCode = (SELECT MAX(h2.PeriodCode) FROM devsrc.ReadingHistory h2
-                      WHERE h2.MeterId = h.MeterId AND h2.ConsumptionBasis = 'ACTUAL');
+DROP TABLE IF EXISTS devsrc.Assignment;
+GO
+/* Earlier versions had a separate last-reading view; it is now part of vw_MR_Meter. */
+DROP VIEW IF EXISTS dbo.vw_MR_LastReading;
 GO
 CREATE OR ALTER VIEW dbo.vw_MR_ReadingHistory AS
 SELECT MeterId, PeriodCode, ReadingDate, ReadingValue, Consumption, ConsumptionBasis FROM devsrc.ReadingHistory;

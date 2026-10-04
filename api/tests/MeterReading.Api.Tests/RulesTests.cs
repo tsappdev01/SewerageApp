@@ -47,7 +47,7 @@ public class RulesTests
     private static MeterDto Meter(long id, string number, string property, string zone, AssignmentState state, string type = "SEWERAGE") =>
         new(id, number, type, property, zone, 1, 5, 0, 100m, null, false, 300m, 900m, state, null, null);
 
-    private static readonly ReaderWork Work = new(
+    private static readonly MeterSet Work = new(
         [
             Meter(1, "2001-I", "1499-W1", "598", AssignmentState.PENDING, "IRRIGATION"),
             Meter(2, "2002-2", "1499-W1", "598", AssignmentState.SENT),
@@ -85,6 +85,7 @@ public class RulesTests
         Assert.Equal(3, s.Read);
         Assert.Equal(s.Meters, s.Accepted + s.Checking + s.ReadAgain + s.Revisit + s.NotRead);
         Assert.Equal([("597", 1, 1), ("598", 3, 2)], s.Zones.Select(z => (z.ZoneCode, z.Meters, z.Read)));
+        Assert.Equal(0, s.ReadByYou);
         Assert.Null(s.LastReceivedUtc);
     }
 }

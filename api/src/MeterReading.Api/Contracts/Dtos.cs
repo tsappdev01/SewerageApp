@@ -62,8 +62,9 @@ public sealed record ReadingDto(
 public sealed record ZoneReconciliationDto(string ZoneCode, int Meters, int Read, int NotRead);
 
 /// <summary>
-/// Server side of "My summary" (FR-022). Read = readings the server has received. The phone adds
-/// its own count of readings still waiting to upload, so Uploaded = Read here.
+/// Server side of "My summary" (FR-022). Meters and their buckets cover the zones asked for, read by
+/// anyone; ReadByYou counts the signed-in reader's own. The phone adds its own count of readings
+/// still waiting to upload. LastReceivedUtc is the reader's latest reading received by the server.
 /// </summary>
 public sealed record SummaryDto(
     string PeriodCode,
@@ -74,6 +75,7 @@ public sealed record SummaryDto(
     int ReadAgain,
     int Revisit,
     int NotRead,
+    int ReadByYou,
     IReadOnlyList<ZoneReconciliationDto> Zones,
     DateTime? LastReceivedUtc);
 

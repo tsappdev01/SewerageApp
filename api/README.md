@@ -6,7 +6,7 @@ This first part covers the Meter Reader app's read endpoints; submitting reading
 
 ## Source views
 
-The API reads eight `vw_MR_*` views. Names, columns and types are in
+The API reads seven `vw_MR_*` views (the last one optional). Names, columns and types are in
 **[docs/source-views.md](../docs/source-views.md)**. After creating them, run
 `db/001_check_source_views.sql` (repository root): no rows in either result means the API can use them.
 
@@ -21,17 +21,19 @@ The API reads eight `vw_MR_*` views. Names, columns and types are in
 
 ## Endpoints
 
-All under `/api/v1`, for the signed-in reader only (Entra app role `MeterReader`).
+All under `/api/v1`, for signed-in active readers (Entra app role `MeterReader`). Work is not
+assigned: every reader sees every active meter, and `?zone=597,598` narrows lists. A meter read by
+anyone shows as done for everyone. "My readings" and "read by you" are the reader's own.
 Errors are RFC 9457 problem details with a `code` (e.g. `READER_NOT_FOUND`, `NO_OPEN_PERIOD`).
 
 | Endpoint | Returns |
 |---|---|
 | `GET /me` | Reader name and the open reading period |
-| `GET /sync/assignments` | Zones, properties and meters to read, with last reading, expected range and state (`PENDING`, `SENT`, `CHECKING`, `READ_AGAIN`, `REVISIT`) |
+| `GET /sync/meters?zone=` | Zones, properties and meters to read, with last reading, expected range and state (`PENDING`, `SENT`, `CHECKING`, `READ_AGAIN`, `REVISIT`) |
 | `GET /properties/search?q=&zone=&done=&type=` | Find a Property: matches code, name or meter number, ignoring case, spaces and dashes |
 | `GET /readings/mine?period=` | The reader's submissions |
-| `GET /summary?period=` | Reconciliation: meters, read, accepted, being checked, read again, visit again, not read, per zone |
-| `GET /meters/{id}` | One assigned meter with 12 periods of history |
+| `GET /summary?period=&zone=` | Reconciliation: meters, read, accepted, being checked, read again, visit again, not read, read by you, per zone |
+| `GET /meters/{id}` | One active meter with 12 periods of history |
 | `GET /health/live`, `GET /health/ready` | Liveness; readiness checks the views and `mr` tables exist |
 
 OpenAPI document (Development): `/openapi/v1.json`.
@@ -43,7 +45,6 @@ OpenAPI document (Development): `/openapi/v1.json`.
 | `ConnectionStrings:MeterReading` | Database with the `mr` tables (write access). |
 | `ConnectionStrings:Source` | Database with the views. Empty = same as `MeterReading`. |
 | `SourceViews:Schema` | Schema of the views (default `dbo`). |
-| `SourceViews:AssignmentMode` | `Meter` (reads `vw_MR_Assignment`) or `Zone` (reads `vw_MR_ZoneReader`). |
 | `SourceViews:HasReadingHistory` | `false` if `vw_MR_ReadingHistory` is not provided. |
 | `ReadingRules:*` | Average periods, high-consumption factor and floors, default averages (spec BR-007, BR-008). |
 | `Auth:Mode` | `Entra` (production) or `Development` (trusts `X-Dev-User` header; refused outside Development). |
@@ -59,8 +60,8 @@ docker run -d --name mrsql -p 1433:1433 -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='D
 # create database MeterReading, then run in order:
 #   ../db/dev/000_create_dev_source_views.sql, ../db/002_create_mr_schema.sql, ../db/dev/010_seed_dev_readings.sql
 dotnet run --project src/MeterReading.Api            # Development: http://localhost:5080
-curl -H "X-Dev-User: rashid@dip.example" http://localhost:5080/api/v1/sync/assignments
-dotnet test                                          # 34 tests; integration tests need the database above (MR_TEST_SQL to override)
+curl -H "X-Dev-User: rashid@dip.example" "http://localhost:5080/api/v1/sync/meters?zone=598"
+dotnet test                                          # all tests; integration tests need the database above (MR_TEST_SQL to override)
 ```
 
 ## Design notes
@@ -70,8 +71,8 @@ dotnet test                                          # 34 tests; integration tes
   which avoids SQL Server's 2,100-parameter limit on big routes.
 - **Every view column is CAST** to a fixed type in the query, so views that use `tinyint`,
   `numeric` or `nvarchar` still map.
-- **Readers only see their own work.** Asking for another reader's meter returns the same 404 as a
-  meter that does not exist.
+- **No assignment.** Meter lists are shared; only a reader's own submissions are scoped to them.
+  Phones should sync by zone (`?zone=`) on large estates rather than downloading every meter.
 - Dapper rather than EF Core: the API does not own the source schema.
 
 ## Next

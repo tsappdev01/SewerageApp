@@ -9,6 +9,9 @@ namespace MeterReading.Api.Data;
 /// Lists of meter ids are passed as one JSON parameter and expanded with OPENJSON, which keeps
 /// clear of SQL Server's 2,100-parameter limit for readers with large routes.
 /// </summary>
+/// <summary>Narrows the meter list. Empty means all active meters.</summary>
+public sealed record MeterFilter(IReadOnlyCollection<string>? ZoneCodes = null, IReadOnlyCollection<long>? MeterIds = null);
+
 public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<SourceViewsOptions> options)
 {
     private readonly SourceViewNames _v = db.Views;
@@ -55,23 +58,18 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         return await c.QuerySingleOrDefaultAsync<PeriodRow>(Cmd(sql, new { periodCode }, ct));
     }
 
-    /// <summary>Active meters assigned to the reader for the period, with property, zone and last reading.</summary>
-    public async Task<IReadOnlyList<AssignedMeterRow>> GetAssignedMetersAsync(string readerId, string periodCode, CancellationToken ct)
+    /// <summary>
+    /// Active meters in active properties and zones, with the meter's last reading. Work is not
+    /// assigned to readers, so the only narrowing is by zone or by meter id.
+    /// </summary>
+    public async Task<IReadOnlyList<MeterRow>> GetMetersAsync(MeterFilter filter, CancellationToken ct)
     {
-        var from = _options.AssignmentMode == AssignmentMode.Meter
-            ? $"""
-              FROM {_v.Assignment} a
-              JOIN {_v.Meter} m ON m.MeterId = a.MeterId
-              JOIN {_v.Property} p ON p.PropertyCode = m.PropertyCode
-              """
-            : $"""
-              FROM {_v.ZoneReader} zr
-              JOIN {_v.Property} p ON p.ZoneCode = zr.ZoneCode
-              JOIN {_v.Meter} m ON m.PropertyCode = p.PropertyCode
-              """;
-        var where = _options.AssignmentMode == AssignmentMode.Meter
-            ? "WHERE a.PeriodCode = @periodCode AND a.ReaderId = @readerId AND m.Status = 'ACTIVE'"
-            : "WHERE zr.ReaderId = @readerId AND p.IsActive = 1 AND m.Status = 'ACTIVE'";
+        var zoneClause = filter.ZoneCodes is { Count: > 0 }
+            ? "AND p.ZoneCode IN (SELECT CAST([value] AS varchar(20)) FROM OPENJSON(@zones))"
+            : "";
+        var idClause = filter.MeterIds is { Count: > 0 }
+            ? "AND m.MeterId IN (SELECT CAST([value] AS bigint) FROM OPENJSON(@ids))"
+            : "";
         var sql = $"""
             SELECT CAST(m.MeterId AS bigint) AS MeterId, CAST(m.MeterNumber AS varchar(30)) AS MeterNumber,
                    CAST(m.MeterType AS varchar(20)) AS MeterType,
@@ -81,17 +79,22 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                    CAST(p.ZoneCode AS varchar(20)) AS ZoneCode, CAST(z.ZoneName AS nvarchar(100)) AS ZoneName,
                    CAST(m.RouteSequence AS int) AS MeterRoute,
                    CAST(m.RegisterDigits AS int) AS RegisterDigits, CAST(ISNULL(m.DecimalDigits, 0) AS int) AS DecimalDigits,
-                   CAST(m.OpeningReading AS decimal(18,3)) AS OpeningReading,
-                   CAST(lr.ReadingValue AS decimal(18,3)) AS LastReading, CAST(lr.ReadingDate AS datetime2) AS LastReadingDate,
-                   CAST(lr.AverageConsumption AS decimal(18,3)) AS AverageConsumption
-            {from}
+                   CAST(m.LastReading AS decimal(18,3)) AS LastReading, CAST(m.LastReadingDate AS datetime2) AS LastReadingDate,
+                   CAST(m.AverageConsumption AS decimal(18,3)) AS AverageConsumption
+            FROM {_v.Meter} m
+            JOIN {_v.Property} p ON p.PropertyCode = m.PropertyCode
             LEFT JOIN {_v.Zone} z ON z.ZoneCode = p.ZoneCode
-            LEFT JOIN {_v.LastReading} lr ON lr.MeterId = m.MeterId
-            {where}
+            WHERE m.Status = 'ACTIVE' AND p.IsActive = 1 AND ISNULL(z.IsActive, 1) = 1
+              {zoneClause}
+              {idClause}
             """;
+        var args = new
+        {
+            zones = JsonSerializer.Serialize(filter.ZoneCodes ?? []),
+            ids = Json(filter.MeterIds ?? []),
+        };
         await using var c = await db.OpenSourceAsync(ct);
-        var rows = await c.QueryAsync<AssignedMeterRow>(Cmd(sql, new { readerId, periodCode }, ct));
-        return rows.AsList();
+        return (await c.QueryAsync<MeterRow>(Cmd(sql, args, ct))).AsList();
     }
 
     /// <summary>Average of the last N actual consumptions, for meters the source gave no average for (BR-007).</summary>
@@ -181,7 +184,6 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     public async Task<IReadOnlyList<string>> FindMissingViewsAsync(CancellationToken ct)
     {
         var required = SourceViewNames.Required
-            .Append(_options.AssignmentMode == AssignmentMode.Meter ? "vw_MR_Assignment" : "vw_MR_ZoneReader")
             .Concat(_options.HasReadingHistory ? ["vw_MR_ReadingHistory"] : Array.Empty<string>())
             .ToArray();
         const string sql = """
