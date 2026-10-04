@@ -251,6 +251,20 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .banner.warn { background: var(--warn-tint); color: var(--warn); }
 
 .row { display: flex; gap: 8px; }
+/* Tenant check on step 4 (FR-006.12): radio rows, the chosen one says "Checked", not colour alone. */
+.tn-h { font-size: 17px; font-weight: 700; }
+.tn-hint { font-size: 14px; color: var(--app-sub); }
+.tn { display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 7px 11px; border: 1px solid var(--app-line); border-radius: 12px; background: var(--app-card); flex: none; }
+.tn.on { border: 3px solid var(--primary); background: var(--primary-tint); padding: 5px 9px; }
+.tn .rb { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--app-sub); flex: none; display: grid; place-items: center; }
+.tn.on .rb { background: var(--primary); border-color: var(--primary); color: #fff; }
+.tn .rb svg { width: 16px; height: 16px; }
+.tn .nm { font-weight: 700; line-height: 1.2; }
+.tn .cd { font-size: 13px; color: var(--app-sub); }
+.tn .ck { margin-left: auto; font-weight: 700; font-size: 14px; color: var(--primary); }
+.tn-none { display: flex; align-items: center; gap: 10px; background: var(--bad-tint); color: var(--app-ink); border-radius: 12px; padding: 11px 12px; font-weight: 700; flex: none; }
+.tn-none svg { width: 30px; height: 30px; color: var(--bad); flex: none; }
+.big.off { background: #D5D8DD; color: #4A4F57; }
 .row > * { flex: 1; }
 
 
@@ -331,7 +345,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   </ul>
 
   <h2>The reader's path</h2>
-  <p class="section-note">Screens 6 to 9 are the capture steps. The four circles at the top of those screens show where the reader is: condition, photo, number, check.</p>
+  <p class="section-note">Screens 6 to 9 are the capture steps. The four circles at the top of those screens show where the reader is: condition, photo, number, check. On the check step the reader also taps the property's tenant before sending (09, 09b, 09c).</p>
 
   <div class="screens">
 
@@ -512,17 +526,63 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
         <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">Check</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
         <div class="body">
           <div class="steps"><i class="done"><svg><use href="#i-check"/></svg></i><em></em><i class="done"><svg><use href="#i-check"/></svg></i><em></em><i class="done"><svg><use href="#i-check"/></svg></i><em></em><i class="on"><svg><use href="#i-check"/></svg></i></div>
-          <div class="photo" style="height:120px"><div class="face"><div class="dial" style="width:110px"><div class="win"><span>5</span><span>2</span><span>8</span><span>4</span><span>0</span></div></div></div></div>
-          <div class="q">Is this the same?</div>
-          <div class="bigread">52840</div>
+          <div class="photo" style="height:84px"><div class="face"><div class="dial" style="width:110px"><div class="win"><span>5</span><span>2</span><span>8</span><span>4</span><span>0</span></div></div></div></div>
+          <div class="q" style="font-size:20px">Is this the same?</div>
+          <div class="bigread" style="font-size:38px">52840</div>
           <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap"><span class="chip ok"><svg><use href="#i-check"/></svg>Working</span><span class="chip ok">+340 used</span></div>
+          <div class="tn-h">Tenant</div>
+          <div class="tn on"><span class="rb"><svg><use href="#i-check"/></svg></span><div><div class="nm">Sandline Logistics LLC</div><div class="cd">T-0201</div></div><span class="ck">Checked</span></div>
           <div class="row" style="margin-top:auto">
             <div class="big ghost" style="color:var(--bad)"><svg><use href="#i-x"/></svg>Change</div>
             <div class="big ok"><svg><use href="#i-check"/></svg>Yes, send</div>
           </div>
         </div>
       </div>
-      <figcaption><b><span class="no">09</span>Step 4 · Check</b>Photo next to the typed number in large digits. Green to send, red to fix.</figcaption>
+      <figcaption><b><span class="no">09</span>Step 4 · Check</b>Photo next to the typed number in large digits. The reader taps the tenant they see on site, even when there is only one, and only then sends. Green to send, red to fix.</figcaption>
+    </figure>
+
+    <!-- 9b Tenant not tapped yet -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>07:19</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">Check</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+        <div class="body">
+          <div class="steps"><i class="done"><svg><use href="#i-check"/></svg></i><em></em><i class="done"><svg><use href="#i-check"/></svg></i><em></em><i class="done"><svg><use href="#i-check"/></svg></i><em></em><i class="on"><svg><use href="#i-check"/></svg></i></div>
+          <div class="photo" style="height:84px"><div class="face"><div class="dial" style="width:110px"><div class="win"><span>3</span><span>0</span><span>5</span><span>0</span><span>0</span></div></div></div></div>
+          <div class="bigread" style="font-size:38px">30500</div>
+          <div class="tn-h">Tenant</div>
+          <div class="tn-hint">Who is the tenant here? Tap one.</div>
+          <div class="tn"><span class="rb"></span><div><div class="nm">Crescent Fabrication LLC</div><div class="cd">T-0102</div></div></div>
+          <div class="tn"><span class="rb"></span><div><div class="nm">Crescent Fabrication (Old Lease)</div><div class="cd">T-0199</div></div></div>
+          <div class="tn-hint">Tap the tenant before you send.</div>
+          <div class="row" style="margin-top:auto">
+            <div class="big ghost" style="color:var(--bad)"><svg><use href="#i-x"/></svg>Change</div>
+            <div class="big off"><svg><use href="#i-lock"/></svg>Yes, send</div>
+          </div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">09b</span>Tenant not tapped yet</b>A property with two tenants lists both from <code>vw_MR_Tenant</code>. Nothing is chosen for the reader; "Yes, send" is grey with a lock until one is tapped. The server checks the tenant again when the reading arrives.</figcaption>
+    </figure>
+
+    <!-- 9c No tenant on record -->
+    <figure>
+      <div class="phone">
+        <div class="sb"><span>07:19</span><span class="sig">4G ▮▮▮</span></div>
+        <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><span class="t">Check</span><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+        <div class="body">
+          <div class="steps"><i class="done"><svg><use href="#i-check"/></svg></i><em></em><i class="done"><svg><use href="#i-check"/></svg></i><em></em><i class="done"><svg><use href="#i-check"/></svg></i><em></em><i class="on"><svg><use href="#i-check"/></svg></i></div>
+          <div class="photo" style="height:84px"><div class="face"><div class="dial" style="width:110px"><div class="win"><span>0</span><span>4</span><span>8</span><span>0</span><span>0</span></div></div></div></div>
+          <div class="bigread" style="font-size:38px">04800</div>
+          <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap"><span class="chip ok"><svg><use href="#i-check"/></svg>Working</span></div>
+          <div class="tn-h">Tenant</div>
+          <div class="tn-none"><svg><use href="#i-warn"/></svg><span>No tenant on record. You cannot send this reading. Tell your supervisor.</span></div>
+          <div class="row" style="margin-top:auto">
+            <div class="big ghost" style="color:var(--bad)"><svg><use href="#i-x"/></svg>Change</div>
+            <div class="big off"><svg><use href="#i-lock"/></svg>Yes, send</div>
+          </div>
+        </div>
+      </div>
+      <figcaption><b><span class="no">09c</span>No tenant on record</b>The property has no current tenant (e.g. the lease ended). The reading cannot be sent or saved for later; the warning sign and the words say why, not the colour alone.</figcaption>
     </figure>
 
     <!-- 10 Sent -->
