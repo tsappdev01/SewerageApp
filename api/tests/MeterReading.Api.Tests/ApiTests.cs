@@ -21,6 +21,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Development");
         builder.UseSetting("ImageStore:Kind", "Database");
         builder.UseSetting("ConnectionStrings:MeterReading", ConnectionString);
+        builder.UseSetting("SourceViews:HasReadingHistory", "true"); // db/dev has the optional history view
         builder.UseSetting("Auth:Mode", "Development");
     }
 }
@@ -259,6 +260,7 @@ public class StartupSafetyTests
         {
             b.UseEnvironment("Production");
             b.UseSetting("ConnectionStrings:MeterReading", ApiFactory.ConnectionString);
+            b.UseSetting("SourceViews:HasReadingHistory", "true");
             b.UseSetting("Auth:Mode", "Development");
         });
         var error = Assert.ThrowsAny<Exception>(() => factory.CreateClient());

@@ -15,6 +15,7 @@ public sealed class DeviceApiFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Development");
         builder.UseSetting("ConnectionStrings:MeterReading", ApiFactory.ConnectionString);
+        builder.UseSetting("SourceViews:HasReadingHistory", "true"); // db/dev has the optional history view
         builder.UseSetting("Auth:Mode", "Device");
         builder.UseSetting("Devices:RegisterPerMinute", "1000");
     }
@@ -177,6 +178,7 @@ public sealed class DeviceRateLimitTests
         {
             builder.UseEnvironment("Development");
             builder.UseSetting("ConnectionStrings:MeterReading", ApiFactory.ConnectionString);
+        builder.UseSetting("SourceViews:HasReadingHistory", "true"); // db/dev has the optional history view
             builder.UseSetting("Auth:Mode", "Device");
             builder.UseSetting("Devices:RegisterPerMinute", "2");
         }
