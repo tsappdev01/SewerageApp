@@ -7,7 +7,8 @@ Meter Reading API (`../api`); a demo build runs on built-in sample data instead
 
 ## Open and run
 
-1. Open this folder in Android Studio (Ladybug or newer). It syncs with the Gradle wrapper (8.11.1).
+1. Open this folder (`android`) in Android Studio. It syncs with the Gradle wrapper (8.11.1), which
+   runs on JDK 17–23: if asked, choose **Use JVM 21** (the one bundled with Android Studio).
 2. Run the `app` configuration on a phone with Android 10 or newer. Use a real phone for the camera.
 3. Unit tests: `./gradlew test` (consumption rules, search, reconciliation — spec Appendix B vectors).
 
@@ -36,9 +37,10 @@ Example: `./gradlew installDebug -PapiBaseUrl=http://192.168.1.20:5080/`
    Photos are shrunk when taken (long edge 1,600 px, about 500 KB, turned upright), uploaded with
    their SHA-256, and deleted from the phone once the server has them. A photo that cannot be sent
    waits and goes up later; "My summary" shows how many are still on the phone.
-4. Readings Without signal they wait on the phone (purple cloud)
-   and are sent with the same transaction id when signal returns: on Home, from **Upload now**,
-   or by the one-minute retry. A reading the server refuses shows **Not sent** with its reason.
+4. Readings taken without signal are saved on the phone (purple cloud). When signal is back the
+   phone asks **Send now** or **Later** (see "Readings waiting on the phone" below); **Upload now**
+   on Home sends at once. They keep their transaction id, so a resend is never stored twice. A
+   reading the server refuses shows **Not sent** with its reason.
 
 Debug builds allow plain `http` for the development API; release builds do not.
 
