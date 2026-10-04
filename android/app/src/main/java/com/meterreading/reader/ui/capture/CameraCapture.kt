@@ -60,7 +60,7 @@ import java.util.UUID
 /**
  * Full-screen in-app camera (FR-008.1/.2: no gallery). [showFrame] draws the white box the
  * reader puts the meter's numbers in. The photo is written to app-private storage.
- * TODO(FR-008.4/.5/.6): blur and exposure check, resize to 1,600 px / 500 KB, encrypted file.
+ * TODO(FR-008.4/.6): blur and exposure check, encrypted file. Resizing is done (shrinkForUpload).
  */
 @Composable
 fun CameraCapture(hint: String, speakText: String, showFrame: Boolean, onCaptured: (File) -> Unit) {

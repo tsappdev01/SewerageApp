@@ -84,7 +84,8 @@ The capture steps for each meter condition come from `data/StatusRules.kt`, whic
   Today the queues live in memory, so readings and photos waiting to upload are lost if the app
   is closed. Photo files are app-private but not yet encrypted (FR-008.6).
 - Readings are whole numbers on the phone; `DecimalDigits` from the server is not used yet.
-- Image quality check, resize to 1,600 px / 500 KB, encrypted image files, SHA-256 (FR-008.4–.6, FR-009).
+- Image quality check (blur, exposure) and encrypted image files (FR-008.4, FR-008.6). Photos are
+  already shrunk to 1,600 px / about 500 KB and sent with their SHA-256.
 - GPS capture (FR-006.8), Play Integrity (FR-002.5), OCR assist (Phase 3).
 - Dependency injection (Hilt) in place of `AppGraph`.
 
