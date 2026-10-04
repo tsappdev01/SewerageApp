@@ -19,29 +19,24 @@ android {
         // Override per build: ./gradlew assembleDebug -PapiBaseUrl=https://... -PuseFakeData=true
         buildConfigField("String", "API_BASE_URL", "\"${project.findProperty("apiBaseUrl") ?: "http://10.0.2.2:5080/"}\"")
         buildConfigField("boolean", "USE_FAKE_DATA", "${project.findProperty("useFakeData") ?: "false"}")
-        buildConfigField("String", "DEV_LOGIN", "\"${project.findProperty("devLogin") ?: "rashid@dip.example"}\"")
-
-        // Company sign-in (Entra ID): off for now. These are first values only; Settings (gear) can change them.
-        //   -PentraEnabled=true -PentraTenantId=… -PentraClientId=… -PentraRedirectUri=msauth://… -PentraScope=api://…/access_as_user
-        buildConfigField("boolean", "ENTRA_ENABLED", "${project.findProperty("entraEnabled") ?: "false"}")
-        buildConfigField("String", "ENTRA_TENANT_ID", "\"${project.findProperty("entraTenantId") ?: ""}\"")
-        buildConfigField("String", "ENTRA_CLIENT_ID", "\"${project.findProperty("entraClientId") ?: ""}\"")
-        buildConfigField("String", "ENTRA_REDIRECT_URI", "\"${project.findProperty("entraRedirectUri") ?: ""}\"")
-        buildConfigField("String", "ENTRA_SCOPE", "\"${project.findProperty("entraScope") ?: ""}\"")
-        // Base64 SHA-1 of the signing certificate, as in the redirect URI msauth://<package>/<hash> (docs/deployment.md).
-        manifestPlaceholders["msalSignatureHash"] = (project.findProperty("msalSignatureHash") ?: "SIGNATURE_HASH_NOT_SET").toString()
+        // First values only; the supervisor changes them in Settings (gear, behind the supervisor PIN).
+        //   -PreaderLogin=rashid@dip.ae -PdeviceLock=true -PsettingsPin=1234
+        buildConfigField("String", "READER_LOGIN", "\"${project.findProperty("readerLogin") ?: ""}\"")
+        buildConfigField("boolean", "DEVICE_LOCK", "${project.findProperty("deviceLock") ?: "true"}")
+        buildConfigField("String", "SETTINGS_PIN", "\"${project.findProperty("settingsPin") ?: ""}\"")
     }
 
     buildTypes {
         debug {
             // The development API runs on plain http (10.0.2.2 is the computer running the emulator).
             manifestPlaceholders["usesCleartextTraffic"] = "true"
+            // The development data's first reader, unless -PreaderLogin says otherwise.
+            buildConfigField("String", "READER_LOGIN", "\"${project.findProperty("readerLogin") ?: "rashid@dip.example"}\"")
         }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             manifestPlaceholders["usesCleartextTraffic"] = "false"
-            buildConfigField("String", "DEV_LOGIN", "\"\"")
         }
     }
     compileOptions {
@@ -77,7 +72,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
-    implementation(libs.msal)
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.fragment.ktx)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)

@@ -2,7 +2,6 @@ package com.meterreading.reader
 
 import android.graphics.Color
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -14,6 +13,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.fragment.app.FragmentActivity
 import com.meterreading.reader.settings.AppServices
 import com.meterreading.reader.ui.nav.AppNavHost
 import com.meterreading.reader.ui.theme.AppColors
@@ -21,7 +21,8 @@ import com.meterreading.reader.ui.theme.MeterReaderTheme
 import com.meterreading.reader.util.LocalSpeaker
 import com.meterreading.reader.util.Speaker
 
-class MainActivity : ComponentActivity() {
+/** A FragmentActivity because Android's lock prompt (BiometricPrompt) needs one. */
+class MainActivity : FragmentActivity() {
     private lateinit var speaker: Speaker
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,6 +49,17 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    // FR-001.5: after 15 minutes away the phone's lock is asked for again.
+    override fun onStart() {
+        super.onStart()
+        AppServices.onForeground(System.currentTimeMillis())
+    }
+
+    override fun onStop() {
+        AppServices.onBackground(System.currentTimeMillis())
+        super.onStop()
     }
 
     override fun onDestroy() {

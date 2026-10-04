@@ -4,7 +4,6 @@
     <uses-feature android:name="android.hardware.camera.any" android:required="true" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Android 11+ package visibility: text-to-speech engine and voice notes. -->
     <queries>
@@ -34,20 +33,5 @@
             </intent-filter>
         </activity>
 
-        <!-- Company sign-in (MSAL): the browser returns here. The path is "/" + the signing certificate's
-             hash (gradle -PmsalSignatureHash); the redirect URI in Settings must match it exactly. -->
-        <activity
-            android:name="com.microsoft.identity.client.BrowserTabActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:host="${applicationId}"
-                    android:path="/${msalSignatureHash}"
-                    android:scheme="msauth" />
-            </intent-filter>
-        </activity>
     </application>
 </manifest>

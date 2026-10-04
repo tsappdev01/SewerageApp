@@ -48,8 +48,6 @@ class ApiMeterRepository(
 
     override val online = MutableStateFlow(true)
 
-    override val needsDevLogin: Boolean get() = api.tokenSource == null
-
     private val _photosWaiting = MutableStateFlow(0)
     override val photosWaiting: StateFlow<Int> = _photosWaiting.asStateFlow()
 
@@ -60,8 +58,7 @@ class ApiMeterRepository(
     private val lock = Mutex()
 
     override suspend fun signIn(login: String): SignInResult {
-        // Company sign-in identifies the reader by token; the name is only sent for test sign-in.
-        api.devUser = if (api.tokenSource == null) login.trim().ifEmpty { null } else null
+        api.devUser = login.trim().ifEmpty { null }
         return try {
             val me = api.me()
             _readerName.value = me.displayName
@@ -121,7 +118,7 @@ class ApiMeterRepository(
             SubmitResult(SubmitOutcome.QUEUED)
         } catch (e: ApiException) {
             if (e.isRetryable || e.needsSignIn) {
-                // Sign-in ran out: keep the reading on the phone; it goes up after the reader signs in again.
+                // Not accepted as this reader: keep the reading on the phone; it goes up after signing in again.
                 if (e.needsSignIn) signInNeeded.value = true
                 enqueue(draft)
                 SubmitResult(SubmitOutcome.QUEUED)

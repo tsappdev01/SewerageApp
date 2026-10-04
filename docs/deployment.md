@@ -10,15 +10,16 @@ Last checked against the code on 2026-10-04 (API 104 tests passing; app version 
 | Part | Ready? |
 |---|---|
 | Database scripts (`db/`) | Yes |
-| API on a server, with Microsoft Entra ID sign-in | Yes. Entra token checking is built in. |
-| Android app for a **UAT trial** (test sign-in, office network only) | Yes, once it has been built in Android Studio (see 3.1) |
-| Android app with **company sign-in (Entra ID)** | Built and **switched off**; switch on in the app's Settings once the phone app registration (2.4) exists |
-| Android app for **production / field use** | **Not yet.** One piece is missing, see below. |
+| API on a server | Yes, but see point 1 for how it knows who the reader is |
+| Android app (phone lock, supervisor PIN, Settings) | Yes, once it has been built in Android Studio (see 3.1) |
+| Android app for **field use over the internet** | **Not yet.** Two pieces are missing, see below. |
 
-1. **Company sign-in is off for now.** The app opens straight away with the test sign-in name
-   from its Settings, which only works with an API in **UAT mode** (section 2.7). In UAT mode
-   anyone who can reach the API can act as any reader, so **only use it on the office network
-   or VPN, never on the internet.** For production, switch company sign-in on (3.4).
+1. **The server trusts the reader name the phone sends.** The phone opens with its own lock (PIN,
+   pattern, finger or face) and sends the reader set in its Settings. The server cannot check the
+   phone's lock, so it accepts that name only in **UAT mode** (section 2.7), where anyone who can
+   reach the API could claim to be any reader. **Use it only on the office network or VPN.** For
+   use over mobile data the server must recognise registered phones (device keys, not built yet);
+   the API's Entra ID mode is still there but the phone no longer signs in with Entra.
 2. **Readings waiting to upload are kept in memory.** If the app is closed or the phone restarts
    while there is no signal, those readings and photos are lost. Fine for a supervised UAT trial;
    not acceptable for field use.
@@ -164,17 +165,8 @@ Other settings (the high-consumption factor, photo limits) have sensible default
    name is in `vw_MR_Reader`.
 5. Put the tenant ID, client ID and Application ID URI in the settings (2.3).
 
-**The phone app's own registration** (needed when company sign-in is switched on):
-
-6. **New registration**: "Meter Reader app", single tenant.
-7. **Authentication → Add a platform → Android**: package name `com.meterreading.reader` and
-   the **signature hash** of the release signing key (3.4). Azure shows the redirect URI
-   `msauth://com.meterreading.reader/<hash>`; copy it. Add a second Android entry for the debug
-   key if UAT builds are used.
-8. **API permissions → Add → My APIs → Meter Reading API → `access_as_user`**, then *Grant admin
-   consent*.
-9. Give IT for the phones: tenant ID, the phone app's client ID, the redirect URI, and the scope
-   `api://meterreading-api/access_as_user`.
+Only needed if the API runs in Entra mode for other clients (e.g. the supervisor portal). The
+phone app no longer signs in with Entra (FR-001.1).
 
 Each reader's Entra sign-in name (UPN) must equal their `LoginEmail` in `vw_MR_Reader`.
 
@@ -219,7 +211,7 @@ name), `NO_OPEN_PERIOD` (no OPEN month in `vw_MR_ReadingPeriod`).
 
 ### 2.7 UAT mode (test sign-in, office network only)
 
-Until the app has company sign-in, a UAT API can trust the reader name the phone sends:
+The phone sends the reader set in its Settings; a UAT API trusts that name:
 
 | Environment variable | UAT value |
 |---|---|
@@ -228,7 +220,7 @@ Until the app has company sign-in, a UAT API can trust the reader name the phone
 | `ConnectionStrings__MeterReading` | The UAT database (overrides the developer value) |
 
 **Anyone who can reach this API can act as any reader.** Bind it to the office network or VPN
-only, and switch to `Production` + `Entra` before any field use.
+only. Field use over the internet needs the server to recognise registered phones (section 0).
 
 ### 2.8 Copy readings into MaintainMeterReading (optional)
 
@@ -276,42 +268,44 @@ still on the phone (but see section 0, point 2).
 - Run the unit tests: `./gradlew test` (53 tests; the live-API tests are skipped unless
   `MR_API_URL` is set).
 
-### 3.2 Server address and sign-in: Settings (gear icon)
+### 3.2 Phone lock, supervisor PIN and Settings (gear icon)
 
-The **gear icon** on the start screen and on Home opens **Settings**:
-- **Server address**, with a **Test** button (asks the API's `/health/live`).
-- **Company sign-in (Entra ID)**: On/Off. When on: tenant ID, app (client) ID, redirect URI, API
-  scope (from 2.4). When off: the **test sign-in email** used to open the app directly.
-- Saving switches the app over and returns to the start screen. It is refused while readings
-  still wait on the phone.
+- **Opening the app:** the phone's own lock — PIN, pattern, password, fingerprint or face. Then
+  Home opens directly as the reader set in Settings. After 15 minutes in the background the lock
+  is asked again. A phone without a screen lock cannot open the app: set one first.
+- **Gear icon** (start screen and Home) → **supervisor PIN** → **Settings**:
+  - **Server address**, with a **Test** button (asks the API's `/health/live`).
+  - **Reader on this phone**: their `LoginEmail` from `vw_MR_Reader`.
+  - **Unlock with the phone's lock**: On/Off.
+  - **Change supervisor PIN**.
+- Changing the server or reader is refused while readings still wait on the phone.
+- **Forgotten supervisor PIN:** clear the app's data (Intune: *wipe app data*, or phone *Settings →
+  Apps → Meter Reading → Storage → Clear data*); the build's first values come back.
 
-The build only sets the **first values**, so one build can serve several servers. To hand out
-phones ready to use, set them at build time:
+The build only sets the **first values**. To hand out phones ready to use, set them at build time:
 
 | Gradle property | Meaning | Default |
 |---|---|---|
 | `apiBaseUrl` | The API's HTTPS address | `http://10.0.2.2:5080/` (emulator → this PC) |
 | `useFakeData` | `true` = demo with sample data, no server | `false` |
-| `devLogin` | Test sign-in email (debug builds only) | `rashid@dip.example` |
-| `entraEnabled` | Company sign-in on from the first start | `false` |
-| `entraTenantId`, `entraClientId`, `entraRedirectUri`, `entraScope` | Company sign-in values (2.4) | empty |
-| `msalSignatureHash` | Signing key hash, for the sign-in return address (3.4) | not set |
+| `readerLogin` | The reader on this phone (usually set per phone in Settings instead) | empty (debug builds: `rashid@dip.example`) |
+| `deviceLock` | Ask for the phone's lock | `true` |
+| `settingsPin` | First supervisor PIN, 4–8 digits | empty: the first person to open Settings sets it |
 
 ### 3.3 UAT build (test sign-in)
 
 ```bash
 cd android
-./gradlew assembleDebug -PapiBaseUrl=https://meterreading-uat.dubaiinvestments.example/ -PdevLogin=
+./gradlew assembleDebug -PapiBaseUrl=https://meterreading-uat.dubaiinvestments.example/ -PsettingsPin=<pin>
 # output: app/build/outputs/apk/debug/app-debug.apk
 ```
 
 - Use this with an API in UAT mode (2.7).
-- The app opens Home straight away with the test sign-in email. To use another reader, change
-  the email in Settings (gear). It must be a `LoginEmail` from `vw_MR_Reader`.
+- On each phone, a supervisor opens Settings (gear → PIN) and sets the **reader on this phone**.
 - A debug build also allows plain `http://`. Use HTTPS for anything beyond one developer's PC.
 - For a demo with no server: `./gradlew assembleDebug -PuseFakeData=true`.
 
-### 3.4 Release build (production, company sign-in on)
+### 3.4 Release build
 
 1. **Create the signing key once** and keep it safe. It cannot be replaced for updates to the
    same app:
@@ -320,27 +314,18 @@ cd android
      -keyalg RSA -keysize 2048 -validity 10000
    ```
    Store the `.jks` file and its passwords in your password vault, never in the repository.
-   Get its **signature hash** for the phone app registration (2.4, step 7):
-   ```bash
-   keytool -exportcert -alias meterreader -keystore meterreader-release.jks | openssl sha1 -binary | openssl base64
-   ```
 2. **Raise the version** in `android/app/build.gradle.kts` for every release: `versionCode` (a
    whole number that must always go up) and `versionName`.
 3. **Build and sign**: Android Studio → *Build → Generate Signed App Bundle / APK* → APK →
    choose the keystore → *release*, or from the command line:
    ```bash
-   ./gradlew assembleRelease -PapiBaseUrl=https://meterreading-api.dubaiinvestments.example/ \
-     -PmsalSignatureHash=<hash> -PentraEnabled=true -PentraTenantId=<tenant> \
-     -PentraClientId=<phone app client id> -PentraRedirectUri='msauth://com.meterreading.reader/<url-encoded hash>' \
-     -PentraScope=api://meterreading-api/access_as_user
+   ./gradlew assembleRelease -PapiBaseUrl=https://meterreading-api.dubaiinvestments.example/ -PsettingsPin=<pin>
    apksigner sign --ks meterreader-release.jks --out app-release.apk \
      app/build/outputs/apk/release/app-release-unsigned.apk
    ```
-4. Release builds refuse plain `http://`. Without the `-Pentra…` values, company sign-in can be
-   switched on later in Settings, but `-PmsalSignatureHash` must be set at build time: the
-   sign-in page can only return to the app through it.
-5. First start: the reader taps **Sign in with company account**, signs in with Microsoft (and
-   MFA if your policy asks), and Home opens. Later starts open Home directly.
+4. Release builds refuse plain `http://`.
+5. First start on each phone: a supervisor sets the reader in Settings. From then on the reader
+   unlocks with the phone's PIN, finger or face and Home opens.
 
 ### 3.5 Put it on the phones
 
@@ -382,7 +367,8 @@ cd android
 - [ ] Transfer into `MaintainMeterReading` either confirmed and on, or knowingly left off.
 
 **App** (blocked until these are built)
-- [ ] Phone app registration (2.4) done; company sign-in switched on and tested on a phone.
+- [ ] Server recognises registered phones (device keys), so the API need not run in UAT mode.
+- [ ] Each phone has a screen lock, its reader set in Settings, and a supervisor PIN.
 - [ ] Encrypted on-phone queue that survives the app closing.
 - [ ] Built, signed with the release key, tested on the readers' phone models, and distributed
       through MDM.

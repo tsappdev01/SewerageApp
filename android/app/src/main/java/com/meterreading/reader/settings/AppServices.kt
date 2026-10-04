@@ -4,20 +4,22 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.meterreading.reader.BuildConfig
 import com.meterreading.reader.api.ApiClient
-import com.meterreading.reader.auth.CompanySignIn
-import com.meterreading.reader.auth.MsalCompanySignIn
 import com.meterreading.reader.data.ApiMeterRepository
 import com.meterreading.reader.data.AppGraph
 import com.meterreading.reader.data.AppSettings
-import com.meterreading.reader.data.EntraSettings
 import com.meterreading.reader.data.FakeMeterRepository
+import com.meterreading.reader.data.SupervisorPin
+import com.meterreading.reader.data.UnlockPolicy
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Settings saved on the phone (gear icon), and the repository and company sign-in built from
- * them. The build's values (gradle -PapiBaseUrl, -PentraEnabled, …) are only the first values.
+ * Settings saved on the phone (gear icon, behind the supervisor PIN), the repository built from
+ * them, the supervisor PIN, and whether the phone's lock must be asked for (FR-001.1, FR-001.5).
+ * The build's values (gradle -PapiBaseUrl, -PreaderLogin, -PsettingsPin) are only first values.
  */
 object AppServices {
-    private lateinit var context: Context
     private lateinit var prefs: SharedPreferences
 
     /** Plain http only in debug builds; release builds need https. */
@@ -26,68 +28,108 @@ object AppServices {
     var settings: AppSettings = defaults()
         private set
 
-    /** Null while company sign-in is off: the test sign-in name is used. */
-    var companySignIn: CompanySignIn? = null
-        private set
+    private val _locked = MutableStateFlow(true)
+    /** True while the app waits for the phone's lock; screens stay hidden behind the lock screen. */
+    val locked: StateFlow<Boolean> = _locked.asStateFlow()
+    private var unlocked = false
+    private var backgroundSince: Long? = null
 
     fun init(appContext: Context) {
         if (::prefs.isInitialized) return
-        context = appContext.applicationContext
-        prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        prefs = appContext.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        // A PIN given at build time becomes the first supervisor PIN; only its hash is kept.
+        if (storedPin() == null && SupervisorPin.isValid(BuildConfig.SETTINGS_PIN)) setPin(BuildConfig.SETTINGS_PIN)
         apply(load())
+        _locked.value = settings.deviceLock
     }
 
-    /** Saves and switches to the new settings. The reader signs in again afterwards. */
-    suspend fun save(new: AppSettings) {
-        // A wrong old configuration must not stop the new one from being saved.
-        if (new.entraEnabled != settings.entraEnabled || new.entra != settings.entra) runCatching { companySignIn?.signOut() }
+    /** Saves and switches to the new settings. The app opens again from the start screen. */
+    fun save(new: AppSettings) {
         prefs.edit()
             .putString(KEY_URL, new.apiBaseUrl)
-            .putBoolean(KEY_ENTRA, new.entraEnabled)
-            .putString(KEY_LOGIN, new.testLogin)
-            .putString(KEY_TENANT, new.entra.tenantId)
-            .putString(KEY_CLIENT, new.entra.clientId)
-            .putString(KEY_REDIRECT, new.entra.redirectUri)
-            .putString(KEY_SCOPE, new.entra.apiScope)
+            .putString(KEY_LOGIN, new.readerLogin)
+            .putBoolean(KEY_LOCK, new.deviceLock)
             .apply()
         apply(new)
+        if (!new.deviceLock) markUnlocked()
     }
+
+    // --- phone lock ---
+
+    fun markUnlocked() {
+        unlocked = true
+        backgroundSince = null
+        _locked.value = false
+    }
+
+    fun onBackground(nowMillis: Long) {
+        if (unlocked) backgroundSince = nowMillis
+    }
+
+    fun onForeground(nowMillis: Long) {
+        if (UnlockPolicy.needsUnlock(settings.deviceLock, unlocked, backgroundSince, nowMillis)) {
+            unlocked = false
+            _locked.value = true
+        }
+        backgroundSince = null
+    }
+
+    // --- supervisor PIN ---
+
+    fun hasPin(): Boolean = storedPin() != null
+
+    fun setPin(pin: String) {
+        val stored = SupervisorPin.create(pin)
+        prefs.edit().putString(KEY_PIN_SALT, stored.salt).putString(KEY_PIN_HASH, stored.hash)
+            .putInt(KEY_PIN_FAILURES, 0).putLong(KEY_PIN_BLOCKED, 0).apply()
+    }
+
+    fun checkPin(pin: String, nowMillis: Long = System.currentTimeMillis()): SupervisorPin.Result {
+        val stored = storedPin() ?: return SupervisorPin.Result.Ok(SupervisorPin.Attempts())
+        val attempts = SupervisorPin.Attempts(prefs.getInt(KEY_PIN_FAILURES, 0), prefs.getLong(KEY_PIN_BLOCKED, 0))
+        val result = SupervisorPin.check(pin, stored, attempts, nowMillis)
+        val next = when (result) {
+            is SupervisorPin.Result.Ok -> result.attempts
+            is SupervisorPin.Result.Wrong -> result.attempts
+            is SupervisorPin.Result.Blocked -> result.attempts
+        }
+        prefs.edit().putInt(KEY_PIN_FAILURES, next.failures).putLong(KEY_PIN_BLOCKED, next.blockedUntilMillis).apply()
+        return result
+    }
+
+    private fun storedPin(): SupervisorPin.Stored? {
+        val salt = prefs.getString(KEY_PIN_SALT, null) ?: return null
+        val hash = prefs.getString(KEY_PIN_HASH, null) ?: return null
+        return SupervisorPin.Stored(salt, hash)
+    }
+
+    // --- settings ---
 
     private fun apply(s: AppSettings) {
         settings = s
-        companySignIn = if (s.entraEnabled) MsalCompanySignIn(context, s.entra) else null
-        val signIn = companySignIn
-        val client = ApiClient(s.apiBaseUrl).apply { if (signIn != null) tokenSource = { signIn.token() } }
-        AppGraph.repository = if (BuildConfig.USE_FAKE_DATA) FakeMeterRepository() else ApiMeterRepository(client)
+        AppGraph.repository = if (BuildConfig.USE_FAKE_DATA) FakeMeterRepository() else ApiMeterRepository(ApiClient(s.apiBaseUrl))
     }
 
     private fun load(): AppSettings {
         val d = defaults()
         return AppSettings(
             apiBaseUrl = prefs.getString(KEY_URL, null) ?: d.apiBaseUrl,
-            entraEnabled = prefs.getBoolean(KEY_ENTRA, d.entraEnabled),
-            testLogin = prefs.getString(KEY_LOGIN, null) ?: d.testLogin,
-            entra = EntraSettings(
-                tenantId = prefs.getString(KEY_TENANT, null) ?: d.entra.tenantId,
-                clientId = prefs.getString(KEY_CLIENT, null) ?: d.entra.clientId,
-                redirectUri = prefs.getString(KEY_REDIRECT, null) ?: d.entra.redirectUri,
-                apiScope = prefs.getString(KEY_SCOPE, null) ?: d.entra.apiScope,
-            ),
+            readerLogin = prefs.getString(KEY_LOGIN, null) ?: d.readerLogin,
+            deviceLock = prefs.getBoolean(KEY_LOCK, d.deviceLock),
         )
     }
 
     private fun defaults() = AppSettings(
         apiBaseUrl = BuildConfig.API_BASE_URL,
-        entraEnabled = BuildConfig.ENTRA_ENABLED,
-        testLogin = BuildConfig.DEV_LOGIN,
-        entra = EntraSettings(BuildConfig.ENTRA_TENANT_ID, BuildConfig.ENTRA_CLIENT_ID, BuildConfig.ENTRA_REDIRECT_URI, BuildConfig.ENTRA_SCOPE),
+        readerLogin = BuildConfig.READER_LOGIN,
+        deviceLock = BuildConfig.DEVICE_LOCK,
     )
 
     private const val KEY_URL = "api_base_url"
-    private const val KEY_ENTRA = "entra_enabled"
-    private const val KEY_LOGIN = "test_login"
-    private const val KEY_TENANT = "entra_tenant_id"
-    private const val KEY_CLIENT = "entra_client_id"
-    private const val KEY_REDIRECT = "entra_redirect_uri"
-    private const val KEY_SCOPE = "entra_api_scope"
+    private const val KEY_LOGIN = "reader_login"
+    private const val KEY_LOCK = "device_lock"
+    private const val KEY_PIN_SALT = "pin_salt"
+    private const val KEY_PIN_HASH = "pin_hash"
+    private const val KEY_PIN_FAILURES = "pin_failures"
+    private const val KEY_PIN_BLOCKED = "pin_blocked_until"
 }

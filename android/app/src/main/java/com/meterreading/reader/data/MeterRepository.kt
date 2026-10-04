@@ -19,11 +19,8 @@ abstract class MeterRepository {
     /** Photos of stored readings still to upload. */
     abstract val photosWaiting: StateFlow<Int>
 
-    /** True when the sign-in screen should ask for a test sign-in name instead of company sign-in. */
-    open val needsDevLogin: Boolean = false
-
     /**
-     * Set when the server said the reader is no longer signed in (e.g. company sign-in ran out).
+     * Set when the server did not accept the reader (HTTP 401).
      * Readings and photos stay on the phone; the app goes back to the sign-in screen.
      */
     val signInNeeded = MutableStateFlow(false)

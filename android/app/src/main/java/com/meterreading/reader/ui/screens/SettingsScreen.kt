@@ -2,6 +2,7 @@ package com.meterreading.reader.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -11,17 +12,17 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.meterreading.reader.BuildConfig
 import com.meterreading.reader.R
 import com.meterreading.reader.api.ApiClient
+import com.meterreading.reader.auth.DeviceLock
 import com.meterreading.reader.data.AppGraph
 import com.meterreading.reader.data.AppSettings
-import com.meterreading.reader.data.EntraSettings
 import com.meterreading.reader.data.SettingsRules
 import com.meterreading.reader.settings.AppServices
 import com.meterreading.reader.ui.components.*
@@ -29,48 +30,41 @@ import com.meterreading.reader.ui.theme.AppColors
 import kotlinx.coroutines.launch
 
 /**
- * Settings (gear icon): the server address and company sign-in (Entra ID). Usually set once by IT.
- * Saving switches the app over and goes back to the start screen.
+ * Settings (gear icon, after the supervisor PIN): the server address, the reader this phone belongs
+ * to, the phone lock and the supervisor PIN. Saving switches the app over and opens it again.
  */
 @Composable
 fun SettingsScreen(onSaved: () -> Unit, onBack: () -> Unit) {
     val current = AppServices.settings
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var url by rememberSaveable { mutableStateOf(current.apiBaseUrl) }
-    var entraOn by rememberSaveable { mutableStateOf(current.entraEnabled) }
-    var testLogin by rememberSaveable { mutableStateOf(current.testLogin) }
-    var tenant by rememberSaveable { mutableStateOf(current.entra.tenantId) }
-    var client by rememberSaveable { mutableStateOf(current.entra.clientId) }
-    var redirect by rememberSaveable { mutableStateOf(current.entra.redirectUri) }
-    var apiScope by rememberSaveable { mutableStateOf(current.entra.apiScope) }
+    var reader by rememberSaveable { mutableStateOf(current.readerLogin) }
+    var lockOn by rememberSaveable { mutableStateOf(current.deviceLock) }
     var problems by remember { mutableStateOf<List<String>>(emptyList()) }
     var testResult by remember { mutableStateOf<Boolean?>(null) }
     var testing by remember { mutableStateOf(false) }
-    var saving by remember { mutableStateOf(false) }
-    val company = AppServices.companySignIn
-    var signedInAs by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(company) { signedInAs = runCatching { company?.currentAccount() }.getOrNull() }
+    var changingPin by remember { mutableStateOf(false) }
+    var pinChanged by remember { mutableStateOf(false) }
+    val phoneHasLock = remember { DeviceLock.isSetUp(context) }
 
-    fun edited() = AppSettings(url, entraOn, testLogin, EntraSettings(tenant, client, redirect, apiScope))
+    fun edited() = AppSettings(url, reader, lockOn)
 
     fun save() {
         val found = SettingsRules.problems(edited(), AppServices.allowHttp).toMutableList()
-        // Readings waiting on the phone are kept in memory only; changing server would lose them.
-        if (AppGraph.repository.hasWaiting()) found.add(0, "Readings are still waiting to send. Send them before changing settings.")
+        // Readings waiting on the phone are kept in memory only; changing server or reader would lose them.
+        val changesWho = SettingsRules.cleaned(edited(), AppServices.allowHttp).let { it.apiBaseUrl != current.apiBaseUrl || it.readerLogin != current.readerLogin }
+        if (changesWho && AppGraph.repository.hasWaiting()) found.add(0, "Readings are still waiting to send. Send them before changing the server or reader.")
         problems = found
-        if (found.isNotEmpty() || saving) return
-        saving = true
-        scope.launch {
-            AppServices.save(SettingsRules.cleaned(edited(), AppServices.allowHttp))
-            saving = false
-            onSaved()
-        }
+        if (found.isNotEmpty()) return
+        AppServices.save(SettingsRules.cleaned(edited(), AppServices.allowHttp))
+        onSaved()
     }
 
     fun testServer() {
         val normalized = SettingsRules.normalizeUrl(url, AppServices.allowHttp)
         if (normalized == null) {
-            problems = SettingsRules.problems(edited(), AppServices.allowHttp)
+            problems = SettingsRules.problems(edited(), AppServices.allowHttp).take(1)
             return
         }
         testing = true
@@ -97,12 +91,11 @@ fun SettingsScreen(onSaved: () -> Unit, onBack: () -> Unit) {
                 label = { Text(stringResource(R.string.settings_url_label)) },
                 supportingText = { Text(stringResource(R.string.settings_url_hint)) },
                 singleLine = true,
-                enabled = !saving,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 modifier = Modifier.fillMaxWidth(),
             )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = ::testServer, enabled = !testing && !saving) {
+                OutlinedButton(onClick = ::testServer, enabled = !testing) {
                     Icon(Icons.Rounded.NetworkCheck, null)
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(if (testing) R.string.settings_testing else R.string.settings_test))
@@ -115,47 +108,46 @@ fun SettingsScreen(onSaved: () -> Unit, onBack: () -> Unit) {
             }
 
             HorizontalDivider()
-            Text(stringResource(R.string.settings_signin), style = MaterialTheme.typography.titleLarge)
-            // The whole row toggles; the words "On"/"Off" say the state, not only the switch colour.
+            Text(stringResource(R.string.settings_reader), style = MaterialTheme.typography.titleLarge)
+            OutlinedTextField(
+                value = reader,
+                onValueChange = { reader = it.trim() },
+                label = { Text(stringResource(R.string.settings_reader_label)) },
+                supportingText = { Text(stringResource(R.string.settings_reader_hint)) },
+                placeholder = { Text("rashid@dip.ae") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            HorizontalDivider()
+            Text(stringResource(R.string.settings_security), style = MaterialTheme.typography.titleLarge)
+            // The whole row toggles; the words say the state, not only the switch colour.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 56.dp)
-                    .toggleable(value = entraOn, enabled = !saving, role = Role.Switch) { entraOn = it },
+                    .toggleable(value = lockOn, role = Role.Switch) { lockOn = it },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_entra), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.settings_lock), style = MaterialTheme.typography.titleMedium)
                     Text(
-                        stringResource(if (entraOn) R.string.settings_on else R.string.settings_off),
+                        stringResource(if (lockOn) R.string.settings_lock_on else R.string.settings_lock_off),
                         style = MaterialTheme.typography.bodyMedium, color = AppColors.SubInk,
                     )
                 }
-                Switch(checked = entraOn, onCheckedChange = null, enabled = !saving)
+                Switch(checked = lockOn, onCheckedChange = null)
             }
-
-            if (entraOn) {
-                Banner(stringResource(R.string.settings_entra_hint), Icons.Rounded.Info, AppColors.Navy, AppColors.NavyTint)
-                SettingField(tenant, { tenant = it }, R.string.settings_tenant, "dubaiinvestments.onmicrosoft.com", !saving)
-                SettingField(client, { client = it }, R.string.settings_client, "00000000-0000-0000-0000-000000000000", !saving)
-                SettingField(redirect, { redirect = it }, R.string.settings_redirect, "msauth://${BuildConfig.APPLICATION_ID}/…", !saving)
-                SettingField(apiScope, { apiScope = it }, R.string.settings_scope, "api://meterreading-api/access_as_user", !saving)
-                if (signedInAs != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(stringResource(R.string.settings_signed_in_as, signedInAs!!), modifier = Modifier.weight(1f))
-                        TextButton(onClick = {
-                            scope.launch {
-                                runCatching { company?.signOut() }
-                                signedInAs = null
-                                onSaved()
-                            }
-                        }) { Text(stringResource(R.string.settings_sign_out)) }
-                    }
-                }
-            } else {
-                SettingField(testLogin, { testLogin = it }, R.string.settings_test_login, "rashid@dip.ae", !saving, KeyboardType.Email)
-                Text(stringResource(R.string.settings_test_login_hint), style = MaterialTheme.typography.bodyMedium, color = AppColors.SubInk)
+            if (lockOn && !phoneHasLock) {
+                Banner(stringResource(R.string.lock_none), Icons.Rounded.Warning, AppColors.Warn, AppColors.WarnTint)
             }
+            OutlinedButton(onClick = { changingPin = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+                Icon(Icons.Rounded.Password, null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.settings_change_pin))
+            }
+            if (pinChanged) Pill(stringResource(R.string.settings_pin_changed), AppColors.Ok, AppColors.OkTint, Icons.Rounded.CheckCircle)
 
             problems.forEach { Banner(it, Icons.Rounded.Warning, AppColors.Bad, AppColors.BadTint) }
             Text(
@@ -164,33 +156,15 @@ fun SettingsScreen(onSaved: () -> Unit, onBack: () -> Unit) {
             )
         }
         Box(Modifier.padding(16.dp)) {
-            BigButton(
-                text = stringResource(if (saving) R.string.settings_saving else R.string.settings_save),
-                onClick = ::save,
-                icon = Icons.Rounded.Save,
-                enabled = !saving,
-            )
+            BigButton(text = stringResource(R.string.settings_save), onClick = ::save, icon = Icons.Rounded.Save)
         }
     }
-}
 
-@Composable
-private fun SettingField(
-    value: String,
-    onChange: (String) -> Unit,
-    label: Int,
-    example: String,
-    enabled: Boolean,
-    keyboard: KeyboardType = KeyboardType.Ascii,
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = { onChange(it.trim()) },
-        label = { Text(stringResource(label)) },
-        placeholder = { Text(example) },
-        singleLine = true,
-        enabled = enabled,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboard),
-        modifier = Modifier.fillMaxWidth(),
-    )
+    if (changingPin) {
+        SupervisorPinDialog(
+            create = true,
+            onVerified = { changingPin = false; pinChanged = true },
+            onDismiss = { changingPin = false },
+        )
+    }
 }

@@ -17,21 +17,21 @@ Meter Reading API (`../api`); a demo build runs on built-in sample data instead
 |---|---|---|
 | `apiBaseUrl` | `http://10.0.2.2:5080/` | API address. `10.0.2.2` is the computer running the emulator; use the server's address on a phone. |
 | `useFakeData` | `false` | `true` builds the demo app on sample data. |
-| `devLogin` | `rashid@dip.example` | Test sign-in email (debug builds only). |
-| `entraEnabled` | `false` | Company sign-in on from the first start. |
-| `entraTenantId`, `entraClientId`, `entraRedirectUri`, `entraScope` | empty | Company sign-in values (section below). |
-| `msalSignatureHash` | `SIGNATURE_HASH_NOT_SET` | Signing certificate hash for the sign-in return address (section below). |
+| `readerLogin` | empty (debug: `rashid@dip.example`) | The reader the phone belongs to (`LoginEmail` in `vw_MR_Reader`). |
+| `deviceLock` | `true` | Ask for the phone's own lock before the app opens. |
+| `settingsPin` | empty | First supervisor PIN (4–8 digits). Without it, the first person to open Settings sets one. |
 
-These are **first values only**. The **gear icon** (start screen and Home) opens **Settings**,
-where IT can change the server address (with a **Test** button) and company sign-in; the phone
-keeps them. Settings cannot be saved while readings still wait on the phone.
+These are **first values only**. The **gear icon** (start screen and Home) asks for the
+**supervisor PIN**, then opens **Settings**: server address (with a **Test** button), the reader
+on this phone, the phone lock on/off, and **Change supervisor PIN**. The phone keeps them. Changing
+the server or reader is refused while readings still wait on the phone.
 
 Example: `./gradlew installDebug -PapiBaseUrl=http://192.168.1.20:5080/`
 
 1. Start the API in Development as in `../api/README.md` (it accepts the `X-Dev-User` sign-in).
-2. The app **opens straight to Home** with the test sign-in email from Settings. If that fails
-   (not a reader, shared sign-in name, no open period, no server), the start screen shows the
-   reason, the email field and the gear.
+2. After the phone's lock, the app **opens straight to Home** as the reader set in Settings. If
+   that fails (not a reader, shared sign-in name, no open period, no server), the start screen
+   shows the reason, a **Try again** button and the gear.
 3. Readings go to `POST /api/v1/readings`, then each photo with `PUT .../images/{imageId}`.
    Photos are shrunk when taken (long edge 1,600 px, about 500 KB, turned upright), uploaded with
    their SHA-256, and deleted from the phone once the server has them. A photo that cannot be sent
@@ -44,30 +44,25 @@ Debug builds allow plain `http` for the development API; release builds do not.
 
 In the demo build, **Demo: no signal** on the sign-in screen shows the offline path.
 
-## Company sign-in (Entra ID, FR-001) — built, switched off
+## Opening the app: the phone's own lock (FR-001.1)
 
-`auth/CompanySignIn.kt` signs readers in with Microsoft's MSAL library (one work account per
-phone; the Authenticator or Company Portal app is used as broker when installed). It is **off**
-until switched on in Settings or built with `-PentraEnabled=true`.
+The app opens with the phone's own lock — its **PIN, pattern or password, or fingerprint or
+face** — using Android's standard prompt (`auth/DeviceLock.kt`, androidx.biometric). The app
+stores nothing; Android checks it. Then Home opens directly as the reader set in Settings.
 
-When on:
-- The start screen shows **Sign in with company account**. A remembered account opens Home
-  straight away.
-- Every API call gets a fresh token, refreshed silently. No reader name is sent.
-- If the sign-in runs out, the app goes back to the start screen and keeps waiting readings and
-  photos; they go up after the reader signs in again.
-- Settings shows who is signed in, with **Sign out**.
+- The lock screen covers the app; screens behind it keep their state (a capture in progress is
+  not lost).
+- After **15 minutes** in the background the lock is asked for again (FR-001.5); shorter breaks
+  (taking a call) are not interrupted.
+- A phone with **no screen lock** cannot open the app: the lock screen says so, opens the phone's
+  security settings, and lets a supervisor (with the PIN) reach Settings to switch the lock off.
+- The reader's identity comes from **Settings**, behind the **supervisor PIN**, so readers cannot
+  switch to someone else. The PIN is kept only as a salted PBKDF2 hash; five wrong tries block entry
+  for a minute. A forgotten PIN is reset by clearing the app's data (MDM or phone settings).
 
-To switch it on, IT needs the phone app's registration (`docs/deployment.md` 2.4) and the
-**signature hash** of the key the app is signed with:
-
-```bash
-keytool -exportcert -alias meterreader -keystore meterreader-release.jks | openssl sha1 -binary | openssl base64
-```
-
-Build with `-PmsalSignatureHash=<hash>`. The redirect URI is
-`msauth://com.meterreading.reader/<hash, URL-encoded>`; it must match the app registration
-exactly. Debug builds are signed with the debug key, which has its own hash.
+**The server cannot check the phone's lock.** It trusts the reader name the phone sends, which an
+API accepts only in UAT mode (`docs/deployment.md` 2.7): office network or VPN only, until the
+server can recognise registered phones.
 
 ## Design rules for low-literacy readers
 
@@ -99,7 +94,8 @@ exactly. Debug builds are signed with the debug key, which has its own hash.
 | Screen | File | Spec |
 |---|---|---|
 | Start / sign in (opens Home directly when it can) | `ui/screens/SignInScreen.kt` | FR-001 |
-| Settings (gear): server address, company sign-in | `ui/screens/SettingsScreen.kt` | FR-001.8 |
+| Lock screen (phone PIN, pattern, finger or face) | `ui/screens/LockScreen.kt` | FR-001.1, FR-001.5 |
+| Settings (gear, supervisor PIN): server, reader, lock, PIN | `ui/screens/SettingsScreen.kt` | FR-001.8 |
 | Home: progress, Start, search, tiles | `ui/screens/HomeScreen.kt` | FR-003 |
 | Zones, properties (filters), meters | `ui/screens/BrowseScreens.kt` | FR-004, FR-005 |
 | Find a Property (keypad, letters, voice, filters, highlight) | `ui/screens/SearchScreen.kt` | FR-004.3, FR-021 |
@@ -111,7 +107,8 @@ The capture steps for each meter condition come from `data/StatusRules.kt`, whic
 
 ## Not built yet (marked `TODO(...)` in code)
 
-- Idle lock with biometrics (FR-001.5) and the offline grace period (FR-001.6).
+- The offline grace period (FR-001.6). Entra ID sign-in was built and then replaced by the phone lock
+  (2026-10-04); it is in git history (commit 94d5d69) if it is wanted again.
 - Device registration (FR-002).
 - Keep the upload queue in an encrypted Room database and send it with WorkManager (§9, FR-020).
   Today the queues live in memory, so readings and photos waiting to upload are lost if the app
@@ -128,6 +125,4 @@ The project was written in an environment without the Android SDK, so it has **n
 compiled for Android yet**; expect small compile fixes on first sync. The plain-Kotlin parts
 (`data/`, `api/`, `util/Format.kt`) compile and their 53 unit tests pass on the JVM, including
 the repository against a scripted server (MockWebServer) and, with `MR_API_URL` set, against
-the running API. `auth/CompanySignIn.kt` was type-checked against the MSAL 8.5.0 library.
-MSAL needs Microsoft's Maven feed (in `settings.gradle.kts`); if Gradle asks for a higher
-`compileSdk` because of MSAL's dependencies, raise it in `app/build.gradle.kts`.
+the running API.

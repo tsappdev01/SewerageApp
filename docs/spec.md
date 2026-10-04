@@ -196,14 +196,14 @@ device so a weak signal does not stop navigation or capture (§9).
 
 | ID | Requirement |
 |---|---|
-| FR-001.1 | The app shall authenticate through Microsoft Entra ID using OAuth 2.0 / OpenID Connect with Authorization Code + PKCE (MSAL for Android). |
+| FR-001.1 | The app shall open only after the phone's own lock — its PIN, pattern or password, or fingerprint or face where available (Android BiometricPrompt, weak biometrics or device credential). The app stores no secret for this. A phone without a screen lock cannot open the app. The reader is the one set for the phone in Settings (behind the supervisor PIN). *Changed 2026-10-04: replaces Entra ID sign-in on the phone; the API then identifies the reader by the name the phone sends (see the deployment guide on securing this).* |
 | FR-001.2 | The app shall never store or transmit user passwords itself. |
-| FR-001.3 | Access tokens shall be held in memory; refresh tokens are managed by MSAL in Android Keystore-backed encrypted storage. |
+| FR-001.3 | *Not applicable since 2026-10-04 (no Entra tokens on the phone).* |
 | FR-001.4 | Multi-factor authentication and conditional access shall follow corporate Entra ID policy. |
-| FR-001.5 | After a configurable idle time (`IdleTimeoutMinutes`, default 15) the app shall lock and require biometric or device-credential unlock. Unlock is local and works offline. |
+| FR-001.5 | After 15 minutes in the background the app shall lock again and require the phone's lock. Unlock is local and works offline. Shorter breaks shall not lock it. |
 | FR-001.6 | The app shall allow offline work for up to `OfflineGraceHours` (default 24) since the last successful online token acquisition. After that it shall require an online sign-in before new captures; queued readings remain queued. |
 | FR-001.7 | Logout shall clear tokens and cached assignment data. Unsynchronised readings stay encrypted until sent (see FR-020.8 for user switching). |
-| FR-001.8 | A Settings screen (gear icon on the start and Home screens) shall let IT set the API server address, test it, and switch company sign-in (Entra ID) on or off with its values (tenant, app client ID, redirect URI, API scope). While company sign-in is off the app opens straight away with the test sign-in name from Settings (UAT only). Settings cannot be saved while readings wait on the phone. When the company sign-in runs out, the app returns to the start screen and keeps waiting readings. Added 2026-10-04. |
+| FR-001.8 | A Settings screen (gear icon on the start and Home screens) shall open only with a supervisor PIN (4–8 digits, kept as a salted hash; five wrong tries block entry for a minute). It shall let the supervisor set the API server address and test it, the reader the phone belongs to, the phone lock on/off, and change the PIN. Changing the server or reader shall be refused while readings wait on the phone. If the server does not accept the reader, the app returns to the start screen and keeps waiting readings. Added 2026-10-04. |
 
 ### 4.2 Device registration (FR-002)
 

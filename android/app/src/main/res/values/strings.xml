@@ -8,14 +8,8 @@
     <string name="app_name">Meter Reading</string>
     <string name="app_subtitle">Sewerage and irrigation</string>
     <string name="logo_description">Dubai Investments Park</string>
-    <string name="sign_in">Sign in</string>
-    <string name="sign_in_hint">Use your company account</string>
-    <string name="sign_in_hint_test">Test sign-in. Company sign-in is off in Settings.</string>
-    <string name="sign_in_company">Sign in with company account</string>
     <string name="demo_no_signal">Demo: no signal</string>
-    <string name="dev_login_label">Your sign-in email</string>
-    <string name="dev_login_hint">Test sign-in. Company sign-in comes later.</string>
-    <string name="signing_in">Signing in…</string>
+    <string name="signing_in">Opening…</string>
 
     <string name="hello">Hello, %1$s</string>
     <string name="all_sent">All sent</string>
@@ -178,34 +172,56 @@
     <string name="voice_missing">The phone has no English voice. Ask your supervisor to install one.</string>
 
     <!-- Read aloud by the speaker button. Use "blue button" for the main navy action. -->
-    <string name="speak_signin">Press the blue Sign in button.</string>
-    <string name="speak_signin_company">Press the blue button. Sign in with your company account.</string>
-    <string name="speak_settings">Settings are for IT. Ask your supervisor before you change anything.</string>
+    <string name="speak_signin">The app is opening. If it does not, press the blue button.</string>
+    <string name="speak_settings">Settings are for your supervisor.</string>
+    <string name="speak_lock">Unlock the app the same way you unlock your phone: your PIN, your finger or your face.</string>
+
+    <string name="lock_title">Unlock the app</string>
+    <string name="lock_hint">Use your phone\'s PIN, pattern, finger or face.</string>
+    <string name="lock_prompt_title">Meter Reading</string>
+    <string name="lock_prompt_subtitle">Unlock to open the app</string>
+    <string name="lock_unlock">Unlock</string>
+    <string name="lock_none">This phone has no screen lock. Set a PIN, pattern, finger or face in the phone\'s settings.</string>
+    <string name="lock_open_phone_settings">Open phone settings</string>
+    <string name="lock_supervisor">Supervisor: open app settings</string>
+
+    <string name="start_open">Open</string>
+    <string name="start_phone_of">Phone of %1$s</string>
+    <string name="start_no_reader">No reader is set for this phone. Ask your supervisor (gear button).</string>
+    <string name="start_not_accepted">The server did not accept this reader. Ask your supervisor. Your readings are kept on the phone.</string>
+
+    <string name="pin_title">Supervisor PIN</string>
+    <string name="pin_hint">Settings are for supervisors. Type the supervisor PIN.</string>
+    <string name="pin_create_title">New supervisor PIN</string>
+    <string name="pin_create_hint">Choose a PIN of 4 to 8 numbers. Readers must not know it.</string>
+    <string name="pin_label">PIN</string>
+    <string name="pin_confirm">Type the PIN again</string>
+    <string name="pin_digits">The PIN is 4 to 8 numbers.</string>
+    <string name="pin_no_match">The two PINs are not the same.</string>
+    <string name="pin_wrong">Wrong PIN. %1$d tries left.</string>
+    <string name="pin_blocked">Too many wrong PINs. Try again in %1$d seconds.</string>
+    <string name="pin_ok">OK</string>
+    <string name="pin_cancel">Cancel</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_server">Server</string>
     <string name="settings_url_label">Server address</string>
     <string name="settings_url_hint">Ask IT for this address. It starts with https://</string>
+    <string name="settings_reader">Reader</string>
+    <string name="settings_reader_label">Reader on this phone</string>
+    <string name="settings_reader_hint">The reader\'s email in the reader list. The app opens as this reader.</string>
+    <string name="settings_security">Security</string>
+    <string name="settings_lock">Unlock with the phone\'s lock</string>
+    <string name="settings_lock_on">On: PIN, pattern, finger or face opens the app</string>
+    <string name="settings_lock_off">Off: the app opens without asking</string>
+    <string name="settings_change_pin">Change supervisor PIN</string>
+    <string name="settings_pin_changed">Supervisor PIN changed</string>
     <string name="settings_test">Test</string>
     <string name="settings_testing">Testing…</string>
     <string name="settings_server_ok">Server found</string>
     <string name="settings_server_bad">Server not found</string>
-    <string name="settings_signin">Sign-in</string>
-    <string name="settings_entra">Company sign-in (Entra ID)</string>
-    <string name="settings_on">On: readers sign in with their company account</string>
-    <string name="settings_off">Off: the test sign-in name below is used</string>
-    <string name="settings_entra_hint">Values from IT\'s app registration for the phone app.</string>
-    <string name="settings_tenant">Tenant ID</string>
-    <string name="settings_client">App (client) ID</string>
-    <string name="settings_redirect">Redirect URI</string>
-    <string name="settings_scope">API scope</string>
-    <string name="settings_signed_in_as">Signed in as %1$s</string>
-    <string name="settings_sign_out">Sign out</string>
-    <string name="settings_test_login">Test sign-in email</string>
-    <string name="settings_test_login_hint">The reader\'s email in the reader list. Works only with a test server.</string>
     <string name="settings_version">App version %1$s</string>
     <string name="settings_save">Save</string>
-    <string name="settings_saving">Saving…</string>
     <string name="speak_home">Press the big blue Start button to read the next meter.</string>
     <string name="speak_zones">Pick a zone. Green means it is finished.</string>
     <string name="speak_properties">Pick a building. Each small picture is one meter. A green border means it is read.</string>

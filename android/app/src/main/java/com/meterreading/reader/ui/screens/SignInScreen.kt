@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.ListAlt
+import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,59 +38,44 @@ import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.platform.LocalContext
-import com.meterreading.reader.auth.CompanySignInException
-import com.meterreading.reader.auth.SignInCancelledException
 import com.meterreading.reader.settings.AppServices
-import com.meterreading.reader.util.findActivity
 
 /**
- * Start screen. With company sign-in off (for now) the app opens straight away with the test
- * sign-in name from Settings; this screen only stays if that fails. With company sign-in on, a
- * remembered account opens straight away too; otherwise the reader taps "Sign in with company
- * account". The gear opens Settings (server address, sign-in).
+ * Start screen. Once the phone's lock is given (FR-001.1) the app opens straight to Home as the
+ * reader this phone belongs to (Settings). The screen only stays when that fails, with the reason,
+ * a "Try again" button and the gear for the supervisor.
  */
 @Composable
 fun SignInScreen(onSignedIn: () -> Unit, onSettings: () -> Unit) {
     val repo = AppGraph.repository
-    val company = AppServices.companySignIn
+    val locked by AppServices.locked.collectAsStateWithLifecycle()
     val online by repo.online.collectAsStateWithLifecycle()
-    val activity = LocalContext.current.findActivity()
     val scope = rememberCoroutineScope()
-    var login by rememberSaveable { mutableStateOf(AppServices.settings.testLogin) }
+    val login = AppServices.settings.readerLogin
     var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(if (repo.signInNeeded.value) "Please sign in again. Your readings are kept on the phone." else null) }
+    val noReader = stringResource(R.string.start_no_reader)
+    val notAccepted = stringResource(R.string.start_not_accepted)
+    var error by remember { mutableStateOf<String?>(if (repo.signInNeeded.value) notAccepted else null) }
 
-    /** [interactive] false: only open if no question is needed (remembered account or test name). */
-    fun signIn(interactive: Boolean) {
+    fun open() {
         if (busy) return
+        if (login.isBlank()) {
+            error = noReader
+            return
+        }
         busy = true
         error = null
         scope.launch {
-            val name: String? = if (company == null) {
-                login.trim().ifEmpty { null }
-            } else {
-                try {
-                    if (interactive && activity != null) company.signIn(activity) else company.currentAccount()
-                } catch (e: SignInCancelledException) {
-                    null
-                } catch (e: CompanySignInException) {
-                    error = e.message
-                    null
-                }
-            }
-            if (name != null) {
-                when (val result = repo.signIn(name)) {
-                    SignInResult.Success -> onSignedIn()
-                    is SignInResult.Failed -> error = result.message
-                }
+            when (val result = repo.signIn(login)) {
+                SignInResult.Success -> onSignedIn()
+                is SignInResult.Failed -> error = result.message
             }
             busy = false
         }
     }
 
-    // Open the app directly when nothing needs asking (not after a "sign in again").
-    LaunchedEffect(Unit) { if (!repo.signInNeeded.value) signIn(interactive = false) }
+    // Open the app directly once unlocked (not after the server refused this reader).
+    LaunchedEffect(locked) { if (!locked && !repo.signInNeeded.value) open() }
 
     Column(
         modifier = Modifier
@@ -100,7 +86,7 @@ fun SignInScreen(onSignedIn: () -> Unit, onSettings: () -> Unit) {
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
             SettingsButton(onSettings)
-            SpeakButton(stringResource(if (company == null) R.string.speak_signin else R.string.speak_signin_company))
+            SpeakButton(stringResource(R.string.speak_signin))
         }
         DipLogo()
         BrandBar()
@@ -108,39 +94,20 @@ fun SignInScreen(onSignedIn: () -> Unit, onSettings: () -> Unit) {
             Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge, color = AppColors.Navy)
             Text(stringResource(R.string.app_subtitle), style = MaterialTheme.typography.bodyLarge, color = AppColors.SubInk)
         }
-        Spacer(Modifier.height(8.dp))
-        if (company == null && repo.needsDevLogin) {
-            OutlinedTextField(
-                value = login,
-                onValueChange = { login = it.trim() },
-                label = { Text(stringResource(R.string.dev_login_label)) },
-                supportingText = { Text(stringResource(R.string.dev_login_hint)) },
-                singleLine = true,
-                enabled = !busy,
-                textStyle = MaterialTheme.typography.titleMedium,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(onGo = { signIn(interactive = true) }),
-                modifier = Modifier.fillMaxWidth(),
+        if (login.isNotBlank()) {
+            Text(
+                stringResource(R.string.start_phone_of, login),
+                modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = AppColors.SubInk,
             )
         }
         error?.let { Banner(it, Icons.Rounded.Warning, AppColors.Bad, AppColors.BadTint) }
         BigButton(
-            text = stringResource(
-                when {
-                    busy -> R.string.signing_in
-                    company != null -> R.string.sign_in_company
-                    else -> R.string.sign_in
-                },
-            ),
-            onClick = { signIn(interactive = true) },
-            icon = if (company != null) Icons.Rounded.Business else Icons.Rounded.Person,
-            enabled = !busy && (company != null || !repo.needsDevLogin || login.isNotBlank()),
+            text = stringResource(if (busy) R.string.signing_in else R.string.start_open),
+            onClick = ::open,
+            icon = Icons.AutoMirrored.Rounded.Login,
+            enabled = !busy,
         )
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = AppColors.Navy)
-        Text(
-            stringResource(if (company != null) R.string.sign_in_hint else R.string.sign_in_hint_test),
-            modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = AppColors.SubInk,
-        )
         if (repo.isDemo) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Switch(checked = !online, onCheckedChange = { repo.online.value = !it })

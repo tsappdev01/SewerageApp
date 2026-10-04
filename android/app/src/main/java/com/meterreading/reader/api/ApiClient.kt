@@ -17,12 +17,10 @@ class ApiException(val status: Int, val code: String?, val title: String) : Exce
     /** 408, 429 and 5xx are worth retrying later; other refusals are final. */
     val isRetryable: Boolean get() = status == 408 || status == 429 || status >= 500
 
-    /** Not signed in, or the sign-in has run out: keep the reader's work and ask them to sign in again. */
+    /** The server did not accept who the phone says the reader is: keep the reader's work, sign in again. */
     val needsSignIn: Boolean get() = status == 401
 }
 
-/** Thrown by a token source when the reader must sign in again (e.g. company sign-in expired). */
-class SignInRequiredException(message: String = "Sign in again.") : Exception(message)
 
 /**
  * Calls the Meter Reading API (api/README.md). Network failures surface as [IOException],
@@ -38,16 +36,9 @@ class ApiClient(
         explicitNulls = false
     }
 
-    /** Development sign-in: sent as X-Dev-User. Only accepted by an API running in Development. */
+    /** The reader this phone belongs to (Settings), sent as X-Dev-User. Accepted by an API in UAT mode. */
     @Volatile
     var devUser: String? = null
-
-    /**
-     * Company sign-in (FR-001): gives a current Entra ID access token for each call, refreshing it
-     * when needed. Null: test sign-in with [devUser].
-     */
-    @Volatile
-    var tokenSource: (suspend () -> String)? = null
 
     /** True when the server answers /health/live; for the Settings screen's "Test" button. No sign-in needed. */
     suspend fun isReachable(): Boolean = withContext(Dispatchers.IO) {
@@ -89,22 +80,8 @@ class ApiClient(
     private suspend inline fun <reified T> get(path: String): T =
         send(Request.Builder().url("$base$path".toHttpUrl()).get()) { json.decodeFromString<T>(it) }
 
-    private suspend fun <T> send(builder: Request.Builder, parse: (String) -> T): T {
-        val source = tokenSource
-        if (source != null) {
-            val token = try {
-                source()
-            } catch (e: SignInRequiredException) {
-                throw ApiException(401, "SIGN_IN_REQUIRED", e.message ?: "Sign in again.")
-            }
-            builder.header("Authorization", "Bearer $token")
-        } else {
-            devUser?.let { builder.header("X-Dev-User", it) }
-        }
-        return execute(builder, parse)
-    }
-
-    private suspend fun <T> execute(builder: Request.Builder, parse: (String) -> T): T = withContext(Dispatchers.IO) {
+    private suspend fun <T> send(builder: Request.Builder, parse: (String) -> T): T = withContext(Dispatchers.IO) {
+        devUser?.let { builder.header("X-Dev-User", it) }
         http.newCall(builder.build()).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {

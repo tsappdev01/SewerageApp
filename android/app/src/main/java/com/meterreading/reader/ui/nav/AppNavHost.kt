@@ -3,7 +3,13 @@ package com.meterreading.reader.ui.nav
 import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -13,7 +19,9 @@ import androidx.navigation.navArgument
 import com.meterreading.reader.data.AppGraph
 import com.meterreading.reader.data.ReadingState
 import kotlinx.coroutines.delay
+import com.meterreading.reader.settings.AppServices
 import com.meterreading.reader.ui.capture.CaptureScreen
+import com.meterreading.reader.ui.components.SupervisorPinDialog
 import com.meterreading.reader.ui.screens.*
 
 private object Routes {
@@ -42,6 +50,10 @@ fun AppNavHost() {
     val current by AppGraph.current.collectAsStateWithLifecycle()
     val repo = current ?: return
     val online by repo.online.collectAsStateWithLifecycle()
+    val locked by AppServices.locked.collectAsStateWithLifecycle()
+    // Settings opens only after the supervisor PIN.
+    var askPin by remember { mutableStateOf(false) }
+    val openSettings = { askPin = true }
 
     fun toStart() = nav.navigate(Routes.SIGN_IN) { popUpTo(nav.graph.id) { inclusive = true } }
 
@@ -55,18 +67,19 @@ fun AppNavHost() {
             if (repo.hasWaiting()) repo.sendQueued()
         }
     }
-    // Company sign-in ran out: back to the start screen; waiting readings stay on the phone.
+    // The server did not accept this reader: back to the start screen; waiting readings stay on the phone.
     LaunchedEffect(repo) {
         repo.signInNeeded.collect { needed ->
             if (needed && nav.currentDestination?.route != Routes.SIGN_IN) toStart()
         }
     }
 
+    Box(Modifier.fillMaxSize()) {
     NavHost(nav, startDestination = Routes.SIGN_IN) {
         composable(Routes.SIGN_IN) {
             SignInScreen(
                 onSignedIn = { nav.navigate(Routes.HOME) { popUpTo(Routes.SIGN_IN) { inclusive = true } } },
-                onSettings = { nav.navigate(Routes.SETTINGS) },
+                onSettings = openSettings,
             )
         }
         composable(Routes.HOME) {
@@ -76,7 +89,7 @@ fun AppNavHost() {
                 onZones = { nav.navigate(Routes.ZONES) },
                 onReadings = { nav.navigate(Routes.READINGS) },
                 onSummary = { nav.navigate(Routes.SUMMARY) },
-                onSettings = { nav.navigate(Routes.SETTINGS) },
+                onSettings = openSettings,
             )
         }
         composable(Routes.SETTINGS) {
@@ -129,5 +142,19 @@ fun AppNavHost() {
         composable(Routes.SUMMARY) {
             SummaryScreen(onBack = { nav.popBackStack() })
         }
+    }
+    // FR-001.1: the phone's lock covers everything until given; the screens behind keep their state.
+    if (locked) LockScreen(onSettings = openSettings)
+    }
+    if (askPin) {
+        SupervisorPinDialog(
+            onVerified = {
+                askPin = false
+                // A supervisor with the PIN may open Settings even from the lock screen (e.g. to switch the lock off).
+                if (locked) AppServices.markUnlocked()
+                nav.navigate(Routes.SETTINGS)
+            },
+            onDismiss = { askPin = false },
+        )
     }
 }
