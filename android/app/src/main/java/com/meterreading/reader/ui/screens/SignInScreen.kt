@@ -37,28 +37,59 @@ import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
+import com.meterreading.reader.auth.CompanySignInException
+import com.meterreading.reader.auth.SignInCancelledException
+import com.meterreading.reader.settings.AppServices
+import com.meterreading.reader.util.findActivity
 
+/**
+ * Start screen. With company sign-in off (for now) the app opens straight away with the test
+ * sign-in name from Settings; this screen only stays if that fails. With company sign-in on, a
+ * remembered account opens straight away too; otherwise the reader taps "Sign in with company
+ * account". The gear opens Settings (server address, sign-in).
+ */
 @Composable
-fun SignInScreen(onSignedIn: () -> Unit, defaultLogin: String = "") {
+fun SignInScreen(onSignedIn: () -> Unit, onSettings: () -> Unit) {
     val repo = AppGraph.repository
+    val company = AppServices.companySignIn
     val online by repo.online.collectAsStateWithLifecycle()
+    val activity = LocalContext.current.findActivity()
     val scope = rememberCoroutineScope()
-    var login by rememberSaveable { mutableStateOf(defaultLogin) }
+    var login by rememberSaveable { mutableStateOf(AppServices.settings.testLogin) }
     var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(if (repo.signInNeeded.value) "Please sign in again. Your readings are kept on the phone." else null) }
 
-    fun signIn() {
+    /** [interactive] false: only open if no question is needed (remembered account or test name). */
+    fun signIn(interactive: Boolean) {
         if (busy) return
         busy = true
         error = null
         scope.launch {
-            when (val result = repo.signIn(login)) {
-                SignInResult.Success -> onSignedIn()
-                is SignInResult.Failed -> error = result.message
+            val name: String? = if (company == null) {
+                login.trim().ifEmpty { null }
+            } else {
+                try {
+                    if (interactive && activity != null) company.signIn(activity) else company.currentAccount()
+                } catch (e: SignInCancelledException) {
+                    null
+                } catch (e: CompanySignInException) {
+                    error = e.message
+                    null
+                }
+            }
+            if (name != null) {
+                when (val result = repo.signIn(name)) {
+                    SignInResult.Success -> onSignedIn()
+                    is SignInResult.Failed -> error = result.message
+                }
             }
             busy = false
         }
     }
+
+    // Open the app directly when nothing needs asking (not after a "sign in again").
+    LaunchedEffect(Unit) { if (!repo.signInNeeded.value) signIn(interactive = false) }
 
     Column(
         modifier = Modifier
@@ -67,7 +98,10 @@ fun SignInScreen(onSignedIn: () -> Unit, defaultLogin: String = "") {
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { SpeakButton(stringResource(R.string.speak_signin)) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
+            SettingsButton(onSettings)
+            SpeakButton(stringResource(if (company == null) R.string.speak_signin else R.string.speak_signin_company))
+        }
         DipLogo()
         BrandBar()
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -75,8 +109,7 @@ fun SignInScreen(onSignedIn: () -> Unit, defaultLogin: String = "") {
             Text(stringResource(R.string.app_subtitle), style = MaterialTheme.typography.bodyLarge, color = AppColors.SubInk)
         }
         Spacer(Modifier.height(8.dp))
-        if (repo.needsDevLogin) {
-            // TODO(FR-001.1): Entra ID sign-in with MSAL replaces this field.
+        if (company == null && repo.needsDevLogin) {
             OutlinedTextField(
                 value = login,
                 onValueChange = { login = it.trim() },
@@ -86,19 +119,28 @@ fun SignInScreen(onSignedIn: () -> Unit, defaultLogin: String = "") {
                 enabled = !busy,
                 textStyle = MaterialTheme.typography.titleMedium,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(onGo = { signIn() }),
+                keyboardActions = KeyboardActions(onGo = { signIn(interactive = true) }),
                 modifier = Modifier.fillMaxWidth(),
             )
         }
         error?.let { Banner(it, Icons.Rounded.Warning, AppColors.Bad, AppColors.BadTint) }
         BigButton(
-            text = stringResource(if (busy) R.string.signing_in else R.string.sign_in),
-            onClick = { signIn() },
-            icon = Icons.Rounded.Person,
-            enabled = !busy && (!repo.needsDevLogin || login.isNotBlank()),
+            text = stringResource(
+                when {
+                    busy -> R.string.signing_in
+                    company != null -> R.string.sign_in_company
+                    else -> R.string.sign_in
+                },
+            ),
+            onClick = { signIn(interactive = true) },
+            icon = if (company != null) Icons.Rounded.Business else Icons.Rounded.Person,
+            enabled = !busy && (company != null || !repo.needsDevLogin || login.isNotBlank()),
         )
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = AppColors.Navy)
-        Text(stringResource(R.string.sign_in_hint), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = AppColors.SubInk)
+        Text(
+            stringResource(if (company != null) R.string.sign_in_hint else R.string.sign_in_hint_test),
+            modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = AppColors.SubInk,
+        )
         if (repo.isDemo) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Switch(checked = !online, onCheckedChange = { repo.online.value = !it })

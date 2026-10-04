@@ -10,6 +10,8 @@
     <string name="logo_description">Dubai Investments Park</string>
     <string name="sign_in">Sign in</string>
     <string name="sign_in_hint">Use your company account</string>
+    <string name="sign_in_hint_test">Test sign-in. Company sign-in is off in Settings.</string>
+    <string name="sign_in_company">Sign in with company account</string>
     <string name="demo_no_signal">Demo: no signal</string>
     <string name="dev_login_label">Your sign-in email</string>
     <string name="dev_login_hint">Test sign-in. Company sign-in comes later.</string>
@@ -177,6 +179,33 @@
 
     <!-- Read aloud by the speaker button. Use "blue button" for the main navy action. -->
     <string name="speak_signin">Press the blue Sign in button.</string>
+    <string name="speak_signin_company">Press the blue button. Sign in with your company account.</string>
+    <string name="speak_settings">Settings are for IT. Ask your supervisor before you change anything.</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_server">Server</string>
+    <string name="settings_url_label">Server address</string>
+    <string name="settings_url_hint">Ask IT for this address. It starts with https://</string>
+    <string name="settings_test">Test</string>
+    <string name="settings_testing">Testing…</string>
+    <string name="settings_server_ok">Server found</string>
+    <string name="settings_server_bad">Server not found</string>
+    <string name="settings_signin">Sign-in</string>
+    <string name="settings_entra">Company sign-in (Entra ID)</string>
+    <string name="settings_on">On: readers sign in with their company account</string>
+    <string name="settings_off">Off: the test sign-in name below is used</string>
+    <string name="settings_entra_hint">Values from IT\'s app registration for the phone app.</string>
+    <string name="settings_tenant">Tenant ID</string>
+    <string name="settings_client">App (client) ID</string>
+    <string name="settings_redirect">Redirect URI</string>
+    <string name="settings_scope">API scope</string>
+    <string name="settings_signed_in_as">Signed in as %1$s</string>
+    <string name="settings_sign_out">Sign out</string>
+    <string name="settings_test_login">Test sign-in email</string>
+    <string name="settings_test_login_hint">The reader\'s email in the reader list. Works only with a test server.</string>
+    <string name="settings_version">App version %1$s</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_saving">Saving…</string>
     <string name="speak_home">Press the big blue Start button to read the next meter.</string>
     <string name="speak_zones">Pick a zone. Green means it is finished.</string>
     <string name="speak_properties">Pick a building. Each small picture is one meter. A green border means it is read.</string>

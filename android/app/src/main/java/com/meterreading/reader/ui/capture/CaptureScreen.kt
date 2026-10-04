@@ -1,8 +1,5 @@
 package com.meterreading.reader.ui.capture
 
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.view.WindowManager
@@ -50,6 +47,7 @@ import com.meterreading.reader.data.*
 import com.meterreading.reader.ui.components.*
 import com.meterreading.reader.ui.theme.AppColors
 import com.meterreading.reader.ui.theme.NumberFont
+import com.meterreading.reader.util.findActivity
 import com.meterreading.reader.util.formatReading
 import com.meterreading.reader.util.registerDigits
 import com.meterreading.reader.util.rememberVoiceInput
@@ -91,11 +89,6 @@ private fun SecureWindow() {
     }
 }
 
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
-}
 
 /** Top bar, step circles and meter card, then the step's own content and bottom buttons. */
 @Composable

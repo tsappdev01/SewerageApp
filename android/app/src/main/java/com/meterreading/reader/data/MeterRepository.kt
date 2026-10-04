@@ -19,8 +19,14 @@ abstract class MeterRepository {
     /** Photos of stored readings still to upload. */
     abstract val photosWaiting: StateFlow<Int>
 
-    /** True when the sign-in screen should ask for a development sign-in name instead of company sign-in. */
+    /** True when the sign-in screen should ask for a test sign-in name instead of company sign-in. */
     open val needsDevLogin: Boolean = false
+
+    /**
+     * Set when the server said the reader is no longer signed in (e.g. company sign-in ran out).
+     * Readings and photos stay on the phone; the app goes back to the sign-in screen.
+     */
+    val signInNeeded = MutableStateFlow(false)
 
     /** Sample data, not a server: the sign-in screen shows the "no signal" demo switch. */
     open val isDemo: Boolean = false
@@ -86,9 +92,17 @@ abstract class MeterRepository {
     }
 }
 
-/** Single place the screens get the repository from; MainActivity picks fake or API at start. */
+/**
+ * Single place the screens get the repository from. MainActivity sets it at start; saving the
+ * Settings screen replaces it (new server address or sign-in), and [current] lets screens follow.
+ */
 object AppGraph {
-    lateinit var repository: MeterRepository
+    private val _current = MutableStateFlow<MeterRepository?>(null)
+    val current: StateFlow<MeterRepository?> = _current
 
-    val isReady: Boolean get() = ::repository.isInitialized
+    var repository: MeterRepository
+        get() = _current.value ?: error("AppGraph.repository is not set yet")
+        set(value) { _current.value = value }
+
+    val isReady: Boolean get() = _current.value != null
 }

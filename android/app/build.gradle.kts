@@ -20,6 +20,16 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"${project.findProperty("apiBaseUrl") ?: "http://10.0.2.2:5080/"}\"")
         buildConfigField("boolean", "USE_FAKE_DATA", "${project.findProperty("useFakeData") ?: "false"}")
         buildConfigField("String", "DEV_LOGIN", "\"${project.findProperty("devLogin") ?: "rashid@dip.example"}\"")
+
+        // Company sign-in (Entra ID): off for now. These are first values only; Settings (gear) can change them.
+        //   -PentraEnabled=true -PentraTenantId=… -PentraClientId=… -PentraRedirectUri=msauth://… -PentraScope=api://…/access_as_user
+        buildConfigField("boolean", "ENTRA_ENABLED", "${project.findProperty("entraEnabled") ?: "false"}")
+        buildConfigField("String", "ENTRA_TENANT_ID", "\"${project.findProperty("entraTenantId") ?: ""}\"")
+        buildConfigField("String", "ENTRA_CLIENT_ID", "\"${project.findProperty("entraClientId") ?: ""}\"")
+        buildConfigField("String", "ENTRA_REDIRECT_URI", "\"${project.findProperty("entraRedirectUri") ?: ""}\"")
+        buildConfigField("String", "ENTRA_SCOPE", "\"${project.findProperty("entraScope") ?: ""}\"")
+        // Base64 SHA-1 of the signing certificate, as in the redirect URI msauth://<package>/<hash> (docs/deployment.md).
+        manifestPlaceholders["msalSignatureHash"] = (project.findProperty("msalSignatureHash") ?: "SIGNATURE_HASH_NOT_SET").toString()
     }
 
     buildTypes {
@@ -67,6 +77,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
+    implementation(libs.msal)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)

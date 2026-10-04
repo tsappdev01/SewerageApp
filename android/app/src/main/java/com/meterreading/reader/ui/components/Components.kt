@@ -129,7 +129,7 @@ fun SpeakButton(text: String) {
 }
 
 @Composable
-fun AppTopBar(title: String, speakText: String, onBack: (() -> Unit)? = null) {
+fun AppTopBar(title: String, speakText: String, onBack: (() -> Unit)? = null, onSettings: (() -> Unit)? = null) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -147,8 +147,15 @@ fun AppTopBar(title: String, speakText: String, onBack: (() -> Unit)? = null) {
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+        if (onSettings != null) SettingsButton(onSettings)
         SpeakButton(speakText)
     }
+}
+
+/** Gear icon that opens Settings (server address, company sign-in). */
+@Composable
+fun SettingsButton(onClick: () -> Unit) {
+    CircleIconButton(Icons.Rounded.Settings, stringResource(R.string.settings_title), onClick)
 }
 
 /** Rounded label with an icon. State is never shown as colour or text alone. */

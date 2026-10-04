@@ -17,13 +17,21 @@ Meter Reading API (`../api`); a demo build runs on built-in sample data instead
 |---|---|---|
 | `apiBaseUrl` | `http://10.0.2.2:5080/` | API address. `10.0.2.2` is the computer running the emulator; use the server's address on a phone. |
 | `useFakeData` | `false` | `true` builds the demo app on sample data. |
-| `devLogin` | `rashid@dip.example` | Sign-in email pre-filled on the sign-in screen (debug builds only). |
+| `devLogin` | `rashid@dip.example` | Test sign-in email (debug builds only). |
+| `entraEnabled` | `false` | Company sign-in on from the first start. |
+| `entraTenantId`, `entraClientId`, `entraRedirectUri`, `entraScope` | empty | Company sign-in values (section below). |
+| `msalSignatureHash` | `SIGNATURE_HASH_NOT_SET` | Signing certificate hash for the sign-in return address (section below). |
+
+These are **first values only**. The **gear icon** (start screen and Home) opens **Settings**,
+where IT can change the server address (with a **Test** button) and company sign-in; the phone
+keeps them. Settings cannot be saved while readings still wait on the phone.
 
 Example: `./gradlew installDebug -PapiBaseUrl=http://192.168.1.20:5080/`
 
 1. Start the API in Development as in `../api/README.md` (it accepts the `X-Dev-User` sign-in).
-2. On the sign-in screen, enter a reader's `LoginEmail` from `vw_MR_Reader` and press **Sign in**.
-   The server's reason is shown if it refuses (not a reader, shared sign-in name, no open period).
+2. The app **opens straight to Home** with the test sign-in email from Settings. If that fails
+   (not a reader, shared sign-in name, no open period, no server), the start screen shows the
+   reason, the email field and the gear.
 3. Readings go to `POST /api/v1/readings`, then each photo with `PUT .../images/{imageId}`.
    Photos are shrunk when taken (long edge 1,600 px, about 500 KB, turned upright), uploaded with
    their SHA-256, and deleted from the phone once the server has them. A photo that cannot be sent
@@ -35,6 +43,31 @@ Example: `./gradlew installDebug -PapiBaseUrl=http://192.168.1.20:5080/`
 Debug builds allow plain `http` for the development API; release builds do not.
 
 In the demo build, **Demo: no signal** on the sign-in screen shows the offline path.
+
+## Company sign-in (Entra ID, FR-001) — built, switched off
+
+`auth/CompanySignIn.kt` signs readers in with Microsoft's MSAL library (one work account per
+phone; the Authenticator or Company Portal app is used as broker when installed). It is **off**
+until switched on in Settings or built with `-PentraEnabled=true`.
+
+When on:
+- The start screen shows **Sign in with company account**. A remembered account opens Home
+  straight away.
+- Every API call gets a fresh token, refreshed silently. No reader name is sent.
+- If the sign-in runs out, the app goes back to the start screen and keeps waiting readings and
+  photos; they go up after the reader signs in again.
+- Settings shows who is signed in, with **Sign out**.
+
+To switch it on, IT needs the phone app's registration (`docs/deployment.md` 2.4) and the
+**signature hash** of the key the app is signed with:
+
+```bash
+keytool -exportcert -alias meterreader -keystore meterreader-release.jks | openssl sha1 -binary | openssl base64
+```
+
+Build with `-PmsalSignatureHash=<hash>`. The redirect URI is
+`msauth://com.meterreading.reader/<hash, URL-encoded>`; it must match the app registration
+exactly. Debug builds are signed with the debug key, which has its own hash.
 
 ## Design rules for low-literacy readers
 
@@ -65,7 +98,8 @@ In the demo build, **Demo: no signal** on the sign-in screen shows the offline p
 
 | Screen | File | Spec |
 |---|---|---|
-| Sign in | `ui/screens/SignInScreen.kt` | FR-001 |
+| Start / sign in (opens Home directly when it can) | `ui/screens/SignInScreen.kt` | FR-001 |
+| Settings (gear): server address, company sign-in | `ui/screens/SettingsScreen.kt` | FR-001.8 |
 | Home: progress, Start, search, tiles | `ui/screens/HomeScreen.kt` | FR-003 |
 | Zones, properties (filters), meters | `ui/screens/BrowseScreens.kt` | FR-004, FR-005 |
 | Find a Property (keypad, letters, voice, filters, highlight) | `ui/screens/SearchScreen.kt` | FR-004.3, FR-021 |
@@ -77,8 +111,7 @@ The capture steps for each meter condition come from `data/StatusRules.kt`, whic
 
 ## Not built yet (marked `TODO(...)` in code)
 
-- Entra ID sign-in with MSAL (FR-001): the API client already sends `Authorization: Bearer` when
-  `ApiClient.accessToken` is set; until then debug builds use the development sign-in.
+- Idle lock with biometrics (FR-001.5) and the offline grace period (FR-001.6).
 - Device registration (FR-002).
 - Keep the upload queue in an encrypted Room database and send it with WorkManager (§9, FR-020).
   Today the queues live in memory, so readings and photos waiting to upload are lost if the app
@@ -93,6 +126,8 @@ The capture steps for each meter condition come from `data/StatusRules.kt`, whic
 
 The project was written in an environment without the Android SDK, so it has **not been
 compiled for Android yet**; expect small compile fixes on first sync. The plain-Kotlin parts
-(`data/`, `api/`, `util/Format.kt`) compile and their 35 unit tests pass on the JVM, including
+(`data/`, `api/`, `util/Format.kt`) compile and their 53 unit tests pass on the JVM, including
 the repository against a scripted server (MockWebServer) and, with `MR_API_URL` set, against
-the running API.
+the running API. `auth/CompanySignIn.kt` was type-checked against the MSAL 8.5.0 library.
+MSAL needs Microsoft's Maven feed (in `settings.gradle.kts`); if Gradle asks for a higher
+`compileSdk` because of MSAL's dependencies, raise it in `app/build.gradle.kts`.

@@ -42,6 +42,7 @@ fun HomeScreen(
     onZones: () -> Unit,
     onReadings: () -> Unit,
     onSummary: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     val repo = AppGraph.repository
     val meters by repo.meters.collectAsStateWithLifecycle()
@@ -61,7 +62,7 @@ fun HomeScreen(
     LaunchedEffect(Unit) { repo.refresh() }
 
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(stringResource(R.string.hello, readerName), stringResource(R.string.speak_home))
+        AppTopBar(stringResource(R.string.hello, readerName), stringResource(R.string.speak_home), onSettings = onSettings)
         Column(
             modifier = Modifier
                 .weight(1f)

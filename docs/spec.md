@@ -203,6 +203,7 @@ device so a weak signal does not stop navigation or capture (§9).
 | FR-001.5 | After a configurable idle time (`IdleTimeoutMinutes`, default 15) the app shall lock and require biometric or device-credential unlock. Unlock is local and works offline. |
 | FR-001.6 | The app shall allow offline work for up to `OfflineGraceHours` (default 24) since the last successful online token acquisition. After that it shall require an online sign-in before new captures; queued readings remain queued. |
 | FR-001.7 | Logout shall clear tokens and cached assignment data. Unsynchronised readings stay encrypted until sent (see FR-020.8 for user switching). |
+| FR-001.8 | A Settings screen (gear icon on the start and Home screens) shall let IT set the API server address, test it, and switch company sign-in (Entra ID) on or off with its values (tenant, app client ID, redirect URI, API scope). While company sign-in is off the app opens straight away with the test sign-in name from Settings (UAT only). Settings cannot be saved while readings wait on the phone. When the company sign-in runs out, the app returns to the start screen and keeps waiting readings. Added 2026-10-04. |
 
 ### 4.2 Device registration (FR-002)
 

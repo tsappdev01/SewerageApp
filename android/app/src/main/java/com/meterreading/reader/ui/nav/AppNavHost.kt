@@ -26,6 +26,7 @@ private object Routes {
     const val CAPTURE = "capture/{meterId}"
     const val READINGS = "readings"
     const val SUMMARY = "summary"
+    const val SETTINGS = "settings"
 
     fun zone(code: String) = "zone/${Uri.encode(code)}"
     fun property(code: String) = "property/${Uri.encode(code)}"
@@ -35,25 +36,38 @@ private object Routes {
 }
 
 @Composable
-fun AppNavHost(defaultLogin: String = "") {
+fun AppNavHost() {
     val nav = rememberNavController()
-    val repo = AppGraph.repository
+    // Saving Settings replaces the repository (new server or sign-in); follow it.
+    val current by AppGraph.current.collectAsStateWithLifecycle()
+    val repo = current ?: return
     val online by repo.online.collectAsStateWithLifecycle()
+
+    fun toStart() = nav.navigate(Routes.SIGN_IN) { popUpTo(nav.graph.id) { inclusive = true } }
 
     // Readings saved without signal go up by themselves when signal returns (spec §9).
     // TODO(FR-020.4): WorkManager job with network constraint instead of the UI.
-    LaunchedEffect(online) { if (online) repo.sendQueued() }
+    LaunchedEffect(repo, online) { if (online) repo.sendQueued() }
     // While readings wait on the phone, try again every minute (signal may be back).
-    LaunchedEffect(Unit) {
+    LaunchedEffect(repo) {
         while (true) {
             delay(60_000)
             if (repo.hasWaiting()) repo.sendQueued()
         }
     }
+    // Company sign-in ran out: back to the start screen; waiting readings stay on the phone.
+    LaunchedEffect(repo) {
+        repo.signInNeeded.collect { needed ->
+            if (needed && nav.currentDestination?.route != Routes.SIGN_IN) toStart()
+        }
+    }
 
     NavHost(nav, startDestination = Routes.SIGN_IN) {
         composable(Routes.SIGN_IN) {
-            SignInScreen(defaultLogin = defaultLogin, onSignedIn = { nav.navigate(Routes.HOME) { popUpTo(Routes.SIGN_IN) { inclusive = true } } })
+            SignInScreen(
+                onSignedIn = { nav.navigate(Routes.HOME) { popUpTo(Routes.SIGN_IN) { inclusive = true } } },
+                onSettings = { nav.navigate(Routes.SETTINGS) },
+            )
         }
         composable(Routes.HOME) {
             HomeScreen(
@@ -62,7 +76,11 @@ fun AppNavHost(defaultLogin: String = "") {
                 onZones = { nav.navigate(Routes.ZONES) },
                 onReadings = { nav.navigate(Routes.READINGS) },
                 onSummary = { nav.navigate(Routes.SUMMARY) },
+                onSettings = { nav.navigate(Routes.SETTINGS) },
             )
+        }
+        composable(Routes.SETTINGS) {
+            SettingsScreen(onSaved = { toStart() }, onBack = { nav.popBackStack() })
         }
         composable(Routes.ZONES) {
             ZonesScreen(onZone = { nav.navigate(Routes.zone(it)) }, onBack = { nav.popBackStack() })

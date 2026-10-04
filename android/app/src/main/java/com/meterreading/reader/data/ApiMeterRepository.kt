@@ -48,7 +48,7 @@ class ApiMeterRepository(
 
     override val online = MutableStateFlow(true)
 
-    override val needsDevLogin: Boolean get() = api.accessToken == null
+    override val needsDevLogin: Boolean get() = api.tokenSource == null
 
     private val _photosWaiting = MutableStateFlow(0)
     override val photosWaiting: StateFlow<Int> = _photosWaiting.asStateFlow()
@@ -60,13 +60,15 @@ class ApiMeterRepository(
     private val lock = Mutex()
 
     override suspend fun signIn(login: String): SignInResult {
-        api.devUser = login.trim().ifEmpty { null }
+        // Company sign-in identifies the reader by token; the name is only sent for test sign-in.
+        api.devUser = if (api.tokenSource == null) login.trim().ifEmpty { null } else null
         return try {
             val me = api.me()
             _readerName.value = me.displayName
             if (me.openPeriod == null) {
                 SignInResult.Failed("There is no open reading period. Ask your supervisor.")
             } else {
+                signInNeeded.value = false
                 refresh()
                 SignInResult.Success
             }
@@ -100,6 +102,7 @@ class ApiMeterRepository(
             online.value = false
             false
         } catch (e: ApiException) {
+            if (e.needsSignIn) signInNeeded.value = true
             false
         }
     }
@@ -117,7 +120,9 @@ class ApiMeterRepository(
             enqueue(draft)
             SubmitResult(SubmitOutcome.QUEUED)
         } catch (e: ApiException) {
-            if (e.isRetryable) {
+            if (e.isRetryable || e.needsSignIn) {
+                // Sign-in ran out: keep the reading on the phone; it goes up after the reader signs in again.
+                if (e.needsSignIn) signInNeeded.value = true
                 enqueue(draft)
                 SubmitResult(SubmitOutcome.QUEUED)
             } else {
@@ -141,7 +146,8 @@ class ApiMeterRepository(
                     online.value = false
                     break
                 } catch (e: ApiException) {
-                    if (e.isRetryable) break
+                    if (e.needsSignIn) signInNeeded.value = true
+                    if (e.isRetryable || e.needsSignIn) break
                     // Final refusal (e.g. already read by someone else): show it as "read again" with the reason.
                     queue.removeFirst()
                     deletePhotos(draft)
@@ -184,7 +190,8 @@ class ApiMeterRepository(
                 break
             } catch (e: ApiException) {
                 // A photo damaged on the way is sent again later; any other refusal is final, the file is kept.
-                if (e.isRetryable || e.code == "IMAGE_HASH_MISMATCH") break
+                if (e.needsSignIn) signInNeeded.value = true
+                if (e.isRetryable || e.needsSignIn || e.code == "IMAGE_HASH_MISMATCH") break
                 photoQueue.removeFirst()
             }
         }

@@ -18,8 +18,9 @@ readings to billing.
   (off until switched on, see [docs/readings-table.md](docs/readings-table.md#copying-readings-into-maintainmeterreading));
   the reader checks the property's tenant before every reading is saved (spec FR-006.12);
   104 tests against SQL Server 2022. Work is not assigned.
-- **Android:** all reader screens, connected to the API (development sign-in until Entra ID),
-  with upload queues for readings and photos taken without signal. Not yet compiled with the
-  Android SDK; the plain-Kotlin parts compile and their 42 tests pass, including against the API.
+- **Android:** all reader screens, connected to the API; Settings (gear) for the server address;
+  company sign-in (Entra ID, MSAL) built but switched off, so the app opens directly with a test sign-in;
+  upload queues for readings and photos taken without signal. Not yet compiled with the
+  Android SDK; the plain-Kotlin parts compile and their 53 tests pass, including against the API.
 - **Source views:** the six views in `PropertyManagementSystem` (now with `vw_MR_Tenant`) are read as they are. Items to fix
   before go-live are listed in [docs/source-views.md](docs/source-views.md#to-fix-in-the-views-before-go-live).
