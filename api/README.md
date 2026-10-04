@@ -131,8 +131,9 @@ dotnet test                                          # all tests; integration te
 ## Design notes
 
 - **Views are read-only** and may be in another database, so view data and `mr` data are queried
-  separately and joined in memory. Lists of meter ids go to SQL as one JSON parameter (`OPENJSON`),
-  which avoids SQL Server's 2,100-parameter limit on big routes.
+  separately and joined in memory. Lists of meter ids go to SQL as one XML parameter (`Data/SqlList.cs`),
+  which avoids SQL Server's 2,100-parameter limit and, unlike `OPENJSON`, works at any database
+  compatibility level (UAT's `PropertyManagementSystem` is below 130).
 - **Every view column is CAST** (TRY_CAST for optional numbers) to a fixed type, so the views'
   own types and codes pass through: `MeterType` by first letter, `Status` as 1/True/ACTIVE, the
   period code built from `StartDate`, and 0 read as "never read" / "no average".

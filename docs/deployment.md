@@ -61,8 +61,8 @@ The full list is in `docs/source-views.md` under "To fix in the views before go-
 
 A DBA runs these in order, in the database chosen in 1.1. Each one is safe to run again.
 
-The database needs **compatibility level 130 or higher** (SQL Server 2016+; the API uses
-`OPENJSON`). `db/001` reports it if it is lower. SQL Server 2019 (15.0) is fine.
+Any compatibility level works: the API passes lists to SQL as XML, not `OPENJSON` (UAT's
+`PropertyManagementSystem` is below level 130).
 
 | Script | Does |
 |---|---|

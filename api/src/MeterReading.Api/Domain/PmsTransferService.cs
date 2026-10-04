@@ -71,7 +71,7 @@ public sealed partial class PmsTransferService(SqlConnectionFactory db, IOptions
             OUTPUT inserted.RowId INTO @row
             SELECT t.PropertyId, t.PropertyCode, t.MeterNumber, t.TenantCode,
                    FORMAT(t.CapturedAtUtc AT TIME ZONE 'UTC' AT TIME ZONE @timeZone, @dateFormat, 'en-US'),
-                   COALESCE((SELECT TOP (1) m.[value] FROM OPENJSON(@statusMap) m WHERE m.[key] COLLATE DATABASE_DEFAULT = t.MeterCondition), t.MeterCondition),
+                   COALESCE({SqlList.Lookup("@statusMap", "t.MeterCondition", "nvarchar(50)")}, t.MeterCondition),
                    FORMAT(t.Latitude, '0.######', 'en-US'), FORMAT(t.Longitude, '0.######', 'en-US'),
                    FORMAT(t.PreviousReading, '0.####', 'en-US'), FORMAT(t.NewReading, '0.####', 'en-US'),
                    t.ReaderId, t.MeterType, t.SubTenant
@@ -93,7 +93,7 @@ public sealed partial class PmsTransferService(SqlConnectionFactory db, IOptions
                 id = transactionId,
                 timeZone = _o.TimeZone,
                 dateFormat = _o.ReadingDateFormat,
-                statusMap = JsonSerializer.Serialize(_o.MeterStatusMap),
+                statusMap = SqlList.Map(_o.MeterStatusMap),
             }, cancellationToken: ct));
             long? rowId = null;
             do

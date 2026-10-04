@@ -128,10 +128,6 @@ END
 CLOSE c;
 DEALLOCATE c;
 
-/* The API passes id lists as JSON (OPENJSON), which needs compatibility level 130 (SQL Server 2016) or higher. */
-IF (SELECT compatibility_level FROM sys.databases WHERE name = DB_NAME()) < 130
-    INSERT @Problems VALUES (N'Database compatibility level below 130: the API needs OPENJSON. Run this in the database that holds schema mr.', 1, NULL);
-
 SELECT CheckName, Rows, Detail FROM @Problems ORDER BY CASE WHEN Rows IS NULL THEN 0 ELSE 1 END, CheckName;
 
 /* Result 3: rows to fix by hand. */

@@ -9,8 +9,8 @@ public sealed record MeterFilter(IReadOnlyCollection<string>? ZoneCodes = null, 
 
 /// <summary>
 /// All SQL the reader endpoints run. Source views are read-only; mr.* tables are the API's own.
-/// Lists of ids are passed as one JSON parameter and expanded with OPENJSON, which keeps clear of
-/// SQL Server's 2,100-parameter limit. View columns are CAST (or TRY_CAST where a bad value should
+/// Lists of ids are passed as one XML parameter (<see cref="SqlList"/>), which keeps clear of SQL
+/// Server's 2,100-parameter limit and, unlike OPENJSON, works at any database compatibility level. View columns are CAST (or TRY_CAST where a bad value should
 /// read as "unknown" rather than fail the request) to the row types.
 /// </summary>
 public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<SourceViewsOptions> options, IOptions<ImageStoreOptions> images)
@@ -73,10 +73,10 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     public async Task<IReadOnlyList<MeterRow>> GetMetersAsync(MeterFilter filter, CancellationToken ct)
     {
         var zoneClause = filter.ZoneCodes is { Count: > 0 }
-            ? "AND p.ZoneCode IN (SELECT CAST([value] AS varchar(20)) FROM OPENJSON(@zones))"
+            ? $"AND p.ZoneCode IN ({SqlList.Select("@zones", "varchar(20)")})"
             : "";
         var idClause = filter.MeterIds is { Count: > 0 }
-            ? "AND m.MeterId IN (SELECT CAST([value] AS varchar(50)) FROM OPENJSON(@ids))"
+            ? $"AND m.MeterId IN ({SqlList.Select("@ids", "varchar(50)")})"
             : "";
         var sql = $"""
             SELECT CAST(m.MeterId AS varchar(50)) AS MeterId, CAST(m.MeterNumber AS varchar(30)) AS MeterNumber,
@@ -104,8 +104,8 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             """;
         var args = new
         {
-            zones = JsonSerializer.Serialize(filter.ZoneCodes ?? []),
-            ids = JsonSerializer.Serialize(filter.MeterIds ?? []),
+            zones = SqlList.Of(filter.ZoneCodes ?? []),
+            ids = SqlList.Of(filter.MeterIds ?? []),
         };
         await using var c = await db.OpenSourceAsync(ct);
         return OnePerBarcode(await c.QueryAsync<MeterRow>(Cmd(sql, args, ct)));
@@ -141,13 +141,13 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                        ROW_NUMBER() OVER (PARTITION BY h.MeterId ORDER BY h.PeriodCode DESC) AS rn
                 FROM {_v.ReadingHistory} h
                 WHERE h.ConsumptionBasis = 'ACTUAL' AND h.Consumption IS NOT NULL
-                  AND h.MeterId IN (SELECT CAST([value] AS varchar(50)) FROM OPENJSON(@ids))
+                  AND h.MeterId IN ({SqlList.Select("@ids", "varchar(50)")})
             ) x
             WHERE x.rn <= @periods
             GROUP BY x.MeterId
             """;
         await using var c = await db.OpenSourceAsync(ct);
-        var rows = await c.QueryAsync<AverageRow>(Cmd(sql, new { ids = JsonSerializer.Serialize(meterIds), periods }, ct));
+        var rows = await c.QueryAsync<AverageRow>(Cmd(sql, new { ids = SqlList.Of(meterIds), periods }, ct));
         return rows.ToDictionary(r => r.MeterId, r => r.Average, StringComparer.Ordinal);
     }
 
@@ -171,19 +171,19 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         string periodCode, IReadOnlyCollection<string> meterIds, CancellationToken ct)
     {
         if (meterIds.Count == 0) return new Dictionary<string, LatestTransactionRow>();
-        const string sql = """
+        var sql = $"""
             SELECT MeterId, TransactionId, Status, StatusNote, MeterCondition, ReceivedAtUtc
             FROM (
                 SELECT t.MeterId, t.TransactionId, t.Status, t.StatusNote, t.MeterCondition, t.ReceivedAtUtc,
                        ROW_NUMBER() OVER (PARTITION BY t.MeterId ORDER BY t.ReceivedAtUtc DESC, t.CapturedAtUtc DESC) AS rn
                 FROM mr.ReadingTransaction t
                 WHERE t.PeriodCode = @periodCode AND t.Status <> 'SUPERSEDED'
-                  AND t.MeterId IN (SELECT CAST([value] AS varchar(50)) FROM OPENJSON(@ids))
+                  AND t.MeterId IN ({SqlList.Select("@ids", "varchar(50)")})
             ) x
             WHERE x.rn = 1
             """;
         await using var c = await db.OpenMeterReadingAsync(ct);
-        var rows = await c.QueryAsync<LatestTransactionRow>(Cmd(sql, new { periodCode, ids = JsonSerializer.Serialize(meterIds) }, ct));
+        var rows = await c.QueryAsync<LatestTransactionRow>(Cmd(sql, new { periodCode, ids = SqlList.Of(meterIds) }, ct));
         return rows.ToDictionary(r => r.MeterId, StringComparer.Ordinal);
     }
 
@@ -314,7 +314,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     {
         var codeClause = propertyCodes is null
             ? ""
-            : "WHERE CAST(t.PropertyCode AS varchar(30)) IN (SELECT CAST([value] AS varchar(30)) FROM OPENJSON(@codes))";
+            : $"WHERE CAST(t.PropertyCode AS varchar(30)) IN ({SqlList.Select("@codes", "varchar(30)")})";
         var sql = $"""
             SELECT DISTINCT CAST(t.PropertyCode AS varchar(30)) AS PropertyCode, LTRIM(RTRIM(CAST(t.TenantCode AS varchar(30)))) AS TenantCode,
                    LTRIM(RTRIM(CAST(t.CompanyName AS nvarchar(200)))) AS CompanyName
@@ -322,7 +322,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             {codeClause}
             """;
         await using var c = await db.OpenSourceAsync(ct);
-        var rows = await c.QueryAsync<TenantRow>(Cmd(sql, new { codes = JsonSerializer.Serialize(propertyCodes ?? []) }, ct));
+        var rows = await c.QueryAsync<TenantRow>(Cmd(sql, new { codes = SqlList.Of(propertyCodes ?? []) }, ct));
         return rows.Where(r => r.TenantCode.Length > 0).DistinctBy(r => (r.PropertyCode, r.TenantCode)).ToList();
     }
 
@@ -332,13 +332,13 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         var required = SourceViewNames.Required
             .Concat(_options.HasReadingHistory ? ["vw_MR_ReadingHistory"] : Array.Empty<string>())
             .ToArray();
-        const string sql = """
-            SELECT r.[value]
-            FROM OPENJSON(@names) r
-            WHERE OBJECT_ID(QUOTENAME(@schema) + N'.' + QUOTENAME(r.[value])) IS NULL
+        var sql = $"""
+            SELECT r.name
+            FROM ({SqlList.Select("@names", "sysname")}) AS r(name)
+            WHERE OBJECT_ID(QUOTENAME(@schema) + N'.' + QUOTENAME(r.name)) IS NULL
             """;
         await using var c = await db.OpenSourceAsync(ct);
-        var missing = (await c.QueryAsync<string>(Cmd(sql, new { names = JsonSerializer.Serialize(required), schema = _v.Schema }, ct))).AsList();
+        var missing = (await c.QueryAsync<string>(Cmd(sql, new { names = SqlList.Of(required), schema = _v.Schema }, ct))).AsList();
 
         await using var mr = await db.OpenMeterReadingAsync(ct);
         if (await mr.ExecuteScalarAsync<int>(Cmd("SELECT CASE WHEN OBJECT_ID(N'mr.ReadingTransaction') IS NULL THEN 0 ELSE 1 END", null, ct)) == 0)
