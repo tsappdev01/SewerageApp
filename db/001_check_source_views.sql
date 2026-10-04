@@ -5,8 +5,11 @@
 
   Result 1: structure problems (missing view, missing column, wrong type).
   Result 2: data problems (duplicate keys, unknown codes, broken references) and notes, such as
-            meters the API will treat as never read. Rows is how many are affected.
-  Both empty = the API can use the views.
+            meters the API will treat as never read. Rows is how many are affected. A check
+            that could not run shows Rows NULL and the SQL error in Detail.
+  Result 3: the rows behind the problems that must be fixed by hand (shared sign-in names,
+            duplicate barcodes), so they can be found in PropertyManagementSystem.
+  Results 1 and 2 empty = the API can use the views.
 */
 SET NOCOUNT ON;
 DECLARE @Schema sysname = N'dbo';
@@ -72,7 +75,7 @@ ORDER BY e.ViewName, e.ColumnName;
 DECLARE @Checks TABLE (CheckName nvarchar(200), View1 sysname, View2 sysname NULL, Query nvarchar(max));
 INSERT @Checks VALUES
  (N'Duplicate UserId', N'vw_MR_Reader', NULL, N'SELECT @n = COUNT(*) FROM (SELECT UserId FROM {s}.vw_MR_Reader GROUP BY UserId HAVING COUNT(*) > 1) d'),
- (N'Active readers sharing a LoginEmail (they cannot sign in)', N'vw_MR_Reader', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Reader r WHERE r.IsActive = 1 AND (SELECT COUNT(*) FROM {s}.vw_MR_Reader r2 WHERE r2.IsActive = 1 AND r2.LoginEmail = r.LoginEmail) > 1'),
+ (N'Active readers sharing a LoginEmail (they cannot sign in; listed in result 3)', N'vw_MR_Reader', NULL, N'SELECT @n = ISNULL(SUM(c), 0) FROM (SELECT COUNT(*) c FROM {s}.vw_MR_Reader WHERE IsActive = 1 GROUP BY CAST(LoginEmail AS nvarchar(256)) COLLATE DATABASE_DEFAULT HAVING COUNT(*) > 1) d'),
  (N'Reader without LoginEmail', N'vw_MR_Reader', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Reader WHERE IsActive = 1 AND (LoginEmail IS NULL OR LoginEmail NOT LIKE ''%_@_%'')'),
  (N'Duplicate ZoneCode', N'vw_MR_Zone', NULL, N'SELECT @n = COUNT(*) FROM (SELECT ZoneCode FROM {s}.vw_MR_Zone GROUP BY ZoneCode HAVING COUNT(*) > 1) d'),
  (N'Duplicate PropertyCode (e.g. two tenant rows; the API keeps the first)', N'vw_MR_Property', NULL, N'SELECT @n = COUNT(*) FROM (SELECT PropertyCode FROM {s}.vw_MR_Property GROUP BY PropertyCode HAVING COUNT(*) > 1) d'),
@@ -83,7 +86,7 @@ INSERT @Checks VALUES
  (N'Properties with more than one current tenant (the reader picks one)', N'vw_MR_Tenant', NULL, N'SELECT @n = COUNT(*) FROM (SELECT PropertyCode FROM {s}.vw_MR_Tenant GROUP BY PropertyCode HAVING COUNT(DISTINCT TenantCode) > 1) d'),
  (N'Tenant row without TenantCode', N'vw_MR_Tenant', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Tenant WHERE TenantCode IS NULL OR LTRIM(TenantCode) = '''''),
  (N'Meter without MeterId (barcode)', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter WHERE MeterId IS NULL OR LTRIM(CAST(MeterId AS varchar(50))) = '''''),
- (N'Duplicate MeterId (barcode)', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM (SELECT MeterId FROM {s}.vw_MR_Meter WHERE MeterId IS NOT NULL GROUP BY MeterId HAVING COUNT(*) > 1) d'),
+ (N'Duplicate MeterId (barcode); listed in result 3', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM (SELECT MeterId FROM {s}.vw_MR_Meter WHERE MeterId IS NOT NULL GROUP BY MeterId HAVING COUNT(*) > 1) d'),
  (N'MeterId longer than 50 characters', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter WHERE LEN(CAST(MeterId AS varchar(60))) > 50'),
  (N'MeterType not starting with I (irrigation) or S (sewerage)', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter WHERE UPPER(LEFT(LTRIM(CAST(MeterType AS varchar(20))), 1)) NOT IN (''I'', ''S'') OR MeterType IS NULL'),
  (N'Meter Status not 1/0, True/False or ACTIVE/INACTIVE', N'vw_MR_Meter', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_Meter WHERE UPPER(CAST(Status AS varchar(10))) NOT IN (''1'', ''0'', ''TRUE'', ''FALSE'', ''ACTIVE'', ''INACTIVE'') OR Status IS NULL'),
@@ -97,7 +100,7 @@ INSERT @Checks VALUES
  (N'No OPEN period', N'vw_MR_ReadingPeriod', NULL, N'SELECT @n = CASE WHEN EXISTS (SELECT 1 FROM {s}.vw_MR_ReadingPeriod WHERE Status = ''OPEN'') THEN 0 ELSE 1 END'),
  (N'ConsumptionBasis not ACTUAL or AVERAGE', N'vw_MR_ReadingHistory', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_ReadingHistory WHERE ConsumptionBasis NOT IN (''ACTUAL'', ''AVERAGE'') OR ConsumptionBasis IS NULL');
 
-DECLARE @Problems TABLE (CheckName nvarchar(200), Rows int);
+DECLARE @Problems TABLE (CheckName nvarchar(200), Rows int, Detail nvarchar(2000));
 DECLARE @name nvarchar(200), @v1 sysname, @v2 sysname, @q nvarchar(max), @n int;
 DECLARE c CURSOR LOCAL FAST_FORWARD FOR SELECT CheckName, View1, View2, Query FROM @Checks;
 OPEN c;
@@ -111,10 +114,10 @@ BEGIN
         SET @q = REPLACE(@q, N'{s}', QUOTENAME(@Schema));
         BEGIN TRY
             EXEC sp_executesql @q, N'@n int OUTPUT', @n = @n OUTPUT;
-            IF ISNULL(@n, 0) > 0 INSERT @Problems VALUES (@name, @n);
+            IF ISNULL(@n, 0) > 0 INSERT @Problems VALUES (@name, @n, NULL);
         END TRY
         BEGIN CATCH
-            INSERT @Problems VALUES (@name + N' (check failed: ' + ERROR_MESSAGE() + N')', NULL);
+            INSERT @Problems VALUES (@name, NULL, N'Check could not run: ' + ERROR_MESSAGE());
         END CATCH
     END
     FETCH NEXT FROM c INTO @name, @v1, @v2, @q;
@@ -122,4 +125,37 @@ END
 CLOSE c;
 DEALLOCATE c;
 
-SELECT CheckName, Rows FROM @Problems ORDER BY CheckName;
+/* The API passes id lists as JSON (OPENJSON), which needs compatibility level 130 (SQL Server 2016) or higher. */
+IF (SELECT compatibility_level FROM sys.databases WHERE name = DB_NAME()) < 130
+    INSERT @Problems VALUES (N'Database compatibility level below 130: the API needs OPENJSON. Run this in the database that holds schema mr.', 1, NULL);
+
+SELECT CheckName, Rows, Detail FROM @Problems ORDER BY CASE WHEN Rows IS NULL THEN 0 ELSE 1 END, CheckName;
+
+/* Result 3: rows to fix by hand. */
+DECLARE @Rows TABLE (Problem nvarchar(100), [Key] nvarchar(256), Count int, Rows nvarchar(2000));
+IF OBJECT_ID(QUOTENAME(@Schema) + N'.vw_MR_Reader') IS NOT NULL
+BEGIN TRY
+    SET @q = REPLACE(N'
+        SELECT N''Shared LoginEmail'', CAST(LoginEmail AS nvarchar(256)) COLLATE DATABASE_DEFAULT, COUNT(*),
+               STRING_AGG(CAST(CAST(UserId AS varchar(50)) + N'' '' + ISNULL(CAST(DisplayName AS nvarchar(100)), N'''') AS nvarchar(max)), N'', '')
+        FROM {s}.vw_MR_Reader WHERE IsActive = 1
+        GROUP BY CAST(LoginEmail AS nvarchar(256)) COLLATE DATABASE_DEFAULT HAVING COUNT(*) > 1', N'{s}', QUOTENAME(@Schema));
+    INSERT @Rows EXEC sp_executesql @q;
+END TRY
+BEGIN CATCH
+    INSERT @Rows VALUES (N'Shared LoginEmail: could not list', NULL, NULL, ERROR_MESSAGE());
+END CATCH
+IF OBJECT_ID(QUOTENAME(@Schema) + N'.vw_MR_Meter') IS NOT NULL
+BEGIN TRY
+    SET @q = REPLACE(N'
+        SELECT N''Duplicate MeterId (barcode)'', CAST(MeterId AS varchar(50)), COUNT(*),
+               STRING_AGG(CAST(N''meter '' + ISNULL(CAST(MeterNumber AS varchar(30)), N''?'') + N'' at '' + ISNULL(CAST(PropertyCode AS varchar(30)), N''?'')
+                               + N'' (status '' + ISNULL(CAST(Status AS varchar(10)), N''?'') + N'')'' AS nvarchar(max)), N'', '')
+        FROM {s}.vw_MR_Meter WHERE MeterId IS NOT NULL
+        GROUP BY CAST(MeterId AS varchar(50)) HAVING COUNT(*) > 1', N'{s}', QUOTENAME(@Schema));
+    INSERT @Rows EXEC sp_executesql @q;
+END TRY
+BEGIN CATCH
+    INSERT @Rows VALUES (N'Duplicate MeterId: could not list', NULL, NULL, ERROR_MESSAGE());
+END CATCH
+SELECT Problem, [Key], Count, Rows FROM @Rows ORDER BY Problem, [Key];

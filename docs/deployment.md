@@ -46,16 +46,23 @@ Putting `mr` in `PropertyManagementSystem` is simplest: one connection string, a
 Run `db/001_check_source_views.sql` in `PropertyManagementSystem`. It is read-only.
 
 - **Result 1** lists missing views or columns. It must be **empty**.
-- **Result 2** lists data problems, each with a count. Fix at least these before readers start:
+- **Result 2** lists data problems, each with a count. A check that could not run shows an
+  empty count and the SQL error in **Detail**. Fix at least these before readers start:
   - "Active readers sharing a LoginEmail": those readers cannot sign in. Today **every** reader
     has `nayyar@techsource`, so nobody can sign in.
   - "Property with no current tenant": those properties cannot be read (spec FR-006.12).
+
+- **Result 3** lists the rows behind problems that must be fixed by hand: readers sharing a
+  sign-in name, and barcodes (MeterId) used more than once.
 
 The full list is in `docs/source-views.md` under "To fix in the views before go-live".
 
 ### 1.3 Create the API's tables
 
 A DBA runs these in order, in the database chosen in 1.1. Each one is safe to run again.
+
+The database needs **compatibility level 130 or higher** (SQL Server 2016+; the API uses
+`OPENJSON`). `db/001` reports it if it is lower. SQL Server 2019 (15.0) is fine.
 
 | Script | Does |
 |---|---|

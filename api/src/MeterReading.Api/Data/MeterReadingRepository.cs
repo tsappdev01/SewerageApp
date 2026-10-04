@@ -34,7 +34,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                    CAST(DisplayName AS nvarchar(100)) AS DisplayName, CAST(TeamCode AS varchar(20)) AS TeamCode,
                    CAST(SupervisorEmail AS nvarchar(256)) AS SupervisorEmail
             FROM {_v.Reader}
-            WHERE LoginEmail = @loginEmail AND IsActive = 1
+            WHERE CAST(LoginEmail AS nvarchar(256)) COLLATE DATABASE_DEFAULT = @loginEmail AND IsActive = 1
             """;
         await using var c = await db.OpenSourceAsync(ct);
         return (await c.QueryAsync<ReaderRow>(Cmd(sql, new { loginEmail }, ct))).AsList();
