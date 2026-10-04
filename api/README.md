@@ -119,6 +119,19 @@ Photos are stored once, never overwritten, in `mr.ReadingImageData` under the na
 
 Use a SQL login or managed identity with **SELECT only** on the views and read/write on schema `mr`.
 
+## Run locally against UATWEB01 (Visual Studio)
+
+Never put a password in `appsettings*.json`: they are in git. Keep yours in .NET user secrets, which
+live in your Windows profile, not in the repository:
+
+```powershell
+cd api\src\MeterReading.Api
+dotnet user-secrets set "ConnectionStrings:MeterReading" "Server=UATWEB01;Database=MRDB;User Id=mr_api;Password=<password>;Encrypt=True;TrustServerCertificate=True;Application Name=MeterReadingApi"
+```
+
+Visual Studio: right-click the project → *Manage User Secrets* does the same. Without it the API
+stops at startup and says so, because the committed settings carry `Password=SET_ON_SERVER`.
+
 ## Run locally
 
 ```bash

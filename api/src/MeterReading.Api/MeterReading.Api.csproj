@@ -4,6 +4,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Developers keep the real connection string here, outside the repository:
+         dotnet user-secrets set "ConnectionStrings:MeterReading" "Server=...;Password=..." -->
+    <UserSecretsId>meterreading-api-6f1c2b4a</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
