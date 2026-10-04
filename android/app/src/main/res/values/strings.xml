@@ -186,6 +186,7 @@
     <string name="lock_supervisor">Supervisor: open app settings</string>
 
     <string name="start_open">Open</string>
+    <string name="saved_list_from">No signal: list from %1$s</string>
     <string name="start_phone_of">Phone of %1$s</string>
     <string name="start_no_reader">No reader is set for this phone. Ask your supervisor (gear button).</string>
     <string name="start_not_accepted">The server did not accept this reader. Ask your supervisor. Your readings are kept on the phone.</string>

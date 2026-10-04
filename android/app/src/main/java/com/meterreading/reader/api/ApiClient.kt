@@ -34,6 +34,9 @@ class ApiClient(
     private val http: OkHttpClient = defaultHttpClient(),
 ) {
     private val base = baseUrl.trimEnd('/')
+
+    /** The server this client talks to, without a trailing slash. */
+    val baseUrl: String get() = base
     private val json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false

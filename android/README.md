@@ -58,6 +58,14 @@ their image id, so a resend is never stored twice. A queue file that cannot be o
 aside (`queue.mrq.unreadable-…`), not deleted. The spec named Room + SQLCipher; one encrypted file
 does the same for a queue of a few hundred readings with less to go wrong.
 
+## Meter list without signal (FR-020.1)
+
+After every sync the meter list (meters, properties, tenants, zones, "my readings") is saved
+encrypted (`data/MeterListCache.kt`, same Keystore key). If the app starts with no signal it opens
+from that copy, for the same reader and server and only if it is less than 7 days old (the server
+refuses older readings anyway); Home shows "No signal: list from Sun 07:15". The copy follows
+readings sent since, and is replaced by the fresh list as soon as the server is reached.
+
 ## Opening the app: the phone's own lock (FR-001.1)
 
 The app opens with the phone's own lock — its **PIN, pattern or password, or fingerprint or
@@ -126,8 +134,6 @@ The capture steps for each meter condition come from `data/StatusRules.kt`, whic
 
 - The offline grace period (FR-001.6). Entra ID sign-in was built and then replaced by the phone lock
   (2026-10-04); it is in git history (commit 94d5d69) if it is wanted again.
-- The meter list is not kept on the phone (FR-020.1): after a restart without signal the app
-  cannot open until it reaches the server once. Waiting readings are kept (below).
 - Wiping a blocked phone's cached data (FR-002.3) and the app-version check (FR-002.6).
 - Readings are whole numbers on the phone; `DecimalDigits` from the server is not used yet.
 - Image quality check (blur, exposure) (FR-008.4). Photos are shrunk to 1,600 px / about 500 KB,
@@ -140,6 +146,6 @@ The capture steps for each meter condition come from `data/StatusRules.kt`, whic
 
 The project was written in an environment without the Android SDK, so it has **not been
 compiled for Android yet**; expect small compile fixes on first sync. The plain-Kotlin parts
-(`data/`, `api/`, `util/Format.kt`) compile and their 61 unit tests pass on the JVM, including
+(`data/`, `api/`, `util/Format.kt`) compile and their 66 unit tests pass on the JVM, including
 the repository against a scripted server (MockWebServer) and, with `MR_API_URL` set, against
 the running API.

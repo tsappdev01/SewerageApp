@@ -6,6 +6,7 @@ import com.meterreading.reader.api.MeterDto
 import com.meterreading.reader.api.ReadingDto
 import com.meterreading.reader.api.SubmitReadingRequest
 import com.meterreading.reader.api.SubmitReadingResponse
+import com.meterreading.reader.api.SyncDto
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +39,8 @@ class ApiMeterRepository(
     private val store: QueueStore? = null,
     private val vault: PhotoVault = PhotoVault(null),
     private val onWaiting: (() -> Unit)? = null,
+    private val listCache: MeterListCache? = null,
+    private val clock: () -> Instant = Instant::now,
 ) : MeterRepository() {
     private val _readerName = MutableStateFlow("")
     override val readerName: StateFlow<String> = _readerName.asStateFlow()
@@ -55,6 +58,13 @@ class ApiMeterRepository(
 
     private val _photosWaiting = MutableStateFlow(0)
     override val photosWaiting: StateFlow<Int> = _photosWaiting.asStateFlow()
+
+    private val _savedListFrom = MutableStateFlow<Instant?>(null)
+    override val savedListFrom: StateFlow<Instant?> = _savedListFrom.asStateFlow()
+
+    /** The last list from the server, kept so the saved copy can follow readings sent since. */
+    private var lastSync: SyncDto? = null
+    private var lastMine: List<ReadingDto> = emptyList()
 
     private val queue = ArrayDeque<ReadingDraft>()
     private val photoQueue = ArrayDeque<QueueStore.WaitingPhoto>()
@@ -94,26 +104,54 @@ class ApiMeterRepository(
             SignInResult.Failed(e.title)
         } catch (e: IOException) {
             online.value = false
-            SignInResult.Failed("Cannot reach the server. Check the signal and try again.")
+            // FR-020.1: no signal at start. Open with the saved list if it is this reader's and recent.
+            val saved = listCache?.load(api.baseUrl, login, clock())
+            if (saved != null) {
+                lock.withLock {
+                    _readerName.value = saved.readerName
+                    show(saved.sync, saved.mine)
+                    _savedListFrom.value = Instant.ofEpochMilli(saved.savedAtMillis)
+                }
+                SignInResult.Success
+            } else {
+                SignInResult.Failed("Cannot reach the server. Check the signal and try again.")
+            }
         }
+    }
+
+    /** Puts a list from the server (or its saved copy) on screen, keeping readings still waiting. */
+    private fun show(sync: SyncDto, mine: List<ReadingDto>) {
+        lastSync = sync
+        lastMine = mine
+        val waiting = queue.associateBy { it.meterId }
+        _properties.value = sync.properties.map {
+            Property(
+                it.code, it.name ?: it.code, it.zoneCode, it.routeSequence ?: Int.MAX_VALUE, it.tenantCode, it.companyName,
+                it.tenants.map { t -> Tenant(t.code, t.companyName) },
+            )
+        }
+        _meters.value = sync.meters.map { m ->
+            val meter = m.toMeter()
+            if (m.id in waiting) meter.copy(state = ReadingState.QUEUED) else meter
+        }
+        _readings.value = queue.reversed().map { it.toQueuedReading() } + mine.map { it.toReading() }
+    }
+
+    /** Keeps the phone's copy of the list up to date (FR-020.1). */
+    private fun saveList() {
+        val cache = listCache ?: return
+        val sync = lastSync ?: return
+        val login = api.devUser ?: return
+        cache.save(MeterListCache.Saved(api.baseUrl, login, _readerName.value, clock().toEpochMilli(), sync, lastMine))
     }
 
     override suspend fun refresh(): Boolean = lock.withLock {
         try {
             val sync = api.meters()
             val mine = api.myReadings()
-            val waiting = queue.associateBy { it.meterId }
-            _properties.value = sync.properties.map {
-                Property(
-                    it.code, it.name ?: it.code, it.zoneCode, it.routeSequence ?: Int.MAX_VALUE, it.tenantCode, it.companyName,
-                    it.tenants.map { t -> Tenant(t.code, t.companyName) },
-                )
-            }
-            _meters.value = sync.meters.map { m ->
-                val meter = m.toMeter()
-                if (m.id in waiting) meter.copy(state = ReadingState.QUEUED) else meter
-            }
-            _readings.value = queue.reversed().map { it.toQueuedReading() } + mine.map { it.toReading() }
+            show(sync, mine)
+            _savedListFrom.value = null
+            saveList()
             online.value = true
             true
         } catch (e: IOException) {
@@ -249,6 +287,9 @@ class ApiMeterRepository(
             ) + list.filterNot { it.transactionId == response.transactionId }
         }
         updateMeter(draft.meterId) { it.copy(state = state, supervisorNote = null) }
+        // The saved list follows, so a meter sent just now is not offered again after a restart without signal.
+        lastSync = lastSync?.let { s -> s.copy(meters = s.meters.map { if (it.id == draft.meterId) it.copy(state = response.state) else it }) }
+        saveList()
         draft.photos.forEach { photo ->
             if (photoQueue.none { it.photo.imageId == photo.imageId }) photoQueue.addLast(QueueStore.WaitingPhoto(response.transactionId, photo, draft.capturedAt))
         }

@@ -639,7 +639,7 @@ readings per hour, last sync per reader/device.
 | ID | Requirement |
 |---|---|
 | FR-020.1 | The app shall store assignments, meters, properties, zones, LOVs, status rules and settings in an encrypted local database (Room + SQLCipher; key held in Android Keystore). |
-| FR-020.1a | *Built 2026-10-04:* readings and photos waiting to upload are kept in one AES-256-GCM encrypted file (key in Android Keystore) and photo files of saved readings are encrypted in place; WorkManager sends them when a network is available. The meter list itself is not yet kept offline. |
+| FR-020.1a | *Built 2026-10-04:* readings and photos waiting to upload are kept in one AES-256-GCM encrypted file (key in Android Keystore) and photo files of saved readings are encrypted in place; WorkManager sends them when a network is available. The meter list is saved encrypted after every sync and used when the app starts without signal (same reader and server, less than 7 days old). |
 | FR-020.2 | Initial sync at sign-in downloads all assignments for the open period. Delta sync (`GET /sync/assignments?since=<token>`) runs on app open, after each submission, and every `SyncIntervalMinutes` (default 30) when online, via WorkManager. |
 | FR-020.3 | Delta responses include added, changed and **removed** assignments (reassigned away), and reading outcomes for the reader's earlier submissions (e.g. supervisor rejections). |
 | FR-020.4 | Submissions are written to a local outbox inside one local DB transaction with their images, then sent by a WorkManager job with network constraint and exponential backoff (30 s → max 30 min). |

@@ -32,6 +32,7 @@ import com.meterreading.reader.ui.theme.NumberFont
 import kotlinx.coroutines.launch
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import com.meterreading.reader.util.formatDayTime
 import com.meterreading.reader.util.formatTime
 import com.meterreading.reader.util.rememberVoiceInput
 
@@ -48,6 +49,7 @@ fun HomeScreen(
     val meters by repo.meters.collectAsStateWithLifecycle()
     val readings by repo.readings.collectAsStateWithLifecycle()
     val readerName by repo.readerName.collectAsStateWithLifecycle()
+    val savedListFrom by repo.savedListFrom.collectAsStateWithLifecycle()
     val total = meters.size
     val done = meters.count { !it.state.canCapture }
     val queued = readings.count { it.state == ReadingState.QUEUED }
@@ -77,6 +79,10 @@ fun HomeScreen(
                 )
             } else {
                 Pill(stringResource(R.string.waiting_count, queued), AppColors.Queued, AppColors.QueuedTint, Icons.Rounded.CloudUpload)
+            }
+            // FR-020.1: opened without signal from the phone's saved list; it updates once the server is reached.
+            savedListFrom?.let {
+                Pill(stringResource(R.string.saved_list_from, formatDayTime(it)), AppColors.Warn, AppColors.WarnTint, Icons.Rounded.CloudOff)
             }
             ProgressCard(done, total)
             if (next != null) {

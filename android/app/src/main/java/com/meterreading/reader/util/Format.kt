@@ -19,3 +19,8 @@ fun registerDigits(value: Long, digits: Int): String = value.toString().padStart
 fun formatDay(date: LocalDate): String = dayFormat.format(date)
 
 fun formatTime(time: LocalDateTime): String = timeFormat.format(time)
+
+/** Day and time in the phone's zone, e.g. "Sun 07:15", for "list from …". */
+fun formatDayTime(instant: java.time.Instant): String =
+    java.time.format.DateTimeFormatter.ofPattern("EEE HH:mm", java.util.Locale.ENGLISH)
+        .format(instant.atZone(java.time.ZoneId.systemDefault()))

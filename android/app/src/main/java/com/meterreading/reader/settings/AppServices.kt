@@ -31,6 +31,7 @@ object AppServices {
     private lateinit var deviceStore: DeviceKeyStore
     private lateinit var queueStore: QueueStore
     private lateinit var photoVault: PhotoVault
+    private lateinit var listCache: com.meterreading.reader.data.MeterListCache
 
     /** This phone's registration (FR-002), or null until a supervisor registers it in Settings. */
     var device: DeviceCredentials? = null
@@ -59,6 +60,7 @@ object AppServices {
         // noBackupFilesDir: never copied to cloud backups.
         queueStore = QueueStore(File(this.appContext.noBackupFilesDir, "queue.mrq"), sealer)
         photoVault = PhotoVault(sealer)
+        listCache = com.meterreading.reader.data.MeterListCache(File(this.appContext.noBackupFilesDir, "meters.mrq"), sealer)
         device = deviceStore.load()
         // A PIN given at build time becomes the first supervisor PIN; only its hash is kept.
         if (storedPin() == null && SupervisorPin.isValid(BuildConfig.SETTINGS_PIN)) setPin(BuildConfig.SETTINGS_PIN)
@@ -150,7 +152,9 @@ object AppServices {
         AppGraph.repository = if (BuildConfig.USE_FAKE_DATA) {
             FakeMeterRepository()
         } else {
-            ApiMeterRepository(client, store = queueStore, vault = photoVault, onWaiting = { UploadWorker.schedule(appContext) })
+            ApiMeterRepository(
+                client, store = queueStore, vault = photoVault, onWaiting = { UploadWorker.schedule(appContext) }, listCache = listCache,
+            )
         }
     }
 

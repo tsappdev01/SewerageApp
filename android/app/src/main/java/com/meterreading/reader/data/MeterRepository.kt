@@ -2,6 +2,7 @@ package com.meterreading.reader.data
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import java.time.Instant
 
 /**
  * Where the screens get their data. [ApiMeterRepository] talks to the Meter Reading API;
@@ -15,6 +16,12 @@ abstract class MeterRepository {
 
     /** False after a failed call: the phone is saving readings to send later. */
     abstract val online: MutableStateFlow<Boolean>
+
+    /**
+     * When the meter list on screen came from the phone's saved copy (no signal at start), the time
+     * the server sent it; null while the list is fresh from the server (FR-020.1).
+     */
+    open val savedListFrom: StateFlow<Instant?> = MutableStateFlow(null)
 
     /** Photos of stored readings still to upload. */
     abstract val photosWaiting: StateFlow<Int>
