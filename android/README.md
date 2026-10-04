@@ -44,6 +44,20 @@ Debug builds allow plain `http` for the development API; release builds do not.
 
 In the demo build, **Demo: no signal** on the sign-in screen shows the offline path.
 
+## Readings waiting on the phone: encrypted and kept (§9, FR-020)
+
+Readings and photos that cannot be sent yet are kept in one encrypted file (`data/QueueStore.kt`,
+in the app's no-backup folder) written after every change, and reloaded when the app starts, so
+closing the app or restarting the phone loses nothing. A reading's photos are encrypted on disk
+as soon as it is saved (`PhotoVault`) and opened only to upload. Encryption is AES-256-GCM with
+one key held by the Android Keystore (`settings/KeystoreKeys.kt`); GCM also detects tampering.
+
+`settings/UploadWorker.kt` (WorkManager) sends the queue as soon as there is a network, even with
+the app closed, and retries with growing waits. Readings keep their transaction id and photos
+their image id, so a resend is never stored twice. A queue file that cannot be opened is kept
+aside (`queue.mrq.unreadable-…`), not deleted. The spec named Room + SQLCipher; one encrypted file
+does the same for a queue of a few hundred readings with less to go wrong.
+
 ## Opening the app: the phone's own lock (FR-001.1)
 
 The app opens with the phone's own lock — its **PIN, pattern or password, or fingerprint or
@@ -112,13 +126,13 @@ The capture steps for each meter condition come from `data/StatusRules.kt`, whic
 
 - The offline grace period (FR-001.6). Entra ID sign-in was built and then replaced by the phone lock
   (2026-10-04); it is in git history (commit 94d5d69) if it is wanted again.
-- Device registration (FR-002).
-- Keep the upload queue in an encrypted Room database and send it with WorkManager (§9, FR-020).
-  Today the queues live in memory, so readings and photos waiting to upload are lost if the app
-  is closed. Photo files are app-private but not yet encrypted (FR-008.6).
+- The meter list is not kept on the phone (FR-020.1): after a restart without signal the app
+  cannot open until it reaches the server once. Waiting readings are kept (below).
+- Wiping a blocked phone's cached data (FR-002.3) and the app-version check (FR-002.6).
 - Readings are whole numbers on the phone; `DecimalDigits` from the server is not used yet.
-- Image quality check (blur, exposure) and encrypted image files (FR-008.4, FR-008.6). Photos are
-  already shrunk to 1,600 px / about 500 KB and sent with their SHA-256.
+- Image quality check (blur, exposure) (FR-008.4). Photos are shrunk to 1,600 px / about 500 KB,
+  encrypted once their reading is saved, and sent with their SHA-256. A photo taken for a capture
+  that is abandoned stays unencrypted in the app's private folder until deleted.
 - GPS capture (FR-006.8), Play Integrity (FR-002.5), OCR assist (Phase 3).
 - Dependency injection (Hilt) in place of `AppGraph`.
 
@@ -126,6 +140,6 @@ The capture steps for each meter condition come from `data/StatusRules.kt`, whic
 
 The project was written in an environment without the Android SDK, so it has **not been
 compiled for Android yet**; expect small compile fixes on first sync. The plain-Kotlin parts
-(`data/`, `api/`, `util/Format.kt`) compile and their 57 unit tests pass on the JVM, including
+(`data/`, `api/`, `util/Format.kt`) compile and their 61 unit tests pass on the JVM, including
 the repository against a scripted server (MockWebServer) and, with `MR_API_URL` set, against
 the running API.

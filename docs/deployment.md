@@ -12,7 +12,7 @@ Last checked against the code on 2026-10-04 (API 104 tests passing; app version 
 | Database scripts (`db/`) | Yes |
 | API on a server, with **registered phones** (`Auth__Mode=Device`) | Yes: safe over the internet; each phone has its own key (section 2.11) |
 | Android app (phone lock, supervisor PIN, registration, Settings) | Yes, once it has been built in Android Studio (see 3.1) |
-| Android app for **field use** | **Not yet.** One piece is missing, see below. |
+| Android app for **field use** | Yes, once built and tested on the readers' phones (3.1, 3.6) |
 
 1. **How the server knows who is calling.** The phone opens with its own lock (PIN, pattern, finger
    or face). Each phone is **registered once** with a one-time code from IT and then sends its own
@@ -20,9 +20,9 @@ Last checked against the code on 2026-10-04 (API 104 tests passing; app version 
    server accepts only registered, unblocked phones, and the reader must be active in
    `vw_MR_Reader`. A lost phone is blocked with one script (section 2.11). The server cannot
    check the phone's lock itself.
-2. **Readings waiting to upload are kept in memory.** If the app is closed or the phone restarts
-   while there is no signal, those readings and photos are lost. Fine for a supervised UAT trial;
-   not acceptable for field use.
+2. **Readings waiting to upload are kept, encrypted.** Readings and photos taken without signal are
+   saved in an encrypted file on the phone (key in the Android Keystore), survive closing the app
+   or restarting the phone, and are sent in the background as soon as there is a network.
 
 Also: the app has **not yet been built with the Android SDK**. Expect small compile fixes the
 first time it is opened in Android Studio.
@@ -407,6 +407,7 @@ cd android
 **App** (blocked until these are built)
 - [ ] Every phone registered with its own code (2.11); `db/ops/list_devices.sql` shows each one.
 - [ ] Each phone has a screen lock, its reader set in Settings, and a supervisor PIN.
-- [ ] Encrypted on-phone queue that survives the app closing.
+- [ ] Offline test on a real phone: take readings in flight mode, close the app, restart the
+      phone, switch flight mode off, and see them arrive without opening the app.
 - [ ] Built, signed with the release key, tested on the readers' phone models, and distributed
       through MDM.

@@ -58,7 +58,7 @@ fun AppNavHost() {
     fun toStart() = nav.navigate(Routes.SIGN_IN) { popUpTo(nav.graph.id) { inclusive = true } }
 
     // Readings saved without signal go up by themselves when signal returns (spec §9).
-    // TODO(FR-020.4): WorkManager job with network constraint instead of the UI.
+    // In the background UploadWorker does the same once a network is there (FR-020.4).
     LaunchedEffect(repo, online) { if (online) repo.sendQueued() }
     // While readings wait on the phone, try again every minute (signal may be back).
     LaunchedEffect(repo) {
