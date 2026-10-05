@@ -5,7 +5,7 @@
 # a phone. For a release APK signed with your own key, add these repository secrets (Settings →
 # Secrets and variables → Actions): ANDROID_KEYSTORE_BASE64 (the .jks file, base64), ANDROID_KEYSTORE_PASSWORD,
 # ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD. Optional repository variables: MR_API_URL (server address
-# built in as the first value) and MR_SETTINGS_PIN (first supervisor PIN).
+# built in as the first value; default the DMZ gateway https://zApps.dipark.com/) and MR_SETTINGS_PIN (first supervisor PIN).
 name: Android APK
 
 on:
@@ -34,7 +34,7 @@ jobs:
       run:
         working-directory: android
     env:
-      API_URL: ${{ inputs.api_base_url || vars.MR_API_URL || '' }}
+      API_URL: ${{ inputs.api_base_url || vars.MR_API_URL || 'https://zApps.dipark.com/' }}
       SETTINGS_PIN: ${{ vars.MR_SETTINGS_PIN || '' }}
     steps:
       - uses: actions/checkout@v4

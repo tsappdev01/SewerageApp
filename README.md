@@ -8,6 +8,7 @@ readings to billing.
 |---|---|
 | [`docs/`](docs) | [Specification](docs/spec.md), [source view contract](docs/source-views.md), [readings table](docs/readings-table.md), [screen mock](docs/meter-reader-mock.html), [deployment guide](docs/deployment.md), [step-by-step deploy](docs/deploy-steps.md), the Dubai Investments Park logo |
 | [`api/`](api) | .NET 10 Web API. Reads master data from SQL Server views, stores readings in its own `mr` tables. See [api/README.md](api/README.md). |
+| [`deploy/`](deploy) | Our servers (mApps on UATWEB01, zApps in the DMZ) and their IIS `web.config` templates. |
 | [`db/`](db) | SQL scripts, numbered in run order. `db/dev/` is test data, development only. |
 | [`gateway/`](gateway) | DMZ gateway on 443: passes the app's requests to the internal API; no database. See [gateway/README.md](gateway/README.md). |
 | [`android/`](android) | Meter Reader app, Kotlin and Jetpack Compose. See [android/README.md](android/README.md). |

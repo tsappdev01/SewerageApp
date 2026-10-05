@@ -58,7 +58,7 @@ Plan to move the files off C:.
 - Install the **ASP.NET Core 10.0 Hosting Bundle**, then run `iisreset`.
 - Make sure the web server reaches **UATWEB01 on port 1433**.
 - Get an **HTTPS certificate** for the address the phones will use, e.g.
-  `https://meterreading.dubaiinvestments.example`. For field use the address must be reachable from
+  `https://zApps.dipark.com` (the DMZ gateway, part B+). For field use the address must be reachable from
   mobile data (public DNS and firewall port 443).
 - **Check:** `Test-NetConnection UATWEB01 -Port 1433` shows `TcpTestSucceeded : True`.
 

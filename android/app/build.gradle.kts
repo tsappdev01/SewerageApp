@@ -34,6 +34,8 @@ android {
             buildConfigField("String", "READER_LOGIN", "\"${project.findProperty("readerLogin") ?: "rashid@dip.example"}\"")
         }
         release {
+            // Phones reach the system through the DMZ gateway (gateway/README.md).
+            buildConfigField("String", "API_BASE_URL", "\"${project.findProperty("apiBaseUrl") ?: "https://zApps.dipark.com/"}\"")
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             manifestPlaceholders["usesCleartextTraffic"] = "false"

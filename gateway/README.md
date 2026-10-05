@@ -46,7 +46,7 @@ dotnet publish gateway/src/MeterReading.Gateway -c Release -o publish-gateway
 
 | Certificate | Where | Purpose |
 |---|---|---|
-| **Public** (from a public CA) for e.g. `meterreading.dubaiinvestments.example` | Gateway server, IIS binding | Phones trust it. Self-signed will not work on phones. |
+| **Public** (from a public CA) for `zApps.dipark.com` | Gateway server, IIS binding | Phones trust it. Self-signed will not work on phones. |
 | **API server** certificate (internal CA, or self-signed + pinned) | API server, IIS binding | The gateway's https connection to the API. |
 | **Gateway client** certificate (internal CA, or self-signed) | Gateway server, `LocalMachine\My` | Proves to the API it is the gateway. |
 
@@ -75,7 +75,7 @@ internal CA the API server already trusts.
 | Name | Value |
 |---|---|
 | `ASPNETCORE_ENVIRONMENT` | `Production` |
-| `Gateway__ApiBaseUrl` | the internal API, e.g. `https://meterreading-api.internal/` |
+| `Gateway__ApiBaseUrl` | the internal API: `https://mApps.dipark.com/` (also the default in `appsettings.json`) |
 | `Gateway__ClientCertificate__Thumbprint` | the gateway client certificate's thumbprint (or `__Path` + `__Password` for a `.pfx`) |
 | `Gateway__ApiCertificateThumbprint` | *optional*: the API server certificate's thumbprint. Use it when that certificate is self-signed or from a CA the DMZ server does not trust. Update it when the certificate is renewed. |
 
@@ -121,7 +121,7 @@ share one address for the rate limits; raise `Gateway__RequestsPerMinute` or let
 ### 5. Phones
 
 The server address in the app's **Settings** (and `-PapiBaseUrl` in the build) is the gateway's
-public address, e.g. `https://meterreading.dubaiinvestments.example/`. Nothing else changes on the
+public address, `https://zApps.dipark.com/` (the default in release builds and in the GitHub Actions APK). Nothing else changes on the
 phone.
 
 ## Renewing certificates
