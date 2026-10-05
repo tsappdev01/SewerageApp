@@ -1,4 +1,7 @@
-# Meter Reader app (Android)
+# DIP Field Service (Android)
+
+Shown on the phone as **DIP Field Service** (package `com.meterreading.reader`, unchanged so updates install over
+earlier builds).
 
 The Meter Reader role of the Sewerage & Irrigation Meter Reading System. The app talks to the
 Meter Reading API (`../api`); a demo build runs on built-in sample data instead

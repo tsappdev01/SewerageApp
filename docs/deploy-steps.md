@@ -164,14 +164,14 @@ and set `versionName`, e.g. `1` / `1.0.0` for the first release.
 ```
 Sign it (the Android SDK's `build-tools` folder has `apksigner`):
 ```powershell
-apksigner sign --ks meterreader-release.jks --out MeterReading-1.0.0.apk app\build\outputs\apk\release\app-release-unsigned.apk
-apksigner verify MeterReading-1.0.0.apk
+apksigner sign --ks meterreader-release.jks --out DIPFieldService-1.0.0.apk app\build\outputs\apk\release\app-release-unsigned.apk
+apksigner verify DIPFieldService-1.0.0.apk
 ```
 Or use Android Studio: *Build → Generate Signed App Bundle / APK → APK*, then enter the same
 `-P` values under *Gradle properties*.
 - **Check:** `apksigner verify` prints nothing, which means OK.
 
-**C6. Try it on one phone** before handing out: install with `adb install MeterReading-1.0.0.apk`
+**C6. Try it on one phone** before handing out: install with `adb install DIPFieldService-1.0.0.apk`
 or copy the file to the phone. Then do D3–D6 on that phone.
 
 ---
@@ -179,7 +179,7 @@ or copy the file to the phone. Then do D3–D6 on that phone.
 ## Part D — Phones (IT and supervisors, once per phone)
 
 **D1. Put the app on the phones.** Intune → *Apps → Android → Add → Line-of-business app* →
-upload `MeterReading-1.0.0.apk` → assign to the readers' group. For a few phones, copy the APK and
+upload `DIPFieldService-1.0.0.apk` → assign to the readers' group. For a few phones, copy the APK and
 install it instead.
 
 **D2. Phone ready.** Android 10 or newer, a **screen lock** set (PIN, pattern, fingerprint or face),
@@ -190,7 +190,7 @@ phone's name or asset tag (e.g. `N'Phone 07'`), run it in MRDB. Give the code (l
 `K7QM-2XPA-9TRB`) to the supervisor. It works once, for 24 hours.
 
 **D4. Set up the phone (supervisor).**
-1. Open **Meter Reading** and allow notifications when asked. Unlock with the phone's PIN, finger
+1. Open **DIP Field Service** and allow notifications when asked. Unlock with the phone's PIN, finger
    or face.
 2. The start screen says "No reader is set". Tap the **gear** and type the **supervisor PIN**
    (from C5).

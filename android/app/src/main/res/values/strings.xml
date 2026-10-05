@@ -5,7 +5,7 @@
   Keep sentences under ten words. Avoid system words (sync, submit, transaction).
 -->
 <resources>
-    <string name="app_name">Meter Reading</string>
+    <string name="app_name">DIP Field Service</string>
     <string name="app_subtitle">Sewerage and irrigation</string>
     <string name="logo_description">Dubai Investments Park</string>
     <string name="demo_no_signal">Demo: no signal</string>
@@ -178,7 +178,7 @@
 
     <string name="lock_title">Unlock the app</string>
     <string name="lock_hint">Use your phone\'s PIN, pattern, finger or face.</string>
-    <string name="lock_prompt_title">Meter Reading</string>
+    <string name="lock_prompt_title">DIP Field Service</string>
     <string name="lock_prompt_subtitle">Unlock to open the app</string>
     <string name="lock_unlock">Unlock</string>
     <string name="lock_none">This phone has no screen lock. Set a PIN, pattern, finger or face in the phone\'s settings.</string>
