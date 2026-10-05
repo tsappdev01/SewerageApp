@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- App icon from docs/ChatGPT Image Oct 4, 2026, 06_00_11 PM.png: white "D" on the brown gradient.
-     Two layers so each phone can apply its own icon shape. -->
+<!-- App icon: the brown "D" mark of the Dubai Investments Park logo (drawable-nodpi/dip_logo.png) on white,
+     sized to stay inside every phone's icon shape (preview: docs/app-icon-preview.png).
+     Monochrome: Android 13+ themed icons use the same mark. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@drawable/ic_launcher_background" />
     <foreground android:drawable="@drawable/ic_launcher_mark" />
+    <monochrome android:drawable="@drawable/ic_launcher_mark" />
 </adaptive-icon>
