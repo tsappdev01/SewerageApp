@@ -1022,12 +1022,12 @@ is there, and takes photos of anything suspect. Screens: `docs/field-inspection-
 
 **Source views** (read only, like the others; `docs/source-views.md` §7):
 `vw_MR_InspectionPlan` (one row per period, property and tenant, with its plan date and unit counts)
-and `vw_MR_InspectionUnit` (one row per unit, with `TenantCode`). Both optional: without them the job
+and `vw_MR_InspectionUnit` (one row per unit; `TenantCode` optional). Both optional: without them the job
 is hidden (`/me` answers `canInspect: false`).
 
 | ID | Requirement |
 |---|---|
-| FR-030 | Inspectors are the active readers of `vw_MR_Reader`; plans are not assigned. A unit is matched to a plan row on property **and** tenant. |
+| FR-030 | Inspectors are the active readers of `vw_MR_Reader`; plans are not assigned. A unit belongs to the plan rows of its property; if the unit view has `TenantCode`, also of its tenant only. |
 | FR-031 | The phone lists plan rows from 60 days back to 14 ahead by Today, Late (plan date passed, not done), Week and Done, with units checked / active units and flagged units. |
 | FR-031.2 | Starting a visit saves the phone's location with it. No location is a warning, not a block. |
 | FR-032 | Each unit gets one result: **As recorded** (the sub-tenant on record is using it), **Vacant**, **Subleased** (someone else is using it; their name is required), **Disputed** (the tenant disagrees or it is unclear; reason or note required), **Rejected** (use not allowed; reason or note required), **Pending** (could not check; reason or note required). People seen: 0–999, optional. |

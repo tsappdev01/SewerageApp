@@ -136,14 +136,15 @@ cut the list at 1,000 rows; `db/001` warns when a view returns exactly 1,000).
 | Column | Read as | Notes |
 |---|---|---|
 | UnitId | key | Unique |
-| PropertyCode, **TenantCode** | text | `TenantCode` added 2026-10-06, so a property with two tenants splits its units |
+| PropertyCode | text | Units belong to the plan rows of their property |
+| TenantCode *(optional)* | text | Not on UAT: the tenant comes from the plan view, and every unit of the property is listed for each of its plan rows. If added, a property with two tenants splits its units. |
 | BuildingName, UnitCode | text | Grouping and the number on the door |
 | Category | text like `Commercial>Warehouse>Warehouse` | The app shows the last non-empty level |
 | SubTenantName | text | The sub-tenant on record, checked on site |
 | Active | 1/0, Y/N, True/False | Inactive units are listed apart; finding one occupied is a result like any other |
 
-The MRDB wrappers after the fixes: `db/011_inspection_wrapper_views.sql` (it checks that the
-PMS view has `TenantCode` first). Then run `db/008` again so `mr_api` can read them.
+The MRDB wrappers: `db/011_inspection_wrapper_views.sql` (passes `TenantCode` through only if PMS
+has it). Then run `db/008` again so `mr_api` can read them.
 
 ## Work is not assigned
 

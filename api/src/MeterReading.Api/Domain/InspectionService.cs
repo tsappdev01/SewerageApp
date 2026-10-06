@@ -43,14 +43,14 @@ public sealed partial class InspectionService(InspectionRepository repo, TimePro
         var unitsTask = repo.GetUnitsAsync(codes, ct);
         var latestTask = repo.GetLatestResultsAsync(codes, ct);
         var visitsTask = repo.GetVisitSummariesAsync(codes, ct);
-        var units = (await unitsTask).ToLookup(u => (u.PropertyCode, u.TenantCode));
+        var units = (await unitsTask).ToLookup(u => u.PropertyCode);
         var latest = (await latestTask).ToLookup(r => (r.PeriodCode, r.PropertyCode, r.TenantCode));
         var visits = (await visitsTask).ToDictionary(v => (v.PeriodCode, v.PropertyCode, v.TenantCode), v => v.LastFinishedAtUtc);
 
         return plans
             .OrderBy(p => p.PlanDate).ThenBy(p => p.PropertyCode, StringComparer.Ordinal).ThenBy(p => p.TenantCode, StringComparer.Ordinal)
             .Select(p => Progress(p,
-                units[(p.PropertyCode, p.TenantCode)].ToList(),
+                units[p.PropertyCode].Where(u => u.BelongsTo(p.TenantCode)).ToList(),
                 latest[(p.PeriodCode, p.PropertyCode, p.TenantCode)].ToList(),
                 visits.TryGetValue((p.PeriodCode, p.PropertyCode, p.TenantCode), out var last) ? last : null))
             .ToList();
@@ -86,7 +86,7 @@ public sealed partial class InspectionService(InspectionRepository repo, TimePro
         var unitsTask = repo.GetUnitsAsync([propertyCode], ct);
         var latestTask = repo.GetLatestResultsAsync([propertyCode], ct);
         var visitsTask = repo.GetVisitSummariesAsync([propertyCode], ct);
-        var units = (await unitsTask).Where(u => u.TenantCode == tenantCode).ToList();
+        var units = (await unitsTask).Where(u => u.BelongsTo(tenantCode)).ToList();
         var latest = await latestTask;
         var visits = await visitsTask;
 
@@ -144,7 +144,7 @@ public sealed partial class InspectionService(InspectionRepository repo, TimePro
         var plan = await repo.GetPlanRowAsync(periodCode, propertyCode, tenantCode, ct);
         if (plan is null) return InspectionOutcome.Reject(404, "PLAN_NOT_FOUND", "This property is not on the inspection plan for this period and tenant.");
 
-        var units = (await repo.GetUnitsAsync([propertyCode], ct)).Where(u => u.TenantCode == tenantCode).ToDictionary(u => u.UnitId, StringComparer.Ordinal);
+        var units = (await repo.GetUnitsAsync([propertyCode], ct)).Where(u => u.BelongsTo(tenantCode)).ToDictionary(u => u.UnitId, StringComparer.Ordinal);
         var rows = new List<NewUnitResultRow>();
         foreach (var u in r.Units)
         {

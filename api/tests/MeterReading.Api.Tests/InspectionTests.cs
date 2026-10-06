@@ -29,6 +29,17 @@ public class InspectionRuleTests
     [Fact] public void FR035_unit_not_on_list_needs_its_number() => Assert.Equal("MANDATORY_FIELD_MISSING", Code(Unit(UnitResult.AS_RECORDED, unitId: null)));
     [Fact] public void Reason_codes_are_checked() => Assert.Equal("INVALID_LOV_CODE", Code(Unit(UnitResult.PENDING, reasons: ["no access!"])));
 
+    [Fact]
+    public void FR030_without_TenantCode_on_units_every_unit_of_the_property_belongs_to_each_tenant()
+    {
+        var noTenant = new InspectionUnitRow { UnitId = "1", PropertyCode = "P", TenantCode = "" };
+        var withTenant = new InspectionUnitRow { UnitId = "2", PropertyCode = "P", TenantCode = "T1" };
+        Assert.True(noTenant.BelongsTo("T1"));
+        Assert.True(noTenant.BelongsTo("T2"));
+        Assert.True(withTenant.BelongsTo("T1"));
+        Assert.False(withTenant.BelongsTo("T2"));
+    }
+
     [Theory]
     [InlineData("Commercial>Warehouse>Warehouse", "Warehouse")]
     [InlineData("Commercial> >", "Commercial")]

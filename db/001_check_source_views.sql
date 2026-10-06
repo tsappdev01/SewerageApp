@@ -44,7 +44,7 @@ INSERT @Expected (ViewName, ColumnName, Family, ViewRequired) VALUES
  (N'vw_MR_InspectionPlan', N'CompanyName', 'text', 0), (N'vw_MR_InspectionPlan', N'ActiveUnits', 'int', 0),
  (N'vw_MR_InspectionPlan', N'InactiveUnits', 'int', 0), (N'vw_MR_InspectionPlan', N'TotalUnits', 'int', 0),
  (N'vw_MR_InspectionUnit', N'UnitId', 'key', 0), (N'vw_MR_InspectionUnit', N'PropertyCode', 'text', 0),
- (N'vw_MR_InspectionUnit', N'TenantCode', 'text', 0), (N'vw_MR_InspectionUnit', N'BuildingName', 'text', 0),
+ (N'vw_MR_InspectionUnit', N'BuildingName', 'text', 0),
  (N'vw_MR_InspectionUnit', N'UnitCode', 'text', 0), (N'vw_MR_InspectionUnit', N'Category', 'text', 0),
  (N'vw_MR_InspectionUnit', N'SubTenantName', 'text', 0), (N'vw_MR_InspectionUnit', N'Active', 'flag', 0);
 
@@ -116,8 +116,9 @@ INSERT @Checks VALUES
  (N'Duplicate UnitId in vw_MR_InspectionUnit (the API keeps the first)', N'vw_MR_InspectionUnit', NULL, N'SELECT @n = COUNT(*) FROM (SELECT UnitId FROM {s}.vw_MR_InspectionUnit GROUP BY UnitId HAVING COUNT(*) > 1) d'),
  (N'Unit without UnitCode', N'vw_MR_InspectionUnit', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_InspectionUnit WHERE UnitCode IS NULL OR LTRIM(CAST(UnitCode AS nvarchar(30))) = '''''),
  (N'vw_MR_InspectionUnit.Active value not understood (read as inactive; use 1/0, Y/N, True/False)', N'vw_MR_InspectionUnit', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_InspectionUnit WHERE UPPER(LTRIM(RTRIM(CAST(Active AS varchar(10))))) NOT IN (''1'', ''TRUE'', ''T'', ''Y'', ''YES'', ''ACTIVE'', ''0'', ''FALSE'', ''F'', ''N'', ''NO'', ''INACTIVE'') OR Active IS NULL'),
- (N'Units whose PropertyCode and TenantCode are on no plan row (inspectors never see them)', N'vw_MR_InspectionUnit', N'vw_MR_InspectionPlan', N'SELECT @n = COUNT(*) FROM {s}.vw_MR_InspectionUnit u WHERE NOT EXISTS (SELECT 1 FROM {s}.vw_MR_InspectionPlan p WHERE CAST(p.PropertyCode AS varchar(30)) = CAST(u.PropertyCode AS varchar(30)) AND CAST(p.TenantCode AS varchar(30)) = CAST(u.TenantCode AS varchar(30)))'),
- (N'Plan rows with no units (the inspector sees an empty list)', N'vw_MR_InspectionPlan', N'vw_MR_InspectionUnit', N'SELECT @n = COUNT(*) FROM {s}.vw_MR_InspectionPlan p WHERE NOT EXISTS (SELECT 1 FROM {s}.vw_MR_InspectionUnit u WHERE CAST(p.PropertyCode AS varchar(30)) = CAST(u.PropertyCode AS varchar(30)) AND CAST(p.TenantCode AS varchar(30)) = CAST(u.TenantCode AS varchar(30)))'),
+ (N'Units whose PropertyCode is on no plan row (inspectors never see them; a note while the plan covers part of the estate)', N'vw_MR_InspectionUnit', N'vw_MR_InspectionPlan', N'SELECT @n = COUNT(*) FROM {s}.vw_MR_InspectionUnit u WHERE NOT EXISTS (SELECT 1 FROM {s}.vw_MR_InspectionPlan p WHERE CAST(p.PropertyCode AS varchar(30)) = CAST(u.PropertyCode AS varchar(30)))'),
+ (N'Plan rows whose property has no units (the inspector sees an empty list)', N'vw_MR_InspectionPlan', N'vw_MR_InspectionUnit', N'SELECT @n = COUNT(*) FROM {s}.vw_MR_InspectionPlan p WHERE NOT EXISTS (SELECT 1 FROM {s}.vw_MR_InspectionUnit u WHERE CAST(p.PropertyCode AS varchar(30)) = CAST(u.PropertyCode AS varchar(30)))'),
+ (N'Properties with plan rows for more than one tenant in a period (units have no TenantCode, so each tenant''s visit lists all units)', N'vw_MR_InspectionPlan', NULL, N'SELECT @n = COUNT(*) FROM (SELECT PeriodCode, PropertyCode FROM {s}.vw_MR_InspectionPlan GROUP BY PeriodCode, PropertyCode HAVING COUNT(DISTINCT TenantCode) > 1) d'),
  (N'Duplicate plan row (same period, property and tenant)', N'vw_MR_InspectionPlan', NULL, N'SELECT @n = COUNT(*) FROM (SELECT PeriodCode, PropertyCode, TenantCode FROM {s}.vw_MR_InspectionPlan GROUP BY PeriodCode, PropertyCode, TenantCode HAVING COUNT(*) > 1) d'),
  (N'Plan row without InspectionPlanDate', N'vw_MR_InspectionPlan', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_InspectionPlan WHERE InspectionPlanDate IS NULL');
 
@@ -174,5 +175,18 @@ BEGIN TRY
 END TRY
 BEGIN CATCH
     INSERT @Rows VALUES (N'Duplicate MeterId: could not list', NULL, NULL, ERROR_MESSAGE());
+END CATCH
+IF OBJECT_ID(QUOTENAME(@Schema) + N'.vw_MR_InspectionPlan') IS NOT NULL
+BEGIN TRY
+    SET @q = REPLACE(N'
+        SELECT N''Duplicate plan row (the API uses the earliest plan date)'',
+               CAST(CAST(PeriodCode AS varchar(10)) + N'' / '' + CAST(PropertyCode AS varchar(30)) + N'' / '' + CAST(TenantCode AS varchar(30)) AS nvarchar(256)), COUNT(*),
+               STRING_AGG(CAST(CONVERT(char(10), CAST(InspectionPlanDate AS date), 126) + N'' '' + ISNULL(CAST(CompanyName AS nvarchar(200)), N'''') AS nvarchar(max)), N'', '')
+        FROM {s}.vw_MR_InspectionPlan
+        GROUP BY PeriodCode, PropertyCode, TenantCode HAVING COUNT(*) > 1', N'{s}', QUOTENAME(@Schema));
+    INSERT @Rows EXEC sp_executesql @q;
+END TRY
+BEGIN CATCH
+    INSERT @Rows VALUES (N'Duplicate plan row: could not list', NULL, NULL, ERROR_MESSAGE());
 END CATCH
 SELECT Problem, [Key], Count, Rows FROM @Rows ORDER BY Problem, [Key];

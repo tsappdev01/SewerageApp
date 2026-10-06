@@ -36,7 +36,8 @@ never run outside development.
 ## Field Inspection (spec §21)
 
 - Plan and units come from `vw_MR_InspectionPlan` / `vw_MR_InspectionUnit` (optional: without them the
-  job is off). Units belong to a plan row by property **and** tenant. Inspectors are the active readers.
+  job is off). Units belong to a plan row by property (and tenant, only if the unit view has `TenantCode`,
+  which UAT does not). Inspectors are the active readers.
 - Results AS_RECORDED, VACANT, SUBLEASED, DISPUTED, REJECTED, PENDING; what each needs is in
   `Domain/InspectionService.Validate` and mirrored in android `data/InspectionRules.kt`; change both.
 - A visit is one POST with all its units, keyed by a phone-made `visitId` (safe to retry); photos follow.

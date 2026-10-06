@@ -24,6 +24,12 @@ public sealed class InspectionUnitRow
     public string? Category { get; init; }
     public string? SubTenantName { get; init; }
     public bool Active { get; init; }
+
+    /// <summary>
+    /// FR-030: the unit belongs to the plan row of this tenant. The unit view has no TenantCode on UAT
+    /// (the tenant is on the plan view), so then every unit of the property belongs to each of its plan rows.
+    /// </summary>
+    public bool BelongsTo(string tenantCode) => TenantCode.Length == 0 || TenantCode == tenantCode;
 }
 
 /// <summary>The latest result for a unit within a plan row (or for the unit anywhere, for "last inspection").</summary>
@@ -146,9 +152,11 @@ public sealed class InspectionRepository(SqlConnectionFactory db)
             SELECT {PlanColumns}
             FROM {_v.InspectionPlan} p
             WHERE CAST(p.InspectionPlanDate AS date) BETWEEN @from AND @to
+            ORDER BY p.InspectionPlanDate
             """;
         await using var c = await db.OpenSourceAsync(ct);
         var rows = await c.QueryAsync<InspectionPlanRow>(Cmd(sql, new { from = from.ToDateTime(TimeOnly.MinValue), to = to.ToDateTime(TimeOnly.MinValue) }, ct));
+        // A plan row listed twice keeps its earliest date, the same one GetPlanRowAsync uses.
         return rows.DistinctBy(r => (r.PeriodCode, r.PropertyCode, r.TenantCode)).ToList();
     }
 
@@ -170,16 +178,20 @@ public sealed class InspectionRepository(SqlConnectionFactory db)
     public async Task<IReadOnlyList<InspectionUnitRow>> GetUnitsAsync(IReadOnlyCollection<string> propertyCodes, CancellationToken ct)
     {
         if (propertyCodes.Count == 0) return [];
+        await using var c = await db.OpenSourceAsync(ct);
+        // TenantCode on the unit view is optional: without it units are matched on the property alone.
+        var hasTenant = await c.ExecuteScalarAsync<int>(Cmd(
+            "SELECT CASE WHEN COL_LENGTH(@view, 'TenantCode') IS NULL THEN 0 ELSE 1 END", new { view = _v.InspectionUnit }, ct)) == 1;
+        var tenant = hasTenant ? "ISNULL(LTRIM(RTRIM(CAST(u.TenantCode AS varchar(30)))), '')" : "''";
         var sql = $"""
             SELECT CAST(u.UnitId AS varchar(50)) AS UnitId, LTRIM(RTRIM(CAST(u.PropertyCode AS varchar(30)))) AS PropertyCode,
-                   LTRIM(RTRIM(CAST(u.TenantCode AS varchar(30)))) AS TenantCode,
+                   CAST({tenant} AS varchar(30)) AS TenantCode,
                    LTRIM(RTRIM(CAST(u.BuildingName AS nvarchar(150)))) AS BuildingName, LTRIM(RTRIM(CAST(u.UnitCode AS nvarchar(30)))) AS UnitCode,
                    LTRIM(RTRIM(CAST(u.Category AS nvarchar(200)))) AS Category, LTRIM(RTRIM(CAST(u.SubTenantName AS nvarchar(200)))) AS SubTenantName,
                    CAST(CASE WHEN {MeterReadingRepository.Active("u.Active")} THEN 1 ELSE 0 END AS bit) AS Active
             FROM {_v.InspectionUnit} u
             WHERE LTRIM(RTRIM(CAST(u.PropertyCode AS varchar(30)))) IN ({SqlList.Select("@codes", "varchar(30)")})
             """;
-        await using var c = await db.OpenSourceAsync(ct);
         var rows = await c.QueryAsync<InspectionUnitRow>(Cmd(sql, new { codes = SqlList.Of(propertyCodes) }, ct));
         // A unit listed twice in the view is kept once.
         return rows.Where(r => r.UnitId.Length > 0).DistinctBy(r => r.UnitId).ToList();
