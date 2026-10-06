@@ -85,6 +85,7 @@ class InspectionScreenshots {
     /** The demo API waits a little on its own threads, so give it real time as well as looper time. */
     private fun settle() {
         repeat(4) {
+            compose.mainClock.advanceTimeBy(1_000)
             ShadowLooper.idleMainLooper(1, TimeUnit.SECONDS)
             Thread.sleep(250)
         }

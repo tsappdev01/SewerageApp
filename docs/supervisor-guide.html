@@ -101,6 +101,10 @@ td { min-width: 220px; }
 .rule b { color: var(--bad); }
 .foot { color: var(--sub); font-size: 14px; }
 @media (max-width: 720px) { .job { grid-template-columns: minmax(0, 1fr); } }
+.shot { display: block; width: 100%; max-width: 210px; height: auto; border: 6px solid var(--bezel); border-radius: 24px; background: var(--bezel); box-shadow: 0 6px 18px rgba(0,0,0,.14); }
+figure.one { margin: 0; display: grid; gap: 8px; justify-items: center; }
+figure.one figcaption { font-size: 13px; color: var(--sub); }
+.strip { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important; }
 </style>
 <div class="page">
 
@@ -162,41 +166,18 @@ td { min-width: 220px; }
       <li><span>At the end of the day, open <span class="ui">My readings › Summary</span>. It should say <i>"Every reading on this phone is uploaded"</i>.</span></li>
     </ol>
   </div>
-  <div>
-    <div class="phone"><div class="scr">
-      <div class="bar">DIP Field Service</div>
-      <div class="in">
-        <span class="big">Hello, Rashid</span>
-        <div class="card"><div class="row"><div class="ring"><i>62%</i></div><div><b class="num">31</b> done of 50 meters<br><span class="mute">19 left</span></div></div><span class="btn">Start</span><span class="mute">Next: Zone 3 · Plot 597-1043</span></div>
-        <div class="card"><span class="c-q"><b>2 waiting to send</b></span><span class="btn o" style="padding:4px">Send</span></div>
-        <div class="chips"><span class="chip">My zones</span><span class="chip">My readings</span></div>
-        <div class="card"><b>Field Inspection</b><span class="mute">4 today · 1 late</span></div>
-      </div>
-    </div></div>
-    <p class="sample">Example reader and numbers</p>
-  </div>
+  <figure class="one"><img class="shot" src="guide-img/01_home.png" alt="Home screen: meters done and left, Start, Find a Property, My zones, My readings, Summary"><figcaption>Home, with the demo reader</figcaption></figure>
 </section>
 
 <section class="job" style="grid-template-columns:minmax(0,1fr)" aria-labelledby="j3">
   <div class="job-head"><span class="kicker">What readers do at each meter</span><h2 id="j3">3. A meter reading, in five screens</h2></div>
-  <div class="strip">
-    <figure><div class="phone sm"><div class="scr"><div class="bar">Meter 10442</div><div class="in"><b>How is the meter?</b><div class="chips"><span class="chip on">Working</span><span class="chip">Broken</span><span class="chip">Under water</span><span class="chip">Can't reach</span><span class="chip">New meter</span><span class="chip">Meter gone</span></div></div></div></div><figcaption><b>Condition</b>Broken or can't reach asks for a reason</figcaption></figure>
-    <figure><div class="phone sm"><div class="scr"><div class="bar">Photo</div><div class="in" style="background:#0e0f11;color:#fff"><div style="border:2px solid #fff;border-radius:6px;height:60px;display:grid;place-items:center" class="num">0 4 8 2 7</div><span style="text-align:center">Put the numbers inside the white box</span><span class="btn" style="background:#fff;color:#12305c">Take photo</span></div></div></div><figcaption><b>Photo</b>Then "Is the photo clear?"</figcaption></figure>
-    <figure><div class="phone sm"><div class="scr"><div class="bar">Type the number</div><div class="in"><span class="mute">Last time</span><div class="odo" style="background:#8a8f96">04790</div><span class="mute">Now</span><div class="odo">04827</div><span class="btn">Done</span></div></div></div><figcaption><b>Number</b>Too low or too high: the app asks again</figcaption></figure>
-    <figure><div class="phone sm"><div class="scr"><div class="bar">Tenant</div><div class="in"><b>Is this the tenant here? Tap it.</b><div class="card" style="border-color:#12305c;background:#e6ecf5"><b>Al Noor Trading</b><span class="ok">✓ Checked</span></div><span class="mute">+ Add sub-tenant name</span></div></div></div><figcaption><b>Tenant</b>No tenant on record: it can't be sent</figcaption></figure>
-    <figure><div class="phone sm"><div class="scr"><div class="bar">Check</div><div class="in"><span class="big">04827</span><span class="mute">+37 used</span><span class="btn">Yes, send</span><div class="card"><span class="ok">Sent</span><span class="c-q"><b>Saved</b>: no signal</span><span class="c-warn"><b>Sent for checking</b></span></div></div></div></div><figcaption><b>Send</b>One of three results</figcaption></figure>
-  </div>
+  <div class="strip"><figure><img class="shot" src="guide-img/05_capture_condition.png" alt="Condition: Broken or can't reach asks for a reason" loading="lazy"><figcaption><b>Condition</b>Broken or can't reach asks for a reason</figcaption></figure><figure><img class="shot" src="guide-img/06_capture_photo_clear.png" alt="Photo: Then "Is the photo clear?"" loading="lazy"><figcaption><b>Photo</b>Then "Is the photo clear?"</figcaption></figure><figure><img class="shot" src="guide-img/07_capture_number.png" alt="Number: Last time above, now below; too high or low asks again" loading="lazy"><figcaption><b>Number</b>Last time above, now below; too high or low asks again</figcaption></figure><figure><img class="shot" src="guide-img/09_capture_check_tenant.png" alt="Check and tenant: Tap the tenant, then Yes, send" loading="lazy"><figcaption><b>Check and tenant</b>Tap the tenant, then Yes, send</figcaption></figure><figure><img class="shot" src="guide-img/10_capture_sent.png" alt="Sent: Saved instead when there is no signal" loading="lazy"><figcaption><b>Sent</b>Saved instead when there is no signal</figcaption></figure></div>
 </section>
 
 <section class="job" style="grid-template-columns:minmax(0,1fr)" aria-labelledby="j4">
   <div class="job-head"><span class="kicker">What inspectors do at each property</span><h2 id="j4">4. A field inspection, in four screens</h2></div>
-  <div class="strip">
-    <figure><div class="phone sm"><div class="scr"><div class="bar">Inspection plan</div><div class="in"><div class="chips" style="grid-template-columns:repeat(4,1fr)"><span class="chip on" style="padding:3px 0">Today</span><span class="chip c-bad" style="padding:3px 0">Late</span><span class="chip" style="padding:3px 0">Week</span><span class="chip" style="padding:3px 0">Done</span></div><div class="card"><b class="num">597-1043</b><span class="mute">8 active · 1 inactive</span><span class="mute">14.2 km from the DIP office</span></div></div></div></div><figcaption><b>Plan</b>Late ones in red</figcaption></figure>
-    <figure><div class="phone sm"><div class="scr dim"><div class="bar">597-1043</div><div class="in"><div class="dlg"><b>Are you at the property now?</b><span class="btn">Yes, I am here</span><span class="btn o">No</span></div></div></div></div><figcaption><b>Start inspection</b>Yes saves the location. No still lets them record</figcaption></figure>
-    <figure><div class="phone sm"><div class="scr"><div class="bar">Unit W-12</div><div class="in"><b>What did you find?</b><div class="chips"><span class="chip c-ok on">As recorded</span><span class="chip c-vac">Vacant</span><span class="chip c-sub">Subleased</span><span class="chip c-warn">Disputed</span><span class="chip c-bad">Rejected</span><span class="chip">Pending</span></div><span class="mute">Subleased, Disputed, Rejected need a reason and a photo</span></div></div></div><figcaption><b>Each unit</b>Swipe right for As recorded</figcaption></figure>
-    <figure><div class="phone sm"><div class="scr"><div class="bar">Check and send</div><div class="in"><span>8 units recorded</span><span class="c-sub"><b>2 flagged</b></span><span class="mute">Met on site, signature (optional)</span><span class="btn">Send inspection</span></div></div></div><figcaption><b>Send</b>Units left unchecked: it stays on the plan as Come back</figcaption></figure>
-  </div>
-  <p class="sample">Example property and distances</p>
+  <div class="strip"><figure><img class="shot" src="guide-img/i03_plan_late.png" alt="Plan: Late in red; Come back and the distance from the office" loading="lazy"><figcaption><b>Plan</b>Late in red; Come back and the distance from the office</figcaption></figure><figure><img class="shot" src="guide-img/i05_are_you_at_the_property.png" alt="Start inspection: Yes saves the location. No still lets them record" loading="lazy"><figcaption><b>Start inspection</b>Yes saves the location. No still lets them record</figcaption></figure><figure><img class="shot" src="guide-img/i08_unit_subleased.png" alt="Each unit: Subleased, Disputed, Rejected need a reason and a photo" loading="lazy"><figcaption><b>Each unit</b>Subleased, Disputed, Rejected need a reason and a photo</figcaption></figure><figure><img class="shot" src="guide-img/i10_check_and_send.png" alt="Check and send: Units left unchecked: the property stays on the plan" loading="lazy"><figcaption><b>Check and send</b>Units left unchecked: the property stays on the plan</figcaption></figure><figure><img class="shot" src="guide-img/i11_sent.png" alt="Sent: Saved instead when there is no signal" loading="lazy"><figcaption><b>Sent</b>Saved instead when there is no signal</figcaption></figure></div>
+  <p class="sample">Screens from the app with its demo data</p>
 </section>
 
 <section class="fix" aria-labelledby="j5">
