@@ -35,7 +35,7 @@ do part B on an *internal* server and then part **B+** (the gateway in the DMZ).
 **A3b. Field Inspection** (when the inspection views are ready):
 1. In PropertyManagementSystem, remove `TOP (1000)` from `vw_MR_InspectionUnit` (`TenantCode` on units is not needed).
 2. In MRDB run `db/010_field_inspection.sql`, `db/012_inspection_location.sql`, then `db/011_inspection_wrapper_views.sql`.
-   In the mApps `web.config` add `Inspection__OfficeLatitude` and `Inspection__OfficeLongitude` (the DIP office, decimal degrees) for the distances.
+   The DIP office (24.999906, 55.170344) is in `appsettings.json` (`Inspection:OfficeLatitude/OfficeLongitude`); override in `web.config` only if it moves.
 3. Run `db/001_check_source_views.sql`: no rows about `vw_MR_Inspection*` in results 1 and 2.
 - **Check:** after A4, `/health/ready` is ready and `/api/v1/me` (with a registered phone) says `"canInspect":true`.
 
