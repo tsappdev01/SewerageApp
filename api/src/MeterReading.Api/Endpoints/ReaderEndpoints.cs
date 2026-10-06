@@ -26,12 +26,13 @@ public static partial class ReaderEndpoints
         api.MapGet("/meters/{meterId}", GetMeter).WithSummary("One meter with its reading history.");
     }
 
-    private static async Task<IResult> GetMe(CurrentReader current, MeterReadingRepository repo, CancellationToken ct)
+    private static async Task<IResult> GetMe(CurrentReader current, MeterReadingRepository repo, InspectionRepository inspections, CancellationToken ct)
     {
         var (reader, readerProblem) = await current.ResolveAsync(ct);
         if (readerProblem is not null) return readerProblem;
         var period = await repo.GetOpenPeriodAsync(ct);
-        return Results.Ok(new MeDto(reader!.ReaderId, reader!.DisplayName, reader!.TeamCode, period is null ? null : ToDto(period)));
+        var canInspect = await inspections.AvailableAsync(ct) is (true, true);
+        return Results.Ok(new MeDto(reader!.ReaderId, reader!.DisplayName, reader!.TeamCode, period is null ? null : ToDto(period), canInspect));
     }
 
     private static async Task<IResult> GetMeters(

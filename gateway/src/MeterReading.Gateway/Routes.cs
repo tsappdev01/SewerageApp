@@ -24,6 +24,11 @@ public static class Routes
         ("meter", "/api/v1/meters/{meterId}", ["GET"]),
         ("submit", "/api/v1/readings", ["POST"]),
         ("image", "/api/v1/readings/{transactionId}/images/{imageId}", ["GET", "PUT"]),
+        // Field inspection (spec §16).
+        ("inspection-plan", "/api/v1/inspections/plan", ["GET"]),
+        ("inspection-units", "/api/v1/inspections/units", ["GET"]),
+        ("inspection-submit", "/api/v1/inspections", ["POST"]),
+        ("inspection-image", "/api/v1/inspections/{visitId}/images/{imageId}", ["GET", "PUT"]),
         // The app's Settings → Test button. /health/ready stays internal: it names views and tables.
         ("live", "/health/live", ["GET"]),
     ];
@@ -49,5 +54,11 @@ public static class Routes
     }
 
     public static bool IsImageUpload(HttpRequest request) =>
-        HttpMethods.IsPut(request.Method) && request.Path.StartsWithSegments("/api/v1/readings") && request.Path.Value!.Contains("/images/", StringComparison.OrdinalIgnoreCase);
+        HttpMethods.IsPut(request.Method)
+        && (request.Path.StartsWithSegments("/api/v1/readings") || request.Path.StartsWithSegments("/api/v1/inspections"))
+        && request.Path.Value!.Contains("/images/", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A whole inspection visit: one result per unit, so larger than a reading.</summary>
+    public static bool IsInspectionSubmit(HttpRequest request) =>
+        HttpMethods.IsPost(request.Method) && string.Equals(request.Path.Value?.TrimEnd('/'), "/api/v1/inspections", StringComparison.OrdinalIgnoreCase);
 }

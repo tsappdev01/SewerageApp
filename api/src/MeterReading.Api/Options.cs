@@ -62,6 +62,24 @@ public sealed class ImageStoreOptions
     public int MaxImagesPerReading { get; set; } = 4;
 }
 
+/// <summary>Field Inspection (spec §16). On only when the two inspection views exist.</summary>
+public sealed class InspectionOptions
+{
+    public const string Section = "Inspection";
+
+    /// <summary>Evidence photos per unit (spec FR-033.3).</summary>
+    public int MaxPhotosPerUnit { get; set; } = 6;
+
+    /// <summary>The plan list covers plan dates from this many days ago (late visits)...</summary>
+    public int PlanDaysBack { get; set; } = 60;
+
+    /// <summary>...to this many days ahead.</summary>
+    public int PlanDaysAhead { get; set; } = 14;
+
+    /// <summary>Hours ahead of UTC for "today" (UAE: 4).</summary>
+    public int UtcOffsetHours { get; set; } = 4;
+}
+
 /// <summary>
 /// Copying accepted readings into PropertyManagementSystem's MaintainMeterReading
 /// (docs/readings-table.md). Off until the formats below are confirmed against existing rows.

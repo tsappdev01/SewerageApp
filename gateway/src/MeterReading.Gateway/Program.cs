@@ -67,7 +67,9 @@ var app = builder.Build();
 // Size limits first: a body larger than its route allows never reaches the API.
 app.Use(async (http, next) =>
 {
-    var limit = Routes.IsImageUpload(http.Request) ? options.MaxImageBytes : options.MaxJsonBytes;
+    var limit = Routes.IsImageUpload(http.Request) ? options.MaxImageBytes
+        : Routes.IsInspectionSubmit(http.Request) ? options.MaxInspectionBytes
+        : options.MaxJsonBytes;
     if (http.Request.ContentLength > limit)
     {
         await Problem(http, 413, "REQUEST_TOO_LARGE", "This is too large to send.").ExecuteAsync(http);

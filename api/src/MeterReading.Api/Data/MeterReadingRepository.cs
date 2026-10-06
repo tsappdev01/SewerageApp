@@ -127,7 +127,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     /// SQL that is true when a source flag means active. The views pass their own codes through:
     /// a bit, 1/0, True/False, Y/N or ACTIVE/INACTIVE, as number or text.
     /// </summary>
-    private static string Active(string column) =>
+    internal static string Active(string column) =>
         $"UPPER(LTRIM(RTRIM(CAST({column} AS varchar(10))))) IN ('1', 'TRUE', 'T', 'Y', 'YES', 'ACTIVE')";
 
     /// <summary>Average of the last N actual consumptions, for meters the source gave no average for (BR-007).</summary>

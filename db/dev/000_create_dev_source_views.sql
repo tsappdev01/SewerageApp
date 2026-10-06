@@ -204,3 +204,61 @@ CREATE OR ALTER VIEW dbo.vw_MR_ReadingHistory AS
 SELECT 'BC' + RIGHT('0000' + CAST(MeterId AS varchar(10)), 4) AS MeterId, PeriodCode, ReadingDate, ReadingValue, Consumption, ConsumptionBasis
 FROM devsrc.ReadingHistory;
 GO
+
+/* Field Inspection (db/010). Shaped like the real views after the agreed fixes: no TOP (1000), and
+   TenantCode on the units. Property 598-1625 has two tenants with a plan row each, so units must be
+   matched on property AND tenant; 598-1187 has inactive units; its category has empty levels. */
+IF OBJECT_ID(N'devsrc.InspectionPlan', N'U') IS NULL
+CREATE TABLE devsrc.InspectionPlan (PeriodCode varchar(10) NOT NULL, InspectionPlanDate datetime NOT NULL, PropertyCode varchar(30) NOT NULL,
+    TenantCode varchar(30) NOT NULL, CompanyName nvarchar(200) NOT NULL, PRIMARY KEY (PeriodCode, PropertyCode, TenantCode));
+IF OBJECT_ID(N'devsrc.InspectionUnit', N'U') IS NULL
+CREATE TABLE devsrc.InspectionUnit (UnitId int PRIMARY KEY, PropertyCode varchar(30) NOT NULL, TenantCode varchar(30) NOT NULL,
+    BuildingName nvarchar(150) NOT NULL, UnitCode varchar(30) NOT NULL, Category nvarchar(200) NULL, SubTenantName nvarchar(200) NULL, Active int NOT NULL);
+GO
+
+INSERT devsrc.InspectionPlan (PeriodCode, InspectionPlanDate, PropertyCode, TenantCode, CompanyName)
+SELECT v.* FROM (VALUES
+    ('2026-10', '2026-10-05', '597-559',  'T-0559',  N'Elegant Industries LLC'),
+    ('2026-10', '2026-10-21', '597-972',  'T-0972',  N'Danway Electrical and Mechanical Engineering LLC'),
+    ('2026-10', '2026-10-12', '598-1187', 'T-1187',  N'Technical Supplies and Services Co (LLC)'),
+    ('2026-10', '2026-10-14', '598-1625', 'T-1625A', N'Prominent Printing and Publishing Co LLC'),
+    ('2026-10', '2026-10-14', '598-1625', 'T-1625B', N'Al Mansoorah Plastic Industries LLC'),
+    ('2026-11', '2026-11-26', '597-581',  'T-0581',  N'Affan Innovative Structures LLC')
+) v (PeriodCode, InspectionPlanDate, PropertyCode, TenantCode, CompanyName)
+WHERE NOT EXISTS (SELECT 1 FROM devsrc.InspectionPlan p WHERE p.PeriodCode = v.PeriodCode AND p.PropertyCode = v.PropertyCode AND p.TenantCode = v.TenantCode);
+
+INSERT devsrc.InspectionUnit (UnitId, PropertyCode, TenantCode, BuildingName, UnitCode, Category, SubTenantName, Active)
+SELECT v.* FROM (VALUES
+    (1001, '597-559', 'T-0559', N'ELEGANT INDUSTRIES', '1', N'Industrial>Warehouse>Warehouse', N'GURCOAT GARAGE L.L.C', 1),
+    (1002, '597-559', 'T-0559', N'ELEGANT INDUSTRIES', '2', N'Industrial>Warehouse>Warehouse', N'GURCOAT GARAGE L.L.C', 1),
+    (1003, '597-559', 'T-0559', N'ELEGANT INDUSTRIES', '3', N'Industrial>Warehouse>Warehouse', N'GURCOAT GARAGE L.L.C', 1),
+    (1004, '597-559', 'T-0559', N'ELEGANT INDUSTRIES', '4', N'Industrial>Warehouse>Warehouse', N'GURCOAT GARAGE L.L.C', 1),
+    (1005, '597-559', 'T-0559', N'ELEGANT INDUSTRIES', '5', N'Industrial>Warehouse>Warehouse', N'GURCOAT GARAGE L.L.C', 1),
+    (2001, '597-972', 'T-0972', N'DANWAY LABOUR', '003', N'Residential>Labor Camps>Room in labor camp', N'DANWAY ELECTRICAL AND MECHANICAL ENGINEERING L.L.C', 1),
+    (2002, '597-972', 'T-0972', N'DANWAY LABOUR', '005', N'Residential>Labor Camps>Room in labor camp', N'DANWAY ELECTRICAL AND MECHANICAL ENGINEERING L.L.C', 1),
+    (2003, '597-972', 'T-0972', N'DANWAY LABOUR', '006', N'Residential>Labor Camps>Room in labor camp', N'DANWAY ELECTRICAL AND MECHANICAL ENGINEERING L.L.C', 1),
+    (2004, '597-972', 'T-0972', N'DANWAY LABOUR', '007', N'Residential>Labor Camps>Room in labor camp', N'DANWAY ELECTRICAL AND MECHANICAL ENGINEERING L.L.C', 1),
+    (3001, '598-1187', 'T-1187', N'TECHNICAL SUPPLIES', 'G01', N'Commercial> >', N'TECHNICAL SUPPLIES AND SERVICES CO', 1),
+    (3002, '598-1187', 'T-1187', N'TECHNICAL SUPPLIES', 'G02', N'Commercial> >', N'TECHNICAL SUPPLIES AND SERVICES CO', 1),
+    (3003, '598-1187', 'T-1187', N'TECHNICAL SUPPLIES', 'F01', N'Commercial>Shop>Shop', NULL, 0),
+    (3004, '598-1187', 'T-1187', N'TECHNICAL SUPPLIES', 'F02', N'Commercial>Shop>Shop', NULL, 0),
+    (3005, '598-1187', 'T-1187', N'TECHNICAL SUPPLIES', 'F03', N'Commercial>Shop>Shop', NULL, 0),
+    (5001, '598-1625', 'T-1625A', N'PROMINENT PRINTING & PUBLISHING - WAREHOUSE', '02', N'Commercial> >', N'PROMINENT PRINTING AND PUBLISHING CO. L.L.C', 1),
+    (5002, '598-1625', 'T-1625B', N'PROMINENT PRINTING & PUBLISHING - WAREHOUSE', '03', N'Commercial>Warehouse>Warehouse', N'AL MANSOORAH PLASTIC INDUSTRIES L.L.C', 1),
+    (4001, '597-581', 'T-0581', N'AFFAN INNOVATIVE STRUCTURES', '1', N'Industrial>Workshop>Workshop', N'AFFAN INNOVATIVE STRUCTURES LLC', 1),
+    (4002, '597-581', 'T-0581', N'AFFAN INNOVATIVE STRUCTURES', '2', N'Industrial>Workshop>Workshop', NULL, 0)
+) v (UnitId, PropertyCode, TenantCode, BuildingName, UnitCode, Category, SubTenantName, Active)
+WHERE NOT EXISTS (SELECT 1 FROM devsrc.InspectionUnit u WHERE u.UnitId = v.UnitId);
+GO
+
+/* Like the real view: unit counts per plan row. */
+CREATE OR ALTER VIEW dbo.vw_MR_InspectionPlan AS
+SELECT p.PeriodCode, p.InspectionPlanDate, p.PropertyCode, p.TenantCode, p.CompanyName,
+       (SELECT COUNT(*) FROM devsrc.InspectionUnit u WHERE u.PropertyCode = p.PropertyCode AND u.TenantCode = p.TenantCode AND u.Active = 1) AS ActiveUnits,
+       (SELECT COUNT(*) FROM devsrc.InspectionUnit u WHERE u.PropertyCode = p.PropertyCode AND u.TenantCode = p.TenantCode AND u.Active = 0) AS InactiveUnits,
+       (SELECT COUNT(*) FROM devsrc.InspectionUnit u WHERE u.PropertyCode = p.PropertyCode AND u.TenantCode = p.TenantCode) AS TotalUnits
+FROM devsrc.InspectionPlan p;
+GO
+CREATE OR ALTER VIEW dbo.vw_MR_InspectionUnit AS
+SELECT UnitId, PropertyCode, TenantCode, BuildingName, UnitCode, Category, SubTenantName, Active FROM devsrc.InspectionUnit;
+GO

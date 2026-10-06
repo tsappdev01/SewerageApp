@@ -55,8 +55,9 @@ ELSE
 DECLARE @user nvarchar(300) = QUOTENAME(@Login);
 DECLARE @sql nvarchar(max);
 DECLARE @views TABLE (name sysname);
--- vw_MR_ReadingHistory is optional; it is granted only where it exists.
-INSERT @views VALUES (N'vw_MR_Reader'), (N'vw_MR_Zone'), (N'vw_MR_Property'), (N'vw_MR_Meter'), (N'vw_MR_ReadingPeriod'), (N'vw_MR_Tenant'), (N'vw_MR_ReadingHistory');
+-- vw_MR_ReadingHistory and the inspection views are optional; each is granted only where it exists.
+INSERT @views VALUES (N'vw_MR_Reader'), (N'vw_MR_Zone'), (N'vw_MR_Property'), (N'vw_MR_Meter'), (N'vw_MR_ReadingPeriod'), (N'vw_MR_Tenant'), (N'vw_MR_ReadingHistory'),
+    (N'vw_MR_InspectionPlan'), (N'vw_MR_InspectionUnit');
 
 /* 1. This database (schema mr, and the wrapper views). */
 IF DATABASE_PRINCIPAL_ID(@Login) IS NULL

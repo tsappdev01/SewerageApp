@@ -6,7 +6,8 @@ namespace MeterReading.Api.Contracts;
 
 public sealed record PeriodDto(string Code, DateOnly StartDate, DateOnly EndDate, string Status);
 
-public sealed record MeDto(string ReaderId, string DisplayName, string? TeamCode, PeriodDto? OpenPeriod);
+/// <summary>CanInspect: Field Inspection is set up on this server (its views and tables exist); the phone shows the job only then.</summary>
+public sealed record MeDto(string ReaderId, string DisplayName, string? TeamCode, PeriodDto? OpenPeriod, bool CanInspect = false);
 
 public sealed record ZoneDto(string Code, string? Name);
 

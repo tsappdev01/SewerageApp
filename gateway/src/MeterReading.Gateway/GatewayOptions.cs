@@ -20,6 +20,9 @@ public sealed class GatewayOptions
     /// <summary>Largest JSON body (readings, registration). Photos have their own limit.</summary>
     public long MaxJsonBytes { get; set; } = 64 * 1024;
 
+    /// <summary>Largest inspection visit (one result per unit; a labour camp can have hundreds of rooms).</summary>
+    public long MaxInspectionBytes { get; set; } = 512 * 1024;
+
     /// <summary>Largest photo upload; a little above the API's 2 MB limit so the API can answer with its own message.</summary>
     public long MaxImageBytes { get; set; } = 2_100_000;
 

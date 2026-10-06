@@ -38,7 +38,15 @@ INSERT @Expected (ViewName, ColumnName, Family, ViewRequired) VALUES
  (N'vw_MR_Tenant', N'CompanyName', 'text', 1),
  (N'vw_MR_ReadingHistory', N'MeterId', 'key', 0), (N'vw_MR_ReadingHistory', N'PeriodCode', 'text', 0),
  (N'vw_MR_ReadingHistory', N'ReadingDate', 'date', 0), (N'vw_MR_ReadingHistory', N'ReadingValue', 'decimal', 0),
- (N'vw_MR_ReadingHistory', N'Consumption', 'decimal', 0), (N'vw_MR_ReadingHistory', N'ConsumptionBasis', 'text', 0);
+ (N'vw_MR_ReadingHistory', N'Consumption', 'decimal', 0), (N'vw_MR_ReadingHistory', N'ConsumptionBasis', 'text', 0),
+ (N'vw_MR_InspectionPlan', N'PeriodCode', 'text', 0), (N'vw_MR_InspectionPlan', N'InspectionPlanDate', 'date', 0),
+ (N'vw_MR_InspectionPlan', N'PropertyCode', 'text', 0), (N'vw_MR_InspectionPlan', N'TenantCode', 'text', 0),
+ (N'vw_MR_InspectionPlan', N'CompanyName', 'text', 0), (N'vw_MR_InspectionPlan', N'ActiveUnits', 'int', 0),
+ (N'vw_MR_InspectionPlan', N'InactiveUnits', 'int', 0), (N'vw_MR_InspectionPlan', N'TotalUnits', 'int', 0),
+ (N'vw_MR_InspectionUnit', N'UnitId', 'key', 0), (N'vw_MR_InspectionUnit', N'PropertyCode', 'text', 0),
+ (N'vw_MR_InspectionUnit', N'TenantCode', 'text', 0), (N'vw_MR_InspectionUnit', N'BuildingName', 'text', 0),
+ (N'vw_MR_InspectionUnit', N'UnitCode', 'text', 0), (N'vw_MR_InspectionUnit', N'Category', 'text', 0),
+ (N'vw_MR_InspectionUnit', N'SubTenantName', 'text', 0), (N'vw_MR_InspectionUnit', N'Active', 'flag', 0);
 
 DECLARE @Actual TABLE (ViewName sysname, ColumnName sysname, TypeName sysname);
 INSERT @Actual
@@ -53,7 +61,9 @@ WHERE s.name = @Schema AND o.type IN ('V', 'U');
 SELECT e.ViewName, e.ColumnName, Problem =
     CASE
         WHEN NOT EXISTS (SELECT 1 FROM @Actual a WHERE a.ViewName = e.ViewName)
-            THEN CASE WHEN e.ViewRequired = 1 THEN 'View is missing' ELSE 'Optional view not found (averages use defaults)' END
+            THEN CASE WHEN e.ViewRequired = 1 THEN 'View is missing'
+                      WHEN e.ViewName LIKE N'vw[_]MR[_]Inspection%' THEN 'Optional view not found (Field Inspection is off)'
+                      ELSE 'Optional view not found (averages use defaults)' END
         WHEN a.ColumnName IS NULL THEN 'Column is missing'
         ELSE 'Type ' + a.TypeName + ' is not a ' + e.Family + ' type'
     END
@@ -101,7 +111,15 @@ INSERT @Checks VALUES
  (N'Period Status not PLANNED, OPEN or CLOSED', N'vw_MR_ReadingPeriod', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_ReadingPeriod WHERE UPPER(Status) NOT IN (''PLANNED'', ''OPEN'', ''CLOSED'') OR Status IS NULL'),
  (N'More than one OPEN period (the API uses the latest; count shown)', N'vw_MR_ReadingPeriod', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_ReadingPeriod WHERE Status = ''OPEN'' HAVING COUNT(*) > 1'),
  (N'No OPEN period', N'vw_MR_ReadingPeriod', NULL, N'SELECT @n = CASE WHEN EXISTS (SELECT 1 FROM {s}.vw_MR_ReadingPeriod WHERE Status = ''OPEN'') THEN 0 ELSE 1 END'),
- (N'ConsumptionBasis not ACTUAL or AVERAGE', N'vw_MR_ReadingHistory', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_ReadingHistory WHERE ConsumptionBasis NOT IN (''ACTUAL'', ''AVERAGE'') OR ConsumptionBasis IS NULL');
+ (N'ConsumptionBasis not ACTUAL or AVERAGE', N'vw_MR_ReadingHistory', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_ReadingHistory WHERE ConsumptionBasis NOT IN (''ACTUAL'', ''AVERAGE'') OR ConsumptionBasis IS NULL'),
+ (N'vw_MR_InspectionUnit returns exactly 1,000 rows: remove TOP (1000) from the view', N'vw_MR_InspectionUnit', NULL, N'SELECT @n = CASE WHEN (SELECT COUNT(*) FROM {s}.vw_MR_InspectionUnit) = 1000 THEN 1 ELSE 0 END'),
+ (N'Duplicate UnitId in vw_MR_InspectionUnit (the API keeps the first)', N'vw_MR_InspectionUnit', NULL, N'SELECT @n = COUNT(*) FROM (SELECT UnitId FROM {s}.vw_MR_InspectionUnit GROUP BY UnitId HAVING COUNT(*) > 1) d'),
+ (N'Unit without UnitCode', N'vw_MR_InspectionUnit', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_InspectionUnit WHERE UnitCode IS NULL OR LTRIM(CAST(UnitCode AS nvarchar(30))) = '''''),
+ (N'vw_MR_InspectionUnit.Active value not understood (read as inactive; use 1/0, Y/N, True/False)', N'vw_MR_InspectionUnit', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_InspectionUnit WHERE UPPER(LTRIM(RTRIM(CAST(Active AS varchar(10))))) NOT IN (''1'', ''TRUE'', ''T'', ''Y'', ''YES'', ''ACTIVE'', ''0'', ''FALSE'', ''F'', ''N'', ''NO'', ''INACTIVE'') OR Active IS NULL'),
+ (N'Units whose PropertyCode and TenantCode are on no plan row (inspectors never see them)', N'vw_MR_InspectionUnit', N'vw_MR_InspectionPlan', N'SELECT @n = COUNT(*) FROM {s}.vw_MR_InspectionUnit u WHERE NOT EXISTS (SELECT 1 FROM {s}.vw_MR_InspectionPlan p WHERE CAST(p.PropertyCode AS varchar(30)) = CAST(u.PropertyCode AS varchar(30)) AND CAST(p.TenantCode AS varchar(30)) = CAST(u.TenantCode AS varchar(30)))'),
+ (N'Plan rows with no units (the inspector sees an empty list)', N'vw_MR_InspectionPlan', N'vw_MR_InspectionUnit', N'SELECT @n = COUNT(*) FROM {s}.vw_MR_InspectionPlan p WHERE NOT EXISTS (SELECT 1 FROM {s}.vw_MR_InspectionUnit u WHERE CAST(p.PropertyCode AS varchar(30)) = CAST(u.PropertyCode AS varchar(30)) AND CAST(p.TenantCode AS varchar(30)) = CAST(u.TenantCode AS varchar(30)))'),
+ (N'Duplicate plan row (same period, property and tenant)', N'vw_MR_InspectionPlan', NULL, N'SELECT @n = COUNT(*) FROM (SELECT PeriodCode, PropertyCode, TenantCode FROM {s}.vw_MR_InspectionPlan GROUP BY PeriodCode, PropertyCode, TenantCode HAVING COUNT(*) > 1) d'),
+ (N'Plan row without InspectionPlanDate', N'vw_MR_InspectionPlan', NULL, N'SELECT @n = COUNT(*) FROM {s}.vw_MR_InspectionPlan WHERE InspectionPlanDate IS NULL');
 
 DECLARE @Problems TABLE (CheckName nvarchar(200), Rows int, Detail nvarchar(2000));
 DECLARE @name nvarchar(200), @v1 sysname, @v2 sysname, @q nvarchar(max), @n int;

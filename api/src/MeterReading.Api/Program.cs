@@ -19,6 +19,7 @@ builder.Services.Configure<AuthOptions>(config.GetSection(AuthOptions.Section));
 builder.Services.Configure<ImageStoreOptions>(config.GetSection(ImageStoreOptions.Section));
 builder.Services.Configure<PmsTransferOptions>(config.GetSection(PmsTransferOptions.Section));
 builder.Services.Configure<GatewayTrustOptions>(config.GetSection(GatewayTrustOptions.Section));
+builder.Services.Configure<InspectionOptions>(config.GetSection(InspectionOptions.Section));
 builder.Services.AddScoped<PmsTransferService>();
 builder.Services.AddHostedService<PmsTransferWorker>();
 switch ((config[$"{ImageStoreOptions.Section}:Kind"] ?? "Database").ToUpperInvariant())
@@ -32,6 +33,8 @@ switch ((config[$"{ImageStoreOptions.Section}:Kind"] ?? "Database").ToUpperInvar
 builder.Services.AddSingleton<SqlConnectionFactory>();
 builder.Services.AddScoped<MeterReadingRepository>();
 builder.Services.AddScoped<DeviceRepository>();
+builder.Services.AddScoped<InspectionRepository>();
+builder.Services.AddScoped<InspectionService>();
 // Registration codes can be tried at most Devices:RegisterPerMinute (10) times a minute per address.
 var registerPerMinute = config.GetValue("Devices:RegisterPerMinute", 10);
 builder.Services.AddRateLimiter(o =>
@@ -103,7 +106,7 @@ app.UseRateLimiter();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 
 app.MapGet("/health/live", () => Results.Ok(new { status = "live" })).AllowAnonymous().ExcludeFromDescription();
-app.MapGet("/health/ready", async (MeterReadingRepository repo, PmsTransferService transfer, DeviceRepository devices, Microsoft.Extensions.Options.IOptions<PmsTransferOptions> transferOptions, ILogger<Program> log, CancellationToken ct) =>
+app.MapGet("/health/ready", async (MeterReadingRepository repo, PmsTransferService transfer, DeviceRepository devices, InspectionRepository inspections, Microsoft.Extensions.Options.IOptions<PmsTransferOptions> transferOptions, ILogger<Program> log, CancellationToken ct) =>
 {
     try
     {
@@ -111,6 +114,9 @@ app.MapGet("/health/ready", async (MeterReadingRepository repo, PmsTransferServi
         if (transferOptions.Value.Enabled && await transfer.FindProblemAsync(ct) is { } problem) missing.Add(problem);
         if (string.Equals(auth.Mode, "Device", StringComparison.OrdinalIgnoreCase) && !await devices.TablesExistAsync(ct))
             missing.Add("mr.DeviceRegistrationCode (run db/009_device_keys.sql)");
+        // Field inspection is optional: only when its views exist must its tables exist too.
+        if (await inspections.AvailableAsync(ct) is (true, false))
+            missing.Add("mr.InspectionVisit (run db/010_field_inspection.sql)");
         return missing.Count == 0
             ? Results.Ok(new { status = "ready" })
             : Results.Json(new { status = "not ready", missing }, statusCode: StatusCodes.Status503ServiceUnavailable);
@@ -126,6 +132,7 @@ app.MapReaderEndpoints();
 app.MapReadingEndpoints();
 app.MapImageEndpoints();
 app.MapDeviceEndpoints();
+app.MapInspectionEndpoints();
 
 app.Run();
 

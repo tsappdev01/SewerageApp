@@ -103,6 +103,11 @@ public sealed class GatewayTests : IAsyncLifetime
     [InlineData("POST", "/api/v1/readings")]
     [InlineData("PUT", "/api/v1/readings/6f1c2b4a-1111-4222-8333-444455556666/images/7f1c2b4a-1111-4222-8333-444455556666?role=DISPLAY")]
     [InlineData("GET", "/api/v1/readings/6f1c2b4a-1111-4222-8333-444455556666/images/7f1c2b4a-1111-4222-8333-444455556666")]
+    [InlineData("GET", "/api/v1/inspections/plan?from=2026-10-01&to=2026-10-31")]
+    [InlineData("GET", "/api/v1/inspections/units?period=2026-10&property=597-4900(Bldg17)&tenant=T15")]
+    [InlineData("POST", "/api/v1/inspections")]
+    [InlineData("PUT", "/api/v1/inspections/6f1c2b4a-1111-4222-8333-444455556666/images/7f1c2b4a-1111-4222-8333-444455556666?role=EVIDENCE&result=8f1c2b4a-1111-4222-8333-444455556666")]
+    [InlineData("GET", "/api/v1/inspections/6f1c2b4a-1111-4222-8333-444455556666/images/7f1c2b4a-1111-4222-8333-444455556666")]
     [InlineData("GET", "/health/live")]
     public async Task The_apps_own_requests_are_passed_on(string method, string path)
     {
@@ -134,6 +139,8 @@ public sealed class GatewayTests : IAsyncLifetime
     [InlineData("DELETE", "/api/v1/readings")]
     [InlineData("GET", "/api/v1/devices/register")]
     [InlineData("POST", "/api/v1/me")]
+    [InlineData("GET", "/api/v1/inspections")]
+    [InlineData("DELETE", "/api/v1/inspections/6f1c2b4a-1111-4222-8333-444455556666/images/7f1c2b4a-1111-4222-8333-444455556666")]
     public async Task A_wrong_method_on_a_known_path_is_refused(string method, string path)
     {
         var response = await _gateway.CreateClient().SendAsync(new HttpRequestMessage(new HttpMethod(method), path));
@@ -182,6 +189,17 @@ public sealed class GatewayTests : IAsyncLifetime
         // A normal photo is fine.
         var ok = await _gateway.CreateClient().PutAsync("/api/v1/readings/6f1c2b4a-1111-4222-8333-444455556666/images/7f1c2b4a-1111-4222-8333-444455556666", new ByteArrayContent(new byte[500_000]));
         Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
+    }
+
+    [Fact]
+    public async Task An_inspection_visit_may_be_larger_than_a_reading_but_not_unlimited()
+    {
+        var visit = await _gateway.CreateClient().PostAsync("/api/v1/inspections", new ByteArrayContent(new byte[200_000]));
+        Assert.Equal(HttpStatusCode.OK, visit.StatusCode);
+        var tooBig = await _gateway.CreateClient().PostAsync("/api/v1/inspections", new ByteArrayContent(new byte[600_000]));
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, tooBig.StatusCode);
+        var photo = await _gateway.CreateClient().PutAsync("/api/v1/inspections/6f1c2b4a-1111-4222-8333-444455556666/images/7f1c2b4a-1111-4222-8333-444455556666", new ByteArrayContent(new byte[2_200_000]));
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, photo.StatusCode);
     }
 
     [Fact]
