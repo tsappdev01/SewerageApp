@@ -1,0 +1,603 @@
+<title>DIP Mobile Security Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column; diagrams break out wider and scroll sideways on phones. Trust zones carry their own tint everywhere. */
+:root {
+  --bg: #f6f7f9;
+  --paper: #ffffff;
+  --ink: #16202e;
+  --sub: #566173;
+  --line: #d5dae3;
+  --navy: #1b3a6b;
+  --zone-phone: #eef1f6;
+  --zone-cloud: #fdf3e2;
+  --zone-cloud-edge: #d9a646;
+  --zone-onprem: #e6f3ee;
+  --zone-onprem-edge: #4f9a7e;
+  --ok: #1f7a52;
+  --ok-tint: #e3f2ea;
+  --warn: #9a5b00;
+  --warn-tint: #fbefd9;
+  --bad: #b3261e;
+  --bad-tint: #fbe6e4;
+  --hl: #c2410c;
+  --f-body: "Public Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #10151d; --paper: #171e29; --ink: #e6eaf1; --sub: #9aa5b6; --line: #2d3746; --navy: #8fb0e6;
+  --zone-phone: #1c2431; --zone-cloud: #2a2216; --zone-cloud-edge: #b88a35; --zone-onprem: #15271f; --zone-onprem-edge: #4f9a7e;
+  --ok: #6fcf9f; --ok-tint: #173226; --warn: #e9b55a; --warn-tint: #33280f; --bad: #f2867d; --bad-tint: #3a1a18; --hl: #fb923c;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #10151d; --paper: #171e29; --ink: #e6eaf1; --sub: #9aa5b6; --line: #2d3746; --navy: #8fb0e6;
+  --zone-phone: #1c2431; --zone-cloud: #2a2216; --zone-cloud-edge: #b88a35; --zone-onprem: #15271f; --zone-onprem-edge: #4f9a7e;
+  --ok: #6fcf9f; --ok-tint: #173226; --warn: #e9b55a; --warn-tint: #33280f; --bad: #f2867d; --bad-tint: #3a1a18; --hl: #fb923c;
+  color-scheme: dark }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15.5px; line-height: 1.55; }
+.wrap { max-width: 1060px; margin: 0 auto; padding-inline: 20px; padding-block: 36px 64px; display: grid; gap: 44px; }
+.col { max-width: 760px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: clamp(28px, 4.4vw, 40px); font-weight: 800; letter-spacing: -0.015em; }
+h2 { font-size: 23px; font-weight: 750; }
+h3 { font-size: 16px; font-weight: 700; }
+p { margin: 0; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sub); }
+.lede { font-size: 17.5px; color: var(--sub); max-width: 68ch; }
+section { display: grid; gap: 16px; }
+.stack { display: grid; gap: 10px; }
+code, .mono { font-family: var(--f-mono); font-size: 0.88em; }
+code { background: var(--zone-phone); padding: 1px 5px; border-radius: 4px; }
+
+.verdict { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.v { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; }
+.v .k { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+.v.good .k { color: var(--ok); } .v.risk .k { color: var(--bad); } .v.dec .k { color: var(--warn); }
+
+figure { margin: 0; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 18px 18px 14px; display: grid; gap: 12px; }
+.scroll { overflow-x: auto; }
+.scroll svg { display: block; width: 100%; height: auto; min-width: 760px; }
+figcaption { font-size: 14px; color: var(--sub); max-width: 80ch; }
+figcaption b { color: var(--ink); }
+
+/* SVG paint, all from tokens */
+svg text { fill: var(--ink); font-family: var(--f-body); font-size: 12.5px; }
+svg .t-sub { fill: var(--sub); font-size: 11.5px; }
+svg .t-b { font-weight: 700; font-size: 13.5px; }
+svg .t-zone { font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.08em; fill: var(--sub); }
+svg .t-code { font-family: var(--f-mono); font-size: 11.5px; }
+svg .t-hl { fill: var(--hl); font-weight: 600; }
+svg .t-bad { fill: var(--bad); font-family: var(--f-mono); font-size: 11.5px; font-weight: 600; }
+svg .t-ok { fill: var(--ok); font-weight: 700; }
+svg .z-phone { fill: var(--zone-phone); stroke: var(--line); }
+svg .z-cloud { fill: var(--zone-cloud); stroke: var(--zone-cloud-edge); stroke-dasharray: 5 4; }
+svg .z-onprem { fill: var(--zone-onprem); stroke: var(--zone-onprem-edge); stroke-dasharray: 5 4; }
+svg .z-ext { fill: none; stroke: var(--line); stroke-dasharray: 3 4; }
+svg .box { fill: var(--paper); stroke: var(--ink); stroke-width: 1.3; }
+svg .box-hl { fill: var(--paper); stroke: var(--hl); stroke-width: 2; }
+svg .box-ok { fill: var(--ok-tint); stroke: var(--ok); stroke-width: 1.3; }
+svg .box-bad { fill: var(--bad-tint); stroke: var(--bad); stroke-width: 1.1; }
+svg .ln { stroke: var(--ink); stroke-width: 1.4; fill: none; }
+svg .ln-d { stroke: var(--sub); stroke-width: 1.3; fill: none; stroke-dasharray: 4 4; }
+svg .ln-bad { stroke: var(--bad); stroke-width: 1.2; fill: none; }
+svg .ln-hl { stroke: var(--hl); stroke-width: 2; fill: none; }
+svg .life { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 2 4; }
+svg .wall { stroke: var(--zone-onprem-edge); stroke-width: 3; }
+svg .ah { fill: var(--ink); } svg .ah-d { fill: var(--sub); } svg .ah-bad { fill: var(--bad); } svg .ah-hl { fill: var(--hl); }
+svg .num { fill: var(--navy); } svg .num-t { fill: var(--paper); font-family: var(--f-mono); font-size: 11px; font-weight: 600; }
+
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+.tbl { overflow-x: auto; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; font-family: var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--sub); font-weight: 500; background: var(--paper); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; min-width: 160px; }
+td { min-width: 150px; }
+.pill { display: inline-block; font-family: var(--f-mono); font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.p-ok { color: var(--ok); background: var(--ok-tint); }
+.p-part { color: var(--warn); background: var(--warn-tint); }
+.p-gap { color: var(--bad); background: var(--bad-tint); }
+
+.finds { display: grid; gap: 12px; }
+.f { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 4px 14px; }
+.f .sev { grid-row: span 3; font-family: var(--f-mono); font-size: 12px; font-weight: 600; padding-top: 2px; }
+.f .sev.h { color: var(--bad); } .f .sev.m { color: var(--warn); } .f .sev.l { color: var(--sub); }
+.f p { color: var(--sub); }
+.f p.fix { color: var(--ink); }
+.f p.fix::before { content: "Recommend: "; font-weight: 700; }
+ol.decide { margin: 0; padding-left: 22px; display: grid; gap: 10px; max-width: 78ch; }
+ol.decide li::marker { font-family: var(--f-mono); color: var(--navy); font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--sub); }
+.legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--line); }
+.lg-phone::before { background: var(--zone-phone); }
+.lg-cloud::before { background: var(--zone-cloud); border-color: var(--zone-cloud-edge) !important; }
+.lg-onprem::before { background: var(--zone-onprem); border-color: var(--zone-onprem-edge) !important; }
+.lg-hl::before { background: var(--paper); border: 2px solid var(--hl) !important; }
+@media (max-width: 520px) { .f { grid-template-columns: 1fr; } .f .sev { grid-row: auto; } }
+</style>
+
+<div class="wrap">
+
+<header class="stack col">
+  <span class="eyebrow">Architecture review · DI-IT-POL-AIDEV-001 · 6 Oct 2026</span>
+  <h1>DIP mobile security architecture</h1>
+  <p class="lede">A review of the two CLAUDE.md files for the Android app and the DMZ web app: what they require, drawn as pictures, what in them needs fixing or deciding, and how far the DIP Field Service app as deployed today (zApps → mApps) is from them.</p>
+</header>
+
+<section>
+  <div class="verdict">
+    <div class="v good"><span class="k">Sound</span><p>Three separate proofs on every call (device certificate, user token, app integrity), the user tied to the device, fail-closed checks, and a DMZ that holds no data or database.</p></div>
+    <div class="v risk"><span class="k">Must fix in the documents</span><p>They assume Azure (App Gateway, App Service, managed identity), but DIP's DMZ is on premises. They also ban on-phone data, which offline field work needs.</p></div>
+    <div class="v dec"><span class="k">Decide before building</span><p>Play Store or sideloading. Whether every reader has an Entra account. Where nonces and sessions are kept, given the DMZ may have no database.</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="stack col">
+    <span class="eyebrow">Picture 1</span>
+    <h2>The target, as the two documents describe it</h2>
+  </div>
+  <figure>
+    <div class="legend"><span class="lg-phone">Personal phone</span><span class="lg-cloud">Azure</span><span class="lg-onprem">DIP on-premises</span><span>Dashed line: side call, not on the request path</span></div>
+    <div class="scroll">
+    <svg viewBox="0 0 1000 470" role="img" aria-label="Target architecture: the phone calls Azure Application Gateway with mTLS and a bearer token; the gateway passes certificate headers to the DMZ web app, which checks them, the Entra token and Play Integrity, then calls the internal app over a site-to-site VPN; only the internal app reaches the database.">
+      <defs>
+        <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+        <marker id="a1d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-d"/></marker>
+      </defs>
+      <!-- external services -->
+      <rect x="250" y="14" width="380" height="80" rx="10" class="z-ext"/>
+      <text x="262" y="32" class="t-zone">IDENTITY AND ATTESTATION SERVICES</text>
+      <rect x="270" y="42" width="150" height="42" rx="7" class="box"/>
+      <text x="345" y="61" text-anchor="middle" class="t-b">Entra ID</text>
+      <text x="345" y="76" text-anchor="middle" class="t-sub">user sign-in, MFA</text>
+      <rect x="460" y="42" width="150" height="42" rx="7" class="box"/>
+      <text x="535" y="61" text-anchor="middle" class="t-b">Play Integrity API</text>
+      <text x="535" y="76" text-anchor="middle" class="t-sub">Google, decodes verdict</text>
+
+      <!-- zones -->
+      <rect x="10" y="118" width="210" height="330" rx="12" class="z-phone"/>
+      <text x="24" y="138" class="t-zone">PERSONAL PHONE</text>
+      <rect x="250" y="118" width="380" height="330" rx="12" class="z-cloud"/>
+      <text x="264" y="138" class="t-zone">AZURE</text>
+      <rect x="660" y="118" width="330" height="330" rx="12" class="z-onprem"/>
+      <text x="674" y="138" class="t-zone">DIP ON-PREMISES</text>
+      <line x1="660" y1="150" x2="660" y2="420" class="wall"/>
+      <text x="668" y="436" class="t-sub">firewall: only the DMZ app's subnet → :443</text>
+
+      <!-- phone -->
+      <rect x="28" y="160" width="174" height="170" rx="10" class="box"/>
+      <text x="115" y="182" text-anchor="middle" class="t-b">Android app</text>
+      <text x="40" y="208" class="t-sub">Keystore</text><text x="40" y="223">device cert (mobapi-…)</text>
+      <text x="40" y="246" class="t-sub">MSAL</text><text x="40" y="261">Entra access token</text>
+      <text x="40" y="284" class="t-sub">OkHttp</text><text x="40" y="299">mTLS + pinned server cert</text>
+      <text x="40" y="320" class="t-sub">no data kept on disk</text>
+
+      <!-- app gateway -->
+      <rect x="266" y="190" width="150" height="120" rx="10" class="box"/>
+      <text x="341" y="212" text-anchor="middle" class="t-b">App Gateway</text>
+      <text x="341" y="228" text-anchor="middle" class="t-b">WAF v2</text>
+      <text x="341" y="252" text-anchor="middle">mTLS ends here</text>
+      <text x="341" y="268" text-anchor="middle" class="t-sub">public TLS cert</text>
+      <text x="341" y="284" text-anchor="middle" class="t-sub">trusts local CA only</text>
+
+      <!-- dmz app -->
+      <rect x="460" y="190" width="156" height="120" rx="10" class="box"/>
+      <text x="538" y="212" text-anchor="middle" class="t-b">DMZ web app</text>
+      <text x="538" y="228" text-anchor="middle" class="t-sub">App Service, private only</text>
+      <text x="538" y="252" text-anchor="middle">7 certificate checks</text>
+      <text x="538" y="268" text-anchor="middle">JWT · user = cert email</text>
+      <text x="538" y="284" text-anchor="middle">attested session</text>
+      <text x="538" y="300" text-anchor="middle" class="t-sub">no database</text>
+
+      <!-- key vault -->
+      <rect x="460" y="372" width="156" height="50" rx="8" class="box"/>
+      <text x="538" y="393" text-anchor="middle" class="t-b">Key Vault</text>
+      <text x="538" y="410" text-anchor="middle" class="t-sub">CA certs, Google key</text>
+
+      <!-- internal -->
+      <rect x="690" y="190" width="150" height="120" rx="10" class="box"/>
+      <text x="765" y="212" text-anchor="middle" class="t-b">Internal app</text>
+      <text x="765" y="236" text-anchor="middle">re-checks user</text>
+      <text x="765" y="252" text-anchor="middle">and authorises</text>
+      <text x="765" y="276" text-anchor="middle" class="t-sub">device registry</text>
+      <text x="765" y="292" text-anchor="middle" class="t-sub">/internal/v1/devices</text>
+
+      <rect x="870" y="215" width="104" height="70" rx="10" class="box"/>
+      <text x="922" y="246" text-anchor="middle" class="t-b">Database</text>
+      <text x="922" y="263" text-anchor="middle" class="t-sub">only path in</text>
+
+      <!-- request path -->
+      <line x1="202" y1="245" x2="264" y2="245" class="ln" marker-end="url(#a1)"/>
+      <text x="233" y="236" text-anchor="middle" class="t-code">443</text>
+      <text x="233" y="264" text-anchor="middle" class="t-sub">mTLS</text>
+      <text x="233" y="278" text-anchor="middle" class="t-sub">+ Bearer</text>
+      <line x1="416" y1="250" x2="458" y2="250" class="ln" marker-end="url(#a1)"/>
+      <text x="437" y="330" text-anchor="middle" class="t-sub">cert sent as</text>
+      <text x="437" y="344" text-anchor="middle" class="t-code">X-Client-Cert*</text>
+      <line x1="437" y1="318" x2="437" y2="256" class="ln-d"/>
+      <line x1="616" y1="250" x2="688" y2="250" class="ln" marker-end="url(#a1)"/>
+      <text x="652" y="176" text-anchor="middle" class="t-sub">site-to-site VPN</text>
+      <text x="636" y="330" class="t-sub">managed-identity token</text>
+      <text x="636" y="344" class="t-code">X-User-Upn, X-Device-Cn</text>
+      <line x1="840" y1="250" x2="868" y2="250" class="ln" marker-end="url(#a1)"/>
+
+      <!-- side calls -->
+      <path d="M115,160 L115,63 L268,63" class="ln-d" marker-end="url(#a1d)"/>
+      <text x="122" y="110" class="t-sub">sign in</text>
+      <line x1="535" y1="190" x2="535" y2="86" class="ln-d" marker-end="url(#a1d)"/>
+      <text x="542" y="150" class="t-sub">decode token</text>
+      <line x1="500" y1="190" x2="420" y2="86" class="ln-d" marker-end="url(#a1d)"/>
+      <text x="436" y="150" class="t-sub" text-anchor="end">JWT keys</text>
+      <line x1="538" y1="312" x2="538" y2="370" class="ln-d" marker-end="url(#a1d)"/>
+      <text x="546" y="350" class="t-sub">secrets</text>
+      <path d="M120,330 L120,398 L250,398" class="ln-d"/>
+      <text x="40" y="420" class="t-sub">Play Integrity token</text>
+      <text x="40" y="434" class="t-sub">asked on the phone</text>
+    </svg>
+    </div>
+    <figcaption><b>Every request crosses two boundaries.</b> The phone proves the device at App Gateway (mTLS) and the person with an Entra token. The DMZ app re-checks the certificate from headers that App Gateway adds, ties the token's user to the certificate's e-mail, and requires a Play Integrity session. Only the internal app, behind the on-premises firewall, can reach the database.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="stack col">
+    <span class="eyebrow">Picture 2</span>
+    <h2>One-time setup and session start</h2>
+  </div>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 960 470" role="img" aria-label="Sequence: IT sends the p12 and password separately; the app imports the key into the Keystore; the user signs in with Entra; the app gets a nonce, asks Play Integrity for a token, posts it to the DMZ, which has Google decode it and opens a 12-hour attested session; after that every call carries mTLS, a bearer token and a pinned server certificate.">
+      <defs>
+        <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+        <marker id="a2d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-d"/></marker>
+      </defs>
+      <!-- heads -->
+      <g>
+        <rect x="20" y="14" width="120" height="36" rx="7" class="box"/><text x="80" y="37" text-anchor="middle" class="t-b">DIP IT</text>
+        <rect x="200" y="14" width="140" height="36" rx="7" class="box"/><text x="270" y="37" text-anchor="middle" class="t-b">Android app</text>
+        <rect x="400" y="14" width="120" height="36" rx="7" class="box"/><text x="460" y="37" text-anchor="middle" class="t-b">Entra ID</text>
+        <rect x="580" y="14" width="140" height="36" rx="7" class="box"/><text x="650" y="37" text-anchor="middle" class="t-b">DMZ web app</text>
+        <rect x="780" y="14" width="160" height="36" rx="7" class="box"/><text x="860" y="37" text-anchor="middle" class="t-b">Google Play Integrity</text>
+      </g>
+      <line x1="80" y1="50" x2="80" y2="460" class="life"/>
+      <line x1="270" y1="50" x2="270" y2="460" class="life"/>
+      <line x1="460" y1="50" x2="460" y2="460" class="life"/>
+      <line x1="650" y1="50" x2="650" y2="460" class="life"/>
+      <line x1="860" y1="50" x2="860" y2="460" class="life"/>
+
+      <text x="20" y="74" class="t-zone">ONCE PER PHONE</text>
+      <!-- 1 -->
+      <line x1="80" y1="92" x2="268" y2="92" class="ln" marker-end="url(#a2)"/>
+      <text x="90" y="86">.p12 + one-time password</text>
+      <text x="90" y="106" class="t-sub">sent by two separate routes</text>
+      <!-- 2 self -->
+      <rect x="262" y="118" width="16" height="44" class="box-hl"/>
+      <text x="290" y="134">import into Keystore, key not exportable</text>
+      <text x="290" y="150" class="t-sub">check: CN mobapi-…, client-auth EKU, expiry; zero the password</text>
+
+      <text x="20" y="196" class="t-zone">EACH SESSION</text>
+      <!-- 3 -->
+      <line x1="270" y1="214" x2="458" y2="214" class="ln" marker-end="url(#a2)"/>
+      <text x="280" y="208">MSAL sign-in</text>
+      <line x1="460" y1="236" x2="272" y2="236" class="ln-d" marker-end="url(#a2d)"/>
+      <text x="450" y="250" text-anchor="end" class="t-sub">access token (cached by MSAL)</text>
+      <!-- 4 -->
+      <line x1="270" y1="276" x2="648" y2="276" class="ln" marker-end="url(#a2)"/>
+      <text x="480" y="270" class="t-code">GET /api/v1/session/nonce</text>
+      <line x1="650" y1="296" x2="272" y2="296" class="ln-d" marker-end="url(#a2d)"/>
+      <text x="640" y="310" text-anchor="end" class="t-sub">single-use nonce, 2 min</text>
+      <!-- 5 -->
+      <path d="M270,326 L858,326" class="ln" marker-end="url(#a2)"/>
+      <text x="680" y="320">integrity token for nonce</text>
+      <!-- 6 -->
+      <line x1="270" y1="356" x2="648" y2="356" class="ln" marker-end="url(#a2)"/>
+      <text x="480" y="350" class="t-code">POST /api/v1/session/attest</text>
+      <line x1="650" y1="380" x2="858" y2="380" class="ln" marker-end="url(#a2)"/>
+      <text x="660" y="374">decode verdict</text>
+      <text x="660" y="396" class="t-sub">MEETS_DEVICE_INTEGRITY, package, signer</text>
+      <line x1="650" y1="420" x2="272" y2="420" class="ln-d" marker-end="url(#a2d)"/>
+      <text x="640" y="414" text-anchor="end" class="t-ok">attested session: this cert + this user, 12 h</text>
+      <text x="280" y="448" class="t-sub">then every call: mTLS + Bearer + pinned server certificate; 401 ATTESTATION_REQUIRED repeats the last 3 steps</text>
+    </svg>
+    </div>
+    <figcaption><b>Certificate once, attestation per session.</b> The highlighted step is the weak spot: the private key is made by IT and travels to the phone as a file, so nobody can be sure every copy was deleted. Finding M1 below suggests making the key on the phone instead.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="stack col">
+    <span class="eyebrow">Picture 3</span>
+    <h2>What a request has to pass, and what it gets if it fails</h2>
+  </div>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 820 640" role="img" aria-label="Ten gates in order: TLS client certificate at App Gateway, header consistency, certificate content, device registry, Entra token, user equals certificate email, attested session, rate limit, route and input validation, then forwarding to the internal app. Each failing gate returns its own status code.">
+      <defs>
+        <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+        <marker id="a3b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-bad"/></marker>
+      </defs>
+      <rect x="10" y="10" width="470" height="68" rx="10" class="z-cloud"/>
+      <text x="22" y="26" class="t-zone">APP GATEWAY</text>
+      <rect x="10" y="84" width="470" height="540" rx="10" class="z-cloud"/>
+      <text x="22" y="100" class="t-zone">DMZ WEB APP</text>
+
+      <g>
+        <!-- y rows: 34, 108, 168, 228, 288, 348, 408, 468, 528, 588 (h 44) -->
+        <rect x="40" y="30" width="420" height="40" rx="7" class="box"/>
+        <circle cx="62" cy="50" r="11" class="num"/><text x="62" y="54" text-anchor="middle" class="num-t">1</text>
+        <text x="84" y="47">TLS: client cert chains to the DIP local CA</text>
+        <text x="84" y="62" class="t-sub">no cert, wrong CA</text>
+
+        <rect x="40" y="108" width="420" height="40" rx="7" class="box"/>
+        <circle cx="62" cy="128" r="11" class="num"/><text x="62" y="132" text-anchor="middle" class="num-t">2</text>
+        <text x="84" y="125">Verification = SUCCESS; PEM matches fingerprint</text>
+        <text x="84" y="140" class="t-sub">headers missing or inconsistent</text>
+
+        <rect x="40" y="166" width="420" height="40" rx="7" class="box"/>
+        <circle cx="62" cy="186" r="11" class="num"/><text x="62" y="190" text-anchor="middle" class="num-t">3</text>
+        <text x="84" y="183">In date · policy OID · client-auth EKU · issuer CA</text>
+        <text x="84" y="198" class="t-sub">chain built against configured root + issuing CA</text>
+
+        <rect x="40" y="224" width="420" height="40" rx="7" class="box"/>
+        <circle cx="62" cy="244" r="11" class="num"/><text x="62" y="248" text-anchor="middle" class="num-t">4</text>
+        <text x="84" y="241">Thumbprint Active in the device registry</text>
+        <text x="84" y="256" class="t-sub">asked from the internal app, cached ≤ 5 min</text>
+
+        <rect x="40" y="282" width="420" height="40" rx="7" class="box"/>
+        <circle cx="62" cy="302" r="11" class="num"/><text x="62" y="306" text-anchor="middle" class="num-t">5</text>
+        <text x="84" y="299">Entra JWT valid: issuer, audience, signature, expiry</text>
+        <text x="84" y="314" class="t-sub">not needed for /health and /session/nonce</text>
+
+        <rect x="40" y="340" width="420" height="40" rx="7" class="box"/>
+        <circle cx="62" cy="360" r="11" class="num"/><text x="62" y="364" text-anchor="middle" class="num-t">6</text>
+        <text x="84" y="357">Token UPN = certificate's SAN e-mail</text>
+        <text x="84" y="372" class="t-sub">a copied cert is useless with someone else's login</text>
+
+        <rect x="40" y="398" width="420" height="40" rx="7" class="box"/>
+        <circle cx="62" cy="418" r="11" class="num"/><text x="62" y="422" text-anchor="middle" class="num-t">7</text>
+        <text x="84" y="415">Attested session for this cert + user</text>
+        <text x="84" y="430" class="t-sub">12 h after a passing Play Integrity check</text>
+
+        <rect x="40" y="456" width="420" height="40" rx="7" class="box"/>
+        <circle cx="62" cy="476" r="11" class="num"/><text x="62" y="480" text-anchor="middle" class="num-t">8</text>
+        <text x="84" y="473">Rate limit per certificate, plus a global limit</text>
+        <text x="84" y="488" class="t-sub">e.g. 60 a minute</text>
+
+        <rect x="40" y="514" width="420" height="40" rx="7" class="box"/>
+        <circle cx="62" cy="534" r="11" class="num"/><text x="62" y="538" text-anchor="middle" class="num-t">9</text>
+        <text x="84" y="531">Route on the allowlist; DTO valid; body ≤ 64 KB</text>
+        <text x="84" y="546" class="t-sub">unknown JSON properties refused</text>
+
+        <rect x="40" y="572" width="420" height="40" rx="7" class="box-ok"/>
+        <circle cx="62" cy="592" r="11" class="num"/><text x="62" y="596" text-anchor="middle" class="num-t">10</text>
+        <text x="84" y="589" class="t-ok">Forward to the internal app</text>
+        <text x="84" y="604" class="t-sub">managed-identity token, X-User-Upn, X-Device-Cn</text>
+      </g>
+      <!-- flow down -->
+      <g>
+        <line x1="250" y1="70" x2="250" y2="106" class="ln" marker-end="url(#a3)"/>
+        <line x1="250" y1="148" x2="250" y2="164" class="ln" marker-end="url(#a3)"/>
+        <line x1="250" y1="206" x2="250" y2="222" class="ln" marker-end="url(#a3)"/>
+        <line x1="250" y1="264" x2="250" y2="280" class="ln" marker-end="url(#a3)"/>
+        <line x1="250" y1="322" x2="250" y2="338" class="ln" marker-end="url(#a3)"/>
+        <line x1="250" y1="380" x2="250" y2="396" class="ln" marker-end="url(#a3)"/>
+        <line x1="250" y1="438" x2="250" y2="454" class="ln" marker-end="url(#a3)"/>
+        <line x1="250" y1="496" x2="250" y2="512" class="ln" marker-end="url(#a3)"/>
+        <line x1="250" y1="554" x2="250" y2="570" class="ln" marker-end="url(#a3)"/>
+      </g>
+      <!-- rejections -->
+      <g>
+        <line x1="460" y1="50" x2="548" y2="50" class="ln-bad" marker-end="url(#a3b)"/><text x="556" y="54" class="t-bad">TLS refused</text><text x="660" y="54" class="t-sub">app → onboarding</text>
+        <line x1="460" y1="128" x2="548" y2="128" class="ln-bad" marker-end="url(#a3b)"/><text x="556" y="132" class="t-bad">403</text><text x="600" y="132" class="t-sub">empty body · CERT_INVALID</text>
+        <line x1="460" y1="186" x2="548" y2="186" class="ln-bad" marker-end="url(#a3b)"/><text x="556" y="190" class="t-bad">403</text><text x="600" y="190" class="t-sub">CERT_INVALID</text>
+        <line x1="460" y1="244" x2="548" y2="244" class="ln-bad" marker-end="url(#a3b)"/><text x="556" y="248" class="t-bad">403 / 503</text><text x="640" y="248" class="t-sub">revoked · registry down</text>
+        <line x1="460" y1="302" x2="548" y2="302" class="ln-bad" marker-end="url(#a3b)"/><text x="556" y="306" class="t-bad">401</text><text x="600" y="306" class="t-sub">app refreshes the token</text>
+        <line x1="460" y1="360" x2="548" y2="360" class="ln-bad" marker-end="url(#a3b)"/><text x="556" y="364" class="t-bad">403</text><text x="600" y="364" class="t-sub">USER_CERT_MISMATCH</text>
+        <line x1="460" y1="418" x2="548" y2="418" class="ln-bad" marker-end="url(#a3b)"/><text x="556" y="422" class="t-bad">401</text><text x="600" y="422" class="t-sub">ATTESTATION_REQUIRED</text>
+        <line x1="460" y1="476" x2="548" y2="476" class="ln-bad" marker-end="url(#a3b)"/><text x="556" y="480" class="t-bad">429</text><text x="600" y="480" class="t-sub">RATE_LIMITED, back off</text>
+        <line x1="460" y1="534" x2="548" y2="534" class="ln-bad" marker-end="url(#a3b)"/><text x="556" y="538" class="t-bad">404 / 400</text><text x="640" y="538" class="t-sub">empty 404 · bad input</text>
+        <text x="556" y="596" class="t-sub">internal app re-checks and authorises</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption><b>Device first, then person, then app.</b> Gates 1–7 and the codes come from the documents. The documents do not fix where gates 8 and 9 sit; the order shown is the cheapest that still names the caller in the log. Gates 2–3 trust headers, so they are only safe if App Gateway removes any copy a caller sends (finding H4).</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="stack col">
+    <span class="eyebrow">Picture 4</span>
+    <h2>Built today next to the target</h2>
+  </div>
+  <figure>
+    <div class="legend"><span class="lg-phone">Personal phone</span><span class="lg-cloud">DMZ</span><span class="lg-onprem">Internal network</span><span class="lg-hl">Differs from the target</span></div>
+    <div class="scroll">
+    <svg viewBox="0 0 1000 400" role="img" aria-label="Two rows. Today: phone with device key and reader, to zApps on IIS in the on-premises DMZ, to mApps on UATWEB01, to SQL Server MRDB. Target: phone with certificate, Entra and Play Integrity, to Azure App Gateway, to the DMZ App Service, over VPN to the internal app and database. The differences are highlighted.">
+      <defs>
+        <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+        <marker id="a4h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-hl"/></marker>
+      </defs>
+      <!-- row labels -->
+      <text x="10" y="24" class="t-zone">BUILT TODAY · DIP FIELD SERVICE 0.4.1</text>
+      <text x="10" y="224" class="t-zone">TARGET · THE TWO CLAUDE.MD FILES</text>
+
+      <!-- TODAY row -->
+      <rect x="10" y="34" width="200" height="150" rx="10" class="z-phone"/>
+      <rect x="250" y="34" width="210" height="150" rx="10" class="z-cloud"/>
+      <rect x="500" y="34" width="490" height="150" rx="10" class="z-onprem"/>
+      <rect x="24" y="50" width="172" height="120" rx="8" class="box-hl"/>
+      <text x="110" y="70" text-anchor="middle" class="t-b">Phone app</text>
+      <text x="36" y="92">device key (registration code)</text>
+      <text x="36" y="108">reader chosen on phone</text>
+      <text x="36" y="124">no pinning, no integrity</text>
+      <text x="36" y="146" class="t-sub">offline queue, encrypted</text>
+      <text x="36" y="160" class="t-sub">with a Keystore key</text>
+
+      <rect x="264" y="50" width="182" height="120" rx="8" class="box-hl"/>
+      <text x="355" y="70" text-anchor="middle" class="t-b">zApps.dipark.com</text>
+      <text x="355" y="86" text-anchor="middle" class="t-sub">IIS + YARP, on-prem DMZ</text>
+      <text x="276" y="108">route allowlist, size limits</text>
+      <text x="276" y="124">rate limit per IP</text>
+      <text x="276" y="140">strips spoofable headers</text>
+      <text x="276" y="160" class="t-sub">no TLS client cert from phone</text>
+
+      <rect x="530" y="50" width="200" height="120" rx="8" class="box"/>
+      <text x="630" y="70" text-anchor="middle" class="t-b">mApps.dipark.com</text>
+      <text x="630" y="86" text-anchor="middle" class="t-sub">UATWEB01 · Meter Reading API</text>
+      <text x="542" y="108">checks device key hash +</text>
+      <text x="542" y="124">ACTIVE on every call</text>
+      <text x="542" y="140">all business rules</text>
+      <text x="542" y="160" class="t-sub">needs gateway client cert</text>
+
+      <rect x="780" y="70" width="190" height="80" rx="8" class="box"/>
+      <text x="875" y="96" text-anchor="middle" class="t-b">SQL Server · MRDB</text>
+      <text x="875" y="114" text-anchor="middle" class="t-sub">mr.* tables, vw_MR_* views</text>
+      <text x="875" y="130" text-anchor="middle" class="t-sub">login mr_api</text>
+
+      <line x1="196" y1="110" x2="262" y2="110" class="ln-hl" marker-end="url(#a4h)"/>
+      <text x="229" y="102" text-anchor="middle" class="t-code">443</text>
+      <text x="229" y="130" text-anchor="middle" class="t-sub">X-Device-Key</text>
+      <line x1="446" y1="110" x2="528" y2="110" class="ln" marker-end="url(#a4)"/>
+      <text x="487" y="102" text-anchor="middle" class="t-sub">client cert</text>
+      <text x="487" y="130" text-anchor="middle" class="t-sub">(planned)</text>
+      <line x1="730" y1="110" x2="778" y2="110" class="ln" marker-end="url(#a4)"/>
+      <text x="754" y="102" text-anchor="middle" class="t-sub">SQL</text>
+
+      <!-- TARGET row -->
+      <rect x="10" y="234" width="200" height="150" rx="10" class="z-phone"/>
+      <rect x="250" y="234" width="380" height="150" rx="10" class="z-cloud"/>
+      <rect x="670" y="234" width="320" height="150" rx="10" class="z-onprem"/>
+      <rect x="24" y="250" width="172" height="120" rx="8" class="box"/>
+      <text x="110" y="270" text-anchor="middle" class="t-b">Phone app</text>
+      <text x="36" y="292">device cert in Keystore</text>
+      <text x="36" y="308">Entra sign-in (MSAL)</text>
+      <text x="36" y="324">Play Integrity, pinning</text>
+      <text x="36" y="346" class="t-sub">nothing kept on disk</text>
+
+      <rect x="264" y="250" width="160" height="120" rx="8" class="box"/>
+      <text x="344" y="270" text-anchor="middle" class="t-b">App Gateway WAF</text>
+      <text x="344" y="286" text-anchor="middle" class="t-sub">Azure</text>
+      <text x="276" y="308">mTLS, WAF rules</text>
+      <text x="276" y="324">cert → headers</text>
+
+      <rect x="452" y="250" width="164" height="120" rx="8" class="box"/>
+      <text x="534" y="270" text-anchor="middle" class="t-b">DMZ web app</text>
+      <text x="534" y="286" text-anchor="middle" class="t-sub">App Service</text>
+      <text x="464" y="308">cert, JWT, binding,</text>
+      <text x="464" y="324">attestation, allowlist</text>
+      <text x="464" y="340">rate limit per cert</text>
+
+      <rect x="690" y="250" width="140" height="120" rx="8" class="box"/>
+      <text x="760" y="270" text-anchor="middle" class="t-b">Internal app</text>
+      <text x="702" y="300">re-checks user</text>
+      <text x="702" y="316">device registry</text>
+
+      <rect x="860" y="270" width="112" height="80" rx="8" class="box"/>
+      <text x="916" y="314" text-anchor="middle" class="t-b">Database</text>
+
+      <line x1="196" y1="310" x2="262" y2="310" class="ln" marker-end="url(#a4)"/>
+      <text x="229" y="302" text-anchor="middle" class="t-sub">mTLS</text>
+      <text x="229" y="330" text-anchor="middle" class="t-sub">+ Bearer</text>
+      <line x1="424" y1="310" x2="450" y2="310" class="ln" marker-end="url(#a4)"/>
+      <line x1="616" y1="310" x2="688" y2="310" class="ln" marker-end="url(#a4)"/>
+      <text x="652" y="302" text-anchor="middle" class="t-sub">VPN</text>
+      <line x1="830" y1="310" x2="858" y2="310" class="ln" marker-end="url(#a4)"/>
+    </svg>
+    </div>
+    <figcaption><b>The shape is already the same: one gateway in the DMZ, an internal API that alone touches the database.</b> The differences are in what the phone proves (a device key instead of a certificate, user and integrity proof), and in where the DMZ runs (an on-premises IIS server, not Azure).</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="stack col">
+    <span class="eyebrow">Review of the documents</span>
+    <h2>Findings</h2>
+    <p class="lede">The controls themselves are good. The issues below are places where the documents conflict with DIP's setup or with each other, or leave a gap.</p>
+  </div>
+  <div class="finds">
+    <div class="f"><span class="sev h">HIGH · H1</span><h3>They assume Azure, but DIP's DMZ is on premises</h3>
+      <p>Both files rely on App Gateway header rewrites, App Service private endpoints, a site-to-site VPN and managed identity. zApps runs on an IIS server in DIP's own DMZ, which has none of these. Managed identity in particular does not exist outside Azure.</p>
+      <p class="fix">Decide the hosting first. If it stays on premises, rewrite §3.1 and §3.6: IIS (or Kestrel) requires the client certificate itself and the app reads it from the connection, so no headers to trust; the DMZ authenticates to the internal app with its own client certificate, as zApps already does.</p></div>
+    <div class="f"><span class="sev h">HIGH · H2</span><h3>"No business data on disk" conflicts with offline field work</h3>
+      <p>Android §3.7 allows data in memory only. Meter readers and inspectors work where there is no signal, so readings, photos and inspection drafts have to wait on the phone until it can send them. Under §3.7 that work would be lost.</p>
+      <p class="fix">Add a written exception: queued work is kept encrypted with a non-exportable Keystore key (as the app does now), deleted once the server confirms it, deleted on sign-out or certificate removal, and never older than N days.</p></div>
+    <div class="f"><span class="sev h">HIGH · H3</span><h3>Play Integrity needs the Play Store, but the APK is sideloaded</h3>
+      <p>The documents flag this themselves. Today the app is installed from a GitHub release APK, so the app-recognition verdict would not be <code>PLAY_RECOGNIZED</code>. Every phone would then fail attestation, or the server would have to loosen the check.</p>
+      <p class="fix">Publish through a closed testing track in Google Play before building §3.6. If that is not possible, use device integrity only and say so in the documents.</p></div>
+    <div class="f"><span class="sev h">HIGH · H4</span><h3>The certificate checks trust headers that a caller could send</h3>
+      <p>Checking that the PEM matches the fingerprint does not stop forgery, because both headers come from the same source. The checks are only safe if (a) nothing but App Gateway can reach the DMZ app, and (b) App Gateway overwrites any <code>X-Client-Cert*</code> header the client sent. Point (b) is not written anywhere and is outside this repository.</p>
+      <p class="fix">Put (b) in the infrastructure requirements, and add an end-to-end test that sends forged headers through App Gateway and expects 403.</p></div>
+    <div class="f"><span class="sev m">MED · M1</span><h3>The private key is made by IT and travels as a file</h3>
+      <p>The .p12 and its password go to the user by e-mail, WhatsApp or similar. Copies stay in mailboxes and backups, and the "delete the file" step cannot be checked.</p>
+      <p class="fix">Have the app generate the key in the Keystore (StrongBox where the phone has it) and send a certificate request. IT signs it after approving the device. The key never leaves the phone and no password has to be sent.</p></div>
+    <div class="f"><span class="sev m">MED · M2</span><h3>Every user must have an Entra account</h3>
+      <p>Mandatory Entra sign-in, with the token's user matching the certificate's e-mail, means each reader needs their own Entra account, a licence and MFA on a personal phone. It also means one phone per person. The current app uses a registered phone plus a chosen reader (FR-002) to avoid exactly this.</p>
+      <p class="fix">Confirm with HR and IT that every field user is in Entra. If not, keep device mode for them and document the exception.</p></div>
+    <div class="f"><span class="sev m">MED · M3</span><h3>Nonces and sessions need storage, but the DMZ may have no database</h3>
+      <p>Nonces (2 min) and attested sessions (12 h) are stored server-side. Kept in memory, they are lost on every restart, and they break as soon as App Service runs a second instance.</p>
+      <p class="fix">Run a single instance and accept re-attestation after a restart, or keep these records in the internal app behind a small internal endpoint.</p></div>
+    <div class="f"><span class="sev m">MED · M4</span><h3>The 64 KB body limit and 60-a-minute rate limit are too small for field sync</h3>
+      <p>A photo can be up to 2 MB and an inspection visit up to 512 KB. A phone that comes back online with a day's queue sends well over 60 requests a minute.</p>
+      <p class="fix">Name the larger limits per route in §3.5, as zApps already does (64 KB JSON, 512 KB visit, 2.1 MB photo). Rate-limit uploads separately from reads.</p></div>
+    <div class="f"><span class="sev m">MED · M5</span><h3>Pinning a public CA's intermediate can take every phone offline</h3>
+      <p>Public CAs change their intermediates. With a sideloaded app that cannot be updated quickly, a renewal that switches intermediate cuts off all users at once.</p>
+      <p class="fix">Pin the CA's root plus a second CA's root as the backup, and agree with whoever renews the zApps certificate that they check the pins first.</p></div>
+    <div class="f"><span class="sev l">LOW · L1</span><h3>The business endpoints are "to be defined" in both files</h3>
+      <p>They already exist: readings, photos, meter lists, the inspection plan and visits. The list is in <code>gateway/src/MeterReading.Gateway/Routes.cs</code>.</p>
+      <p class="fix">Copy that list into §5 of the DMZ file and §6 of the Android file, so reviewers can check one against the other.</p></div>
+    <div class="f"><span class="sev l">LOW · L2</span><h3>Pipeline and fingerprint details</h3>
+      <p>Both files name Azure DevOps, but the code and APK builds are on GitHub Actions. The SHA-1 fingerprint is fine as an identifier but not for security.</p>
+      <p class="fix">Name the real pipeline. Compare SHA-256 of the certificate in the app itself, and look up the registry by SHA-256.</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="stack col">
+    <span class="eyebrow">Gap analysis</span>
+    <h2>Each requirement against what is deployed today</h2>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Requirement</th><th>Target</th><th>Built today</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Device proof</td><td>Client certificate in Keystore, mTLS</td><td>Device key from a one-time registration code, sealed with a Keystore key; only its hash is on the server</td><td><span class="pill p-part">Different method</span></td></tr>
+        <tr><td>User proof</td><td>Entra token, user = cert e-mail</td><td>Reader linked to the registered phone; Entra supported by the API but not used by the app</td><td><span class="pill p-gap">Gap · M2</span></td></tr>
+        <tr><td>App integrity</td><td>Play Integrity session</td><td>None</td><td><span class="pill p-gap">Gap · H3</span></td></tr>
+        <tr><td>Server pinning</td><td>CertificatePinner, two pins</td><td>System CAs only; zApps can pin mApps by thumbprint</td><td><span class="pill p-gap">Gap</span></td></tr>
+        <tr><td>No cleartext</td><td>network_security_config, no user CAs</td><td>Cleartext off in release; no config file yet (Android's default already ignores user CAs)</td><td><span class="pill p-part">Mostly</span></td></tr>
+        <tr><td>Backup, screenshots</td><td>allowBackup off, FLAG_SECURE</td><td>allowBackup off; FLAG_SECURE on photo capture and inspection units</td><td><span class="pill p-part">Mostly</span></td></tr>
+        <tr><td>Data on phone</td><td>Memory only</td><td>Encrypted offline queue and plan copy</td><td><span class="pill p-part">Needs exception · H2</span></td></tr>
+        <tr><td>Release hardening</td><td>R8, no logs, signing key outside repo</td><td>R8 on; keep the settings-PIN build value empty in release</td><td><span class="pill p-ok">Met</span></td></tr>
+        <tr><td>Route allowlist</td><td>Only /api/v1/…, else empty 404</td><td>Fixed list in Routes.cs; everything else 404</td><td><span class="pill p-ok">Met</span></td></tr>
+        <tr><td>Body limits</td><td>64 KB unless justified</td><td>64 KB JSON, 512 KB visit, 2.1 MB photo</td><td><span class="pill p-ok">Met</span></td></tr>
+        <tr><td>Rate limiting</td><td>Per certificate + global</td><td>Per IP 600/min; registration 10/min</td><td><span class="pill p-part">Per IP</span></td></tr>
+        <tr><td>No leakage</td><td>No Swagger, no Server header, generic errors</td><td>OpenAPI only in Development; Server and X-Powered-By removed; problem-details errors</td><td><span class="pill p-ok">Met</span></td></tr>
+        <tr><td>DMZ holds nothing</td><td>No database, no secrets</td><td>No database; only its own client certificate</td><td><span class="pill p-ok">Met</span></td></tr>
+        <tr><td>DMZ → internal auth</td><td>Managed-identity token</td><td>Gateway client certificate; still to be created on zApps</td><td><span class="pill p-part">Pending</span></td></tr>
+        <tr><td>Revocation</td><td>Registry, ≤ 5 min cache</td><td>Device status checked on every call, so it takes effect at once</td><td><span class="pill p-ok">Met</span></td></tr>
+        <tr><td>Fail closed</td><td>503 if registry is down</td><td>502/504 if mApps is down; the phone keeps its work</td><td><span class="pill p-ok">Met</span></td></tr>
+        <tr><td>Audit log</td><td>Every request and rejection, with reason codes</td><td>Standard IIS and ASP.NET logs only</td><td><span class="pill p-gap">Gap</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="stack col">
+    <span class="eyebrow">Next</span>
+    <h2>Decisions needed, in order</h2>
+  </div>
+  <ol class="decide">
+    <li><b>Hosting:</b> Azure App Gateway and App Service as written, or the on-premises zApps already running? Most of the other rewrites depend on this answer (H1).</li>
+    <li><b>Distribution:</b> a Google Play closed track or a sideloaded APK? This decides whether Play Integrity can be used at all (H3).</li>
+    <li><b>Users:</b> does every field user have an Entra account with MFA? If yes, Entra sign-in replaces "reader chosen on the phone" (M2).</li>
+    <li><b>Offline exception:</b> approve the encrypted offline queue, with its deletion rules (H2).</li>
+    <li><b>Device certificate:</b> made on the phone with a signing request, or a .p12 issued by IT (M1)?</li>
+  </ol>
+  <p class="col" style="color: var(--sub)">Once these are settled, the work can go in the small steps both files ask for: certificate onboarding and mTLS first, then pinning, then Entra, then attestation. The device key stays in place until each step is live.</p>
+</section>
+
+</div>
