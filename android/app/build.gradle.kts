@@ -52,6 +52,8 @@ android {
         compose = true
         buildConfig = true
     }
+    // Robolectric (screenshots) needs the app's resources in unit tests.
+    testOptions { unitTests.isIncludeAndroidResources = true }
 }
 
 dependencies {
@@ -81,4 +83,22 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.okhttp.mockwebserver)
+    // Screenshots of the screens with the demo data (src/test/.../screenshots, run with -Pscreenshots).
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+// The screenshot classes only make pictures; they run when asked for (-Pscreenshots), not with the tests.
+tasks.withType<Test>().configureEach {
+    if (project.hasProperty("screenshots")) {
+        filter { includeTestsMatching("*.screenshots.*") }
+        systemProperty("roborazzi.test.record", "true")
+    } else {
+        exclude("**/screenshots/**")
+    }
 }
