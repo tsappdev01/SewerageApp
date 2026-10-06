@@ -33,6 +33,7 @@ object AppServices {
     private lateinit var queueStore: QueueStore
     private lateinit var photoVault: PhotoVault
     private lateinit var listCache: com.meterreading.reader.data.MeterListCache
+    private lateinit var inspectionStore: com.meterreading.reader.data.InspectionStore
 
     /** This phone's registration (FR-002), or null until a supervisor registers it in Settings. */
     var device: DeviceCredentials? = null
@@ -74,6 +75,7 @@ object AppServices {
         queueStore = QueueStore(File(this.appContext.noBackupFilesDir, "queue.mrq"), sealer)
         photoVault = PhotoVault(sealer)
         listCache = com.meterreading.reader.data.MeterListCache(File(this.appContext.noBackupFilesDir, "meters.mrq"), sealer)
+        inspectionStore = com.meterreading.reader.data.InspectionStore(File(this.appContext.noBackupFilesDir, "inspections.mrq"), sealer)
         device = deviceStore.load()
         // A PIN given at build time becomes the first supervisor PIN; only its hash is kept.
         if (storedPin() == null && SupervisorPin.isValid(BuildConfig.SETTINGS_PIN)) setPin(BuildConfig.SETTINGS_PIN)
@@ -163,13 +165,25 @@ object AppServices {
             device = this@AppServices.device
             devUser = s.readerLogin.ifBlank { null }
         }
-        AppGraph.repository = if (BuildConfig.USE_FAKE_DATA) {
+        val meters = if (BuildConfig.USE_FAKE_DATA) {
             FakeMeterRepository()
         } else {
             ApiMeterRepository(
                 client, store = queueStore, vault = photoVault, onWaiting = { UploadWorker.scheduleCheck(appContext) }, listCache = listCache,
             )
         }
+        AppGraph.repository = meters
+        // Field inspection uses the same server, phone key, reader and encryption (spec §16).
+        AppGraph.inspections = com.meterreading.reader.data.InspectionRepository(
+            api = if (BuildConfig.USE_FAKE_DATA) com.meterreading.reader.data.FakeInspectionApi { meters.online.value } else client,
+            store = inspectionStore,
+            vault = photoVault,
+            onWaiting = { UploadWorker.scheduleCheck(appContext) },
+            onSignInNeeded = { reason ->
+                meters.signInReason = reason
+                meters.signInNeeded.value = true
+            },
+        )
     }
 
     private fun load(): AppSettings {

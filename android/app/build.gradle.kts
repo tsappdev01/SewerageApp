@@ -13,8 +13,8 @@ android {
         applicationId = "com.meterreading.reader"
         minSdk = 29
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.3.2"
+        versionCode = 6
+        versionName = "0.4.0"
 
         // Override per build: ./gradlew assembleDebug -PapiBaseUrl=https://... -PuseFakeData=true
         buildConfigField("String", "API_BASE_URL", "\"${project.findProperty("apiBaseUrl") ?: "http://10.0.2.2:5080/"}\"")

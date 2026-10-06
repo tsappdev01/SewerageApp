@@ -43,10 +43,17 @@ private object Routes {
     const val READINGS = "readings"
     const val SUMMARY = "summary"
     const val SETTINGS = "settings"
+    const val INSPECTIONS = "inspections"
+    const val INSPECTION = "inspection/{id}"
+    const val INSPECTION_UNITS = "inspection/{id}/units"
+    const val INSPECTION_REVIEW = "inspection/{id}/review"
 
     fun zone(code: String) = "zone/${Uri.encode(code)}"
     fun property(code: String) = "property/${Uri.encode(code)}"
     fun capture(id: String) = "capture/${Uri.encode(id)}"
+    fun inspection(id: String) = "inspection/${Uri.encode(id)}"
+    fun inspectionUnits(id: String) = "inspection/${Uri.encode(id)}/units"
+    fun inspectionReview(id: String) = "inspection/${Uri.encode(id)}/review"
     fun search(zone: String?, text: String?) =
         "search?zone=${Uri.encode(zone.orEmpty())}&text=${Uri.encode(text.orEmpty())}"
 }
@@ -71,16 +78,22 @@ fun AppNavHost() {
     val readings by repo.readings.collectAsStateWithLifecycle()
     val photosWaiting by repo.photosWaiting.collectAsStateWithLifecycle()
     val backStack by nav.currentBackStackEntryAsState()
-    val capturing = backStack?.destination?.route == Routes.CAPTURE
+    // No "send now?" dialog in the middle of a reading or an inspection.
+    val capturing = backStack?.destination?.route in setOf(Routes.CAPTURE, Routes.INSPECTION_UNITS, Routes.INSPECTION_REVIEW)
     var minute by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) { while (true) { delay(60_000); minute++ } } // "Later" runs out while connected
     var sending by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val queuedReadings = readings.count { it.state == ReadingState.QUEUED }
+    // Inspections wait in the same way and are sent with the readings.
+    val inspections by AppGraph.inspectionsFlow.collectAsStateWithLifecycle()
+    val noInspections = remember { kotlinx.coroutines.flow.MutableStateFlow(0) }
+    val waitingVisits by (inspections?.waitingVisits ?: noInspections).collectAsStateWithLifecycle()
+    val waitingInspectionPhotos by (inspections?.waitingPhotos ?: noInspections).collectAsStateWithLifecycle()
+    val queuedReadings = readings.count { it.state == ReadingState.QUEUED } + waitingVisits
     // The demo has no real network: its "no signal" switch stands in.
     val signal = if (repo.isDemo) online else connected
-    val askToSend = remember(signal, queuedReadings, photosWaiting, capturing, locked, sending, minute) {
-        !locked && !sending && SyncPrompt.shouldAsk(repo.hasWaiting(), signal, AppServices.snoozedUntil, Instant.now(), capturing)
+    val askToSend = remember(signal, queuedReadings, photosWaiting, waitingInspectionPhotos, capturing, locked, sending, minute) {
+        !locked && !sending && SyncPrompt.shouldAsk(AppGraph.hasWaiting(), signal, AppServices.snoozedUntil, Instant.now(), capturing)
     }
     // The server did not accept this reader: back to the start screen; waiting readings stay on the phone.
     LaunchedEffect(repo) {
@@ -105,6 +118,40 @@ fun AppNavHost() {
                 onReadings = { nav.navigate(Routes.READINGS) },
                 onSummary = { nav.navigate(Routes.SUMMARY) },
                 onSettings = openSettings,
+                onInspections = { nav.navigate(Routes.INSPECTIONS) },
+            )
+        }
+        // Field inspection (spec §16).
+        composable(Routes.INSPECTIONS) {
+            com.meterreading.reader.ui.inspection.InspectionPlanScreen(
+                onPlan = { nav.navigate(Routes.inspection(it)) },
+                onBack = { nav.popBackStack() },
+            )
+        }
+        composable(Routes.INSPECTION) { entry ->
+            val id = entry.arguments?.getString("id").orEmpty()
+            com.meterreading.reader.ui.inspection.InspectionPropertyScreen(
+                planId = id,
+                onStart = { nav.navigate(Routes.inspectionUnits(id)) },
+                onBack = { nav.popBackStack() },
+            )
+        }
+        composable(Routes.INSPECTION_UNITS) { entry ->
+            val id = entry.arguments?.getString("id").orEmpty()
+            com.meterreading.reader.ui.inspection.InspectionUnitsScreen(
+                planId = id,
+                inspector = AppServices.settings.readerLogin,
+                onReview = { nav.navigate(Routes.inspectionReview(id)) },
+                onBack = { nav.popBackStack() },
+            )
+        }
+        composable(Routes.INSPECTION_REVIEW) { entry ->
+            val id = entry.arguments?.getString("id").orEmpty()
+            com.meterreading.reader.ui.inspection.InspectionReviewScreen(
+                planId = id,
+                onNextProperty = { next -> nav.navigate(Routes.inspection(next)) { popUpTo(Routes.INSPECTIONS) } },
+                onPlanList = { nav.popBackStack(Routes.INSPECTIONS, inclusive = false) },
+                onBack = { nav.popBackStack() },
             )
         }
         composable(Routes.SETTINGS) {
@@ -164,13 +211,13 @@ fun AppNavHost() {
     if (askToSend) {
         SyncPromptDialog(
             readings = queuedReadings,
-            photos = photosWaiting,
+            photos = photosWaiting + waitingInspectionPhotos,
             onSendNow = {
                 sending = true
                 scope.launch {
-                    repo.sendQueued()
+                    AppGraph.sendAll()
                     // Signal dropped again before all went up: ask again a little later.
-                    if (repo.hasWaiting()) AppServices.snooze(Instant.now(), SyncPrompt.RETRY)
+                    if (AppGraph.hasWaiting()) AppServices.snooze(Instant.now(), SyncPrompt.RETRY)
                     sending = false
                 }
             },

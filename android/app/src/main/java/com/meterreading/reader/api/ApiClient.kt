@@ -32,11 +32,11 @@ class ApiException(val status: Int, val code: String?, val title: String) : Exce
 class ApiClient(
     baseUrl: String,
     private val http: OkHttpClient = defaultHttpClient(),
-) {
+) : com.meterreading.reader.data.InspectionApi {
     private val base = baseUrl.trimEnd('/')
 
     /** The server this client talks to, without a trailing slash. */
-    val baseUrl: String get() = base
+    override val baseUrl: String get() = base
     private val json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
@@ -47,7 +47,7 @@ class ApiClient(
      * phone's key; without, as X-Dev-User, which only an API in UAT mode accepts.
      */
     @Volatile
-    var devUser: String? = null
+    override var devUser: String? = null
 
     /** This phone's registration (FR-002); its key goes with every call. */
     @Volatile
@@ -97,6 +97,45 @@ class ApiClient(
         return send(
             Request.Builder().url(url).put(bytes.toRequestBody(JPEG)).header("X-Content-SHA256", sha256Hex),
         ) { json.decodeFromString(ImageUploadResponse.serializer(), it) }
+    }
+
+    // --- Field Inspection (spec §16) ---
+
+    override suspend fun inspectionPlan(): InspectionPlanListDto = get("/api/v1/inspections/plan")
+
+    override suspend fun inspectionUnits(periodCode: String, propertyCode: String, tenantCode: String): InspectionUnitsDto {
+        val url = "$base/api/v1/inspections/units".toHttpUrl().newBuilder()
+            .addQueryParameter("period", periodCode)
+            .addQueryParameter("property", propertyCode)
+            .addQueryParameter("tenant", tenantCode)
+            .build()
+        return send(Request.Builder().url(url).get()) { json.decodeFromString(InspectionUnitsDto.serializer(), it) }
+    }
+
+    override suspend fun submitInspection(request: SubmitInspectionRequest): SubmitInspectionResponse =
+        send(
+            Request.Builder()
+                .url("$base/api/v1/inspections")
+                .post(json.encodeToString(SubmitInspectionRequest.serializer(), request).toRequestBody(JSON)),
+        ) { json.decodeFromString(SubmitInspectionResponse.serializer(), it) }
+
+    /** One evidence photo of a unit ([resultId]) or the visit's signature ([resultId] null). */
+    override suspend fun uploadInspectionPhoto(
+        visitId: String,
+        imageId: String,
+        resultId: String?,
+        capturedAtUtc: String,
+        bytes: ByteArray,
+        sha256Hex: String,
+    ): InspectionImageResponse {
+        val url = "$base/api/v1/inspections/$visitId/images/$imageId".toHttpUrl().newBuilder()
+            .addQueryParameter("role", if (resultId == null) "SIGNATURE" else "EVIDENCE")
+            .apply { if (resultId != null) addQueryParameter("result", resultId) }
+            .addQueryParameter("capturedAtUtc", capturedAtUtc)
+            .build()
+        return send(
+            Request.Builder().url(url).put(bytes.toRequestBody(JPEG)).header("X-Content-SHA256", sha256Hex),
+        ) { json.decodeFromString(InspectionImageResponse.serializer(), it) }
     }
 
     private suspend inline fun <reified T> get(path: String): T =

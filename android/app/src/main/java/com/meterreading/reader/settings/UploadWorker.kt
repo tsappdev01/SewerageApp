@@ -26,19 +26,24 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         AppServices.init(applicationContext)
         val repo = AppGraph.repository
         if (inputData.getBoolean(KEY_SEND, false)) {
-            repo.sendQueued()
+            AppGraph.sendAll()
             SyncNotification.cancel(applicationContext)
             // Signal dropped again: the reader will be asked again when it is back.
-            if (repo.hasWaiting() && !repo.signInNeeded.value) scheduleCheck(applicationContext, SyncPrompt.RETRY)
+            if (AppGraph.hasWaiting() && !repo.signInNeeded.value) scheduleCheck(applicationContext, SyncPrompt.RETRY)
             return Result.success()
         }
-        if (!repo.hasWaiting()) return Result.success()
+        if (!AppGraph.hasWaiting()) return Result.success()
         val snoozedUntil = AppServices.snoozedUntil
         val now = Instant.now()
         if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
             scheduleCheck(applicationContext, Duration.between(now, snoozedUntil))
         } else if (!AppServices.inForeground) {
-            SyncNotification.show(applicationContext, repo.readings.value.count { it.state == com.meterreading.reader.data.ReadingState.QUEUED }, repo.photosWaiting.value)
+            val inspections = AppGraph.inspections
+            SyncNotification.show(
+                applicationContext,
+                repo.readings.value.count { it.state == com.meterreading.reader.data.ReadingState.QUEUED } + (inspections?.waitingVisits?.value ?: 0),
+                repo.photosWaiting.value + (inspections?.waitingPhotos?.value ?: 0),
+            )
         }
         return Result.success()
     }

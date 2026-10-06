@@ -83,7 +83,7 @@ fun SettingsScreen(onSaved: () -> Unit, onBack: () -> Unit) {
         val found = SettingsRules.problems(edited(), AppServices.allowHttp).toMutableList()
         // Readings waiting on the phone are kept in memory only; changing server or reader would lose them.
         val changesWho = SettingsRules.cleaned(edited(), AppServices.allowHttp).let { it.apiBaseUrl != current.apiBaseUrl || it.readerLogin != current.readerLogin }
-        if (changesWho && AppGraph.repository.hasWaiting()) found.add(0, "Readings are still waiting to send. Send them before changing the server or reader.")
+        if (changesWho && AppGraph.hasWaiting()) found.add(0, "Readings or inspections are still waiting to send. Send them before changing the server or reader.")
         problems = found
         if (found.isNotEmpty()) return
         AppServices.save(SettingsRules.cleaned(edited(), AppServices.allowHttp))

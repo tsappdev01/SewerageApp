@@ -38,6 +38,13 @@ object AppColors {
     val Queued = Color(0xFF6B4FBB)
     val QueuedTint = Color(0xFFEEE9FA)
 
+    // Field inspection results (spec FR-032). Each also has its own icon and word.
+    val Sublet = Color(0xFF8E3B8A)
+    val SubletTint = Color(0xFFF6E7F4)
+    val Vacant = Color(0xFF0F6E8C)
+    val VacantTint = Color(0xFFE1F1F6)
+    val PendingTint = Color(0xFFECEEF1)
+
     val Irrigation = Color(0xFF2E8B3E)
     val IrrigationTint = Color(0xFFE5F3E7)
     val Sewerage = Taupe

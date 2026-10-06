@@ -9,7 +9,14 @@ import kotlinx.serialization.Serializable
 data class PeriodDto(val code: String, val startDate: String, val endDate: String, val status: String)
 
 @Serializable
-data class MeDto(val readerId: String, val displayName: String, val teamCode: String? = null, val openPeriod: PeriodDto? = null)
+data class MeDto(
+    val readerId: String,
+    val displayName: String,
+    val teamCode: String? = null,
+    val openPeriod: PeriodDto? = null,
+    /** Field Inspection is set up on the server (spec §16). */
+    val canInspect: Boolean = false,
+)
 
 @Serializable
 data class ZoneDto(val code: String, val name: String? = null)

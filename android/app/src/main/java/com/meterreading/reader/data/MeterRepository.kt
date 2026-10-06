@@ -113,4 +113,17 @@ object AppGraph {
         set(value) { _current.value = value }
 
     val isReady: Boolean get() = _current.value != null
+
+    private val _inspections = MutableStateFlow<InspectionRepository?>(null)
+    /** Field Inspection (spec §16), set next to [repository]. */
+    val inspectionsFlow: StateFlow<InspectionRepository?> = _inspections
+    var inspections: InspectionRepository?
+        get() = _inspections.value
+        set(value) { _inspections.value = value }
+
+    /** Readings, inspections or photos are waiting on the phone. */
+    fun hasWaiting(): Boolean = repository.hasWaiting() || inspections?.hasWaiting() == true
+
+    /** Sends everything waiting: readings first, then inspections. Returns how many items went up. */
+    suspend fun sendAll(): Int = repository.sendQueued() + (inspections?.sendQueued() ?: 0)
 }

@@ -71,3 +71,35 @@ private fun decodeUpright(file: File, maxSize: Int): Bitmap? {
     val matrix = Matrix().apply { postRotate(degrees) }
     return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
 }
+
+/**
+ * FR-033.2: writes [lines] (property, unit, time, place, inspector) on a dark band at the bottom of the
+ * photo, so the evidence carries them even when looked at outside the system. Call off the main thread,
+ * after [shrinkForUpload].
+ */
+fun stampPhoto(file: File, lines: List<String>) {
+    val source = BitmapFactory.decodeFile(file.path) ?: return
+    val bitmap = source.copy(Bitmap.Config.ARGB_8888, true)
+    val canvas = android.graphics.Canvas(bitmap)
+    val textSize = (bitmap.width / 34f).coerceAtLeast(14f)
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.WHITE
+        this.textSize = textSize
+        typeface = android.graphics.Typeface.MONOSPACE
+    }
+    val lineHeight = textSize * 1.3f
+    val band = lineHeight * lines.size + textSize * 0.8f
+    val shade = android.graphics.Paint().apply { color = android.graphics.Color.argb(150, 0, 0, 0) }
+    canvas.drawRect(0f, bitmap.height - band, bitmap.width.toFloat(), bitmap.height.toFloat(), shade)
+    lines.forEachIndexed { i, line ->
+        canvas.drawText(line, textSize * 0.6f, bitmap.height - band + lineHeight * (i + 1), paint)
+    }
+    val out = ByteArrayOutputStream()
+    bitmap.compress(Bitmap.CompressFormat.JPEG, 82, out)
+    val temp = File(file.path + ".tmp")
+    temp.writeBytes(out.toByteArray())
+    if (!temp.renameTo(file)) {
+        file.writeBytes(out.toByteArray())
+        temp.delete()
+    }
+}

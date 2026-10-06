@@ -44,6 +44,7 @@ fun HomeScreen(
     onReadings: () -> Unit,
     onSummary: () -> Unit,
     onSettings: () -> Unit,
+    onInspections: () -> Unit = {},
 ) {
     val repo = AppGraph.repository
     val meters by repo.meters.collectAsStateWithLifecycle()
@@ -108,6 +109,41 @@ fun HomeScreen(
                 HomeTile(Icons.AutoMirrored.Rounded.ListAlt, stringResource(R.string.my_readings), onReadings, Modifier.weight(1f), badge = readAgain)
                 HomeTile(Icons.Rounded.BarChart, stringResource(R.string.summary), onSummary, Modifier.weight(1f), badge = queued, badgeColor = AppColors.Queued)
             }
+            // Spec §16: shown only when the server has field inspection set up.
+            val inspections by AppGraph.inspectionsFlow.collectAsStateWithLifecycle()
+            inspections?.let { InspectionCard(it, onInspections) }
+        }
+    }
+}
+
+/** Field inspection on Home: today's and late plan rows, and visits waiting on the phone. */
+@Composable
+private fun InspectionCard(repo: InspectionRepository, onClick: () -> Unit) {
+    val available by repo.available.collectAsStateWithLifecycle()
+    val plans by repo.plans.collectAsStateWithLifecycle()
+    val today by repo.today.collectAsStateWithLifecycle()
+    val waiting by repo.waitingVisits.collectAsStateWithLifecycle()
+    LaunchedEffect(repo) { repo.refreshPlan() }
+    if (available != true) return
+    val todayCount = InspectionRules.plansFor(PlanTab.TODAY, plans, today).size
+    val late = InspectionRules.plansFor(PlanTab.LATE, plans, today).size
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(18.dp),
+        color = AppColors.Card,
+        border = BorderStroke(2.dp, AppColors.Navy),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)).background(AppColors.NavyTint), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.FactCheck, null, tint = AppColors.Navy, modifier = Modifier.size(30.dp))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(stringResource(R.string.insp_title), style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.insp_tile_counts, todayCount, late), color = if (late > 0) AppColors.Bad else AppColors.SubInk)
+                if (waiting > 0) Pill(stringResource(R.string.insp_waiting, waiting), AppColors.Queued, AppColors.QueuedTint, Icons.Rounded.CloudUpload)
+            }
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = AppColors.SubInk)
         }
     }
 }
