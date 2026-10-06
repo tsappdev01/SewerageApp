@@ -27,6 +27,11 @@ class FakeInspectionApi(private val online: () -> Boolean = { true }) : Inspecti
         plan("597-559", "T-0559", "Elegant Industries LLC", 0, 5, 0),
         plan("597-972", "T-0972", "Danway Electrical and Mechanical Engineering LLC", -3, 4, 0),
         plan("598-1187", "T-1187", "Technical Supplies and Services Co (LLC)", 2, 2, 3),
+        // Visited already: some units left to check, and one finished.
+        plan("598-1204", "T-1204", "Gulf Steel Profiles LLC", -1, 6, 0)
+            .copy(state = "COME_BACK", checkedUnits = 4, flaggedUnits = 1, lastVisitAtUtc = Instant.now().minusSeconds(86_400).toString(), distanceFromOfficeKm = 4.2),
+        plan("602-310", "T-0310", "Al Waha Food Stuff Trading", -2, 3, 1)
+            .copy(state = "DONE", checkedUnits = 3, lastVisitAtUtc = Instant.now().minusSeconds(172_800).toString(), distanceFromOfficeKm = 6.8),
     )
 
     private fun unit(id: String, building: String, code: String, category: String, sub: String?, active: Boolean = true) =
@@ -44,6 +49,8 @@ class FakeInspectionApi(private val online: () -> Boolean = { true }) : Inspecti
             unit("3004", "TECHNICAL SUPPLIES", "F02", "Commercial>Shop>Shop", null, active = false),
             unit("3005", "TECHNICAL SUPPLIES", "F03", "Commercial>Shop>Shop", null, active = false),
         ),
+        "598-1204" to (1..6).map { unit("400$it", "GULF STEEL", "W0$it", "Industrial>Warehouse>Warehouse", "GULF STEEL PROFILES L.L.C") },
+        "602-310" to (1..4).map { unit("500$it", "AL WAHA", "S0$it", "Commercial>Shop>Shop", "AL WAHA FOOD STUFF TRADING", active = it < 4) },
     )
 
     private fun check() {
@@ -53,7 +60,11 @@ class FakeInspectionApi(private val online: () -> Boolean = { true }) : Inspecti
     override suspend fun inspectionPlan(): InspectionPlanListDto {
         check()
         delay(300)
-        return InspectionPlanListDto(today.toString(), today.minusDays(60).toString(), today.plusDays(14).toString(), plans, Instant.now().toString())
+        // The DIP office, as in the API's appsettings.json (Inspection:OfficeLatitude/Longitude).
+        return InspectionPlanListDto(
+            today.toString(), today.minusDays(60).toString(), today.plusDays(14).toString(), plans, Instant.now().toString(),
+            officeLatitude = 24.999906, officeLongitude = 55.170344,
+        )
     }
 
     override suspend fun inspectionUnits(periodCode: String, propertyCode: String, tenantCode: String): InspectionUnitsDto {
