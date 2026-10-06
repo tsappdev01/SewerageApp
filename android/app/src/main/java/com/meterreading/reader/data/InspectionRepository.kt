@@ -41,7 +41,7 @@ enum class FinishOutcome { SENT, QUEUED, REJECTED }
 data class FinishResult(val outcome: FinishOutcome, val message: String? = null, val state: InspectionState? = null)
 
 /**
- * Field Inspection on the phone (spec §16). Like meter readings: a visit is made on the phone with its own
+ * Field Inspection on the phone (spec §21). Like meter readings: a visit is made on the phone with its own
  * id, kept encrypted from the first tap ([store]), and sent once finished; without signal it waits and is
  * sent with the readings ("Send now / Later"). The visit id is reused on retry, so it is never stored twice.
  * Photos go up after their visit, one at a time with their SHA-256, and are deleted once the server has them.

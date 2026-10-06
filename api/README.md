@@ -21,6 +21,8 @@ The API reads five `vw_MR_*` views in `PropertyManagementSystem` (plus an option
 | `006_pms_transfer.sql` | Adds the columns that track the copy into `MaintainMeterReading` (`PmsRowId`, `PmsCopiedAtUtc`, `PmsCopyAttempts`, `PmsCopyError`). Re-runnable. | Any environment |
 | `007_reading_image_data.sql` | Creates `mr.ReadingImageData`, which holds the photos when `ImageStore:Kind` is `Database` (the default). Re-runnable. | Any environment |
 | `009_device_keys.sql` | Registered phones: `mr.Device` key hash, label, revoke time; `mr.DeviceRegistrationCode` for one-time codes. Re-runnable. | Any environment |
+| `010_field_inspection.sql` | Field Inspection: `mr.InspectionVisit`, `mr.InspectionUnitResult`, `mr.InspectionImage`, and `mr.vw_InspectionResult` for the office (spec §21). Re-runnable. | Any environment |
+| `011_inspection_wrapper_views.sql` | The MRDB wrappers `vw_MR_InspectionPlan` / `vw_MR_InspectionUnit` over PMS (no `TOP (1000)`, `TenantCode` on units). Checks PMS has `TenantCode` first. Then run `008` again. | UAT and production (dev has stand-ins) |
 | `ops/new_device_code.sql`, `ops/list_devices.sql`, `ops/revoke_device.sql` | IT's tasks: make a one-time registration code, list phones, block a lost phone (`docs/deployment.md` 2.11). | Any environment, as needed |
 | `008_create_api_login.sql` | Creates the API's login `mr_api` (set `@Password` first) and grants what it needs in the `mr` database and in the views' database (SELECT on the views, SELECT/INSERT/UPDATE on `mr`, optional INSERT on `MaintainMeterReading`). Re-runnable. | Any environment |
 | `003_meter_id_as_text.sql` | Brings an `mr` schema from an earlier `002` in line: `MeterId` as text (barcode), readings to 4 decimals. Does nothing on a fresh install. | Any environment |
@@ -47,6 +49,10 @@ Errors are RFC 9457 problem details with a `code` (e.g. `READER_NOT_FOUND`, `NO_
 | `POST /readings` | Send one reading (below). 201 when stored, 200 when the same `transactionId` was already stored |
 | `PUT /readings/{id}/images/{imageId}` | Upload one photo of a stored reading (below) |
 | `GET /readings/{id}/images/{imageId}` | One of the reader's own photos |
+| `GET /inspections/plan?from=&to=` | Field inspection plan rows (default 60 days back to 14 ahead) with state `NOT_STARTED` / `COME_BACK` / `DONE`, units checked and flagged (spec §21) |
+| `GET /inspections/units?period=&property=&tenant=` | The units of one plan row (matched on property **and** tenant), active first, with each unit's last result |
+| `POST /inspections` | One finished visit with all its unit results. 201 stored, 200 when the same `visitId` was already stored. Codes: `PLAN_NOT_FOUND`, `UNIT_NOT_FOUND`, `MANDATORY_FIELD_MISSING`, `VISIT_ID_REUSED`, `CAPTURE_TIME_INVALID` |
+| `PUT /inspections/{visitId}/images/{imageId}?role=EVIDENCE&result=` or `?role=SIGNATURE` | One photo (up to 6 per unit) or the signature, checked against `X-Content-SHA256` |
 | `GET /health/live`, `GET /health/ready` | Liveness; readiness checks the views and `mr` tables exist |
 
 OpenAPI document (Development): `/openapi/v1.json`.
@@ -141,6 +147,7 @@ docker run -d --name mrsql -p 1433:1433 -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='D
 # create database MeterReading, then run in order:
 #   ../db/dev/000_create_dev_source_views.sql, ../db/002_create_mr_schema.sql, ../db/003_meter_id_as_text.sql,
 #   ../db/004_add_expected_photos.sql, ../db/005_reading_tenant_and_export.sql, ../db/006_pms_transfer.sql, ../db/007_reading_image_data.sql,
+#   ../db/009_device_keys.sql, ../db/010_field_inspection.sql,
 #   ../db/dev/010_seed_dev_readings.sql, ../db/dev/020_create_dev_maintain_meter_reading.sql
 dotnet run --project src/MeterReading.Api            # Development: http://localhost:5080
 curl -H "X-Dev-User: rashid@dip.example" "http://localhost:5080/api/v1/sync/meters?zone=598"

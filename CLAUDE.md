@@ -33,6 +33,16 @@ never run outside development.
   stored first and its photos follow one by one, checked against their SHA-256.
 - `dotnet test api/MeterReading.slnx` needs SQL Server prepared as in `api/README.md`.
 
+## Field Inspection (spec §21)
+
+- Plan and units come from `vw_MR_InspectionPlan` / `vw_MR_InspectionUnit` (optional: without them the
+  job is off). Units belong to a plan row by property **and** tenant. Inspectors are the active readers.
+- Results AS_RECORDED, VACANT, SUBLEASED, DISPUTED, REJECTED, PENDING; what each needs is in
+  `Domain/InspectionService.Validate` and mirrored in android `data/InspectionRules.kt`; change both.
+- A visit is one POST with all its units, keyed by a phone-made `visitId` (safe to retry); photos follow.
+  Visits go to `mr.Inspection*` only; PMS is never written.
+- A new inspection endpoint must be added to the gateway's `Routes.cs` too.
+
 ## Gateway (`gateway/`)
 
 - The DMZ's only piece: YARP, no database, stores nothing. The routes it passes on are a fixed

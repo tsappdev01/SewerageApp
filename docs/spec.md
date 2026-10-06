@@ -1010,6 +1010,35 @@ Each has a proposed default that development can use now. Resolve each with an A
 | OD-14 | Retention: images and audit | 7 years each | Legal / Records |
 | OD-15 | Who may create a new meter in the field (BR-005) | Created on supervisor approval of the replacement | Business |
 | OD-16 | Technology baseline (§2.3), incl. .NET version and portal framework | As §2.3 | IT architecture |
+| OD-18 | Field inspection: who inspects; results | **Resolved (2026-10-06):** any active reader in `vw_MR_Reader`; results As recorded, Vacant, Subleased, Disputed, Rejected, Pending (§21) | Business |
+
+---
+
+## 21. Field Inspection
+
+A second job in the same app (DIP Field Service) and on the same server, phones and readers. An
+inspector visits a planned property, checks each unit against the sub-tenant on record, records what
+is there, and takes photos of anything suspect. Screens: `docs/field-inspection-mock.html`.
+
+**Source views** (read only, like the others; `docs/source-views.md` §7):
+`vw_MR_InspectionPlan` (one row per period, property and tenant, with its plan date and unit counts)
+and `vw_MR_InspectionUnit` (one row per unit, with `TenantCode`). Both optional: without them the job
+is hidden (`/me` answers `canInspect: false`).
+
+| ID | Requirement |
+|---|---|
+| FR-030 | Inspectors are the active readers of `vw_MR_Reader`; plans are not assigned. A unit is matched to a plan row on property **and** tenant. |
+| FR-031 | The phone lists plan rows from 60 days back to 14 ahead by Today, Late (plan date passed, not done), Week and Done, with units checked / active units and flagged units. |
+| FR-031.2 | Starting a visit saves the phone's location with it. No location is a warning, not a block. |
+| FR-032 | Each unit gets one result: **As recorded** (the sub-tenant on record is using it), **Vacant**, **Subleased** (someone else is using it; their name is required), **Disputed** (the tenant disagrees or it is unclear; reason or note required), **Rejected** (use not allowed; reason or note required), **Pending** (could not check; reason or note required). People seen: 0–999, optional. |
+| FR-033 | Subleased, Disputed and Rejected need at least one photo; up to 6 per unit. Photos are taken in the app only, stamped with property, unit, time, place and inspector, and kept encrypted until sent. An optional signature of the person met is kept with the visit. |
+| FR-034 | A plan row is **Done** when every active unit's latest result this period is not Pending and none is Pending; **Come back** once visited but not done; **Not started** before. A unit left Pending is finished on a later visit. |
+| FR-035 | A unit found on site that is not on the list is recorded with the number on its door; the office decides whether to add it in PMS. The app never writes to PMS. |
+| FR-036 | A visit is kept on the phone (encrypted) from the first tap, sent once finished with all its units, and without signal waits and goes with the readings ("Send now / Later"). The visit id is made on the phone and reused on retry (safe to retry); a visit the server refuses stays open on the phone with the reason. |
+
+**API** (`api/README.md`): `GET /inspections/plan`, `GET /inspections/units`, `POST /inspections`,
+`PUT|GET /inspections/{visitId}/images/{imageId}`. **Tables:** `mr.InspectionVisit`,
+`mr.InspectionUnitResult`, `mr.InspectionImage` (`db/010`); the office reads `mr.vw_InspectionResult`.
 
 ---
 
@@ -1051,6 +1080,11 @@ Each has a proposed default that development can use now. Resolve each with an A
 | NO_TENANT | 422 | The property has no current tenant in vw_MR_Tenant (FR-006.12) | Show "tell your supervisor"; nothing saved |
 | TENANT_NOT_CONFIRMED | 422 | The reading came without the tenant the reader checked | Ask the reader to tap the tenant |
 | TENANT_CHANGED | 409 | The checked tenant is no longer a tenant of the property | Refresh; meter back to "read again" |
+| INSPECTION_OFF | 404/503 | Field inspection views (or db/010 tables) are not on the server | Hide the job |
+| PLAN_NOT_FOUND | 404 | No inspection plan row for this period, property and tenant | Refresh the plan |
+| UNIT_NOT_FOUND | 404 | The unit is not a unit of this plan row (or the result id is not in the visit) | Refresh; the visit stays open on the phone |
+| VISIT_ID_REUSED | 409 | Same visit id, different content | Log as defect |
+| VISIT_NOT_FOUND | 404 | Photo sent for a visit that is not the caller's or not stored | Send the visit first |
 
 ## Appendix B — Business rule test vectors
 

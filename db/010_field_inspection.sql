@@ -1,6 +1,6 @@
 /*
   010_field_inspection.sql
-  Field Inspection (docs/spec.md §16): what inspectors record when they visit a planned property.
+  Field Inspection (docs/spec.md §21): what inspectors record when they visit a planned property.
   The plan and the units come from vw_MR_InspectionPlan and vw_MR_InspectionUnit (read only).
     mr.InspectionVisit       one visit to one plan row (period, property, tenant), sent from the phone
     mr.InspectionUnitResult  what was found in each unit; UnitId is NULL for a unit not on the list

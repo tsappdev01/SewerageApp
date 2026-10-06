@@ -24,7 +24,7 @@ public static class Routes
         ("meter", "/api/v1/meters/{meterId}", ["GET"]),
         ("submit", "/api/v1/readings", ["POST"]),
         ("image", "/api/v1/readings/{transactionId}/images/{imageId}", ["GET", "PUT"]),
-        // Field inspection (spec §16).
+        // Field inspection (spec §21).
         ("inspection-plan", "/api/v1/inspections/plan", ["GET"]),
         ("inspection-units", "/api/v1/inspections/units", ["GET"]),
         ("inspection-submit", "/api/v1/inspections", ["POST"]),

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 namespace MeterReading.Api.Endpoints;
 
 /// <summary>
-/// Field Inspection (spec §16). The same people and phones as meter reading: any active reader in
+/// Field Inspection (spec §21). The same people and phones as meter reading: any active reader in
 /// vw_MR_Reader can inspect (FR-030). When the inspection views are missing every call answers
 /// 404 INSPECTION_OFF and /me says CanInspect = false, so the phone hides the job.
 /// </summary>

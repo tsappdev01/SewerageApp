@@ -8,7 +8,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
 
-/** Field inspection rules on the phone (spec §16); they mirror the server's InspectionService. */
+/** Field inspection rules on the phone (spec §21); they mirror the server's InspectionService. */
 class InspectionRulesTest {
     private fun entry(result: UnitResult?, occupant: String = "", reasons: List<String> = emptyList(), note: String = "", photos: Int = 0, unitId: String? = "1001", code: String = "1") =
         UnitEntry("r", unitId, code, result = result, occupantName = occupant, reasons = reasons, note = note,

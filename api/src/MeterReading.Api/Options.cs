@@ -62,7 +62,7 @@ public sealed class ImageStoreOptions
     public int MaxImagesPerReading { get; set; } = 4;
 }
 
-/// <summary>Field Inspection (spec §16). On only when the two inspection views exist.</summary>
+/// <summary>Field Inspection (spec §21). On only when the two inspection views exist.</summary>
 public sealed class InspectionOptions
 {
     public const string Section = "Inspection";

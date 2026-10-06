@@ -14,7 +14,7 @@ data class MeDto(
     val displayName: String,
     val teamCode: String? = null,
     val openPeriod: PeriodDto? = null,
-    /** Field Inspection is set up on the server (spec §16). */
+    /** Field Inspection is set up on the server (spec §21). */
     val canInspect: Boolean = false,
 )
 

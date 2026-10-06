@@ -14,7 +14,7 @@ public sealed record InspectionOutcome(SubmitInspectionResponse? Response, bool 
 }
 
 /// <summary>
-/// Field Inspection (spec §16). Plans are not assigned: every active reader can inspect, like meter
+/// Field Inspection (spec §21). Plans are not assigned: every active reader can inspect, like meter
 /// reading (FR-030). A plan row's progress is the latest result of each of its units over all visits,
 /// so a unit left PENDING on one visit is finished on the next (FR-034).
 /// </summary>

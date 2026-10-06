@@ -23,9 +23,9 @@ database, no connection string and stores nothing**.
 
 | Protection | Detail |
 |---|---|
-| Fixed list of requests | Only the app's calls, each with its methods (`Routes.cs`): register, me, sync/meters, properties/search, readings/mine, summary, meters/{id}, send a reading, photo GET/PUT, and `/health/live` for the app's **Test** button. Anything else: `404 NOT_FOUND`, or `405 METHOD_NOT_ALLOWED` on a known path. The list is code, not configuration, so a settings slip cannot open more of the API. `/health/ready` is **not** passed on: it names tables and views. |
+| Fixed list of requests | Only the app's calls, each with its methods (`Routes.cs`): register, me, sync/meters, properties/search, readings/mine, summary, meters/{id}, send a reading, photo GET/PUT, the four Field Inspection calls, and `/health/live` for the app's **Test** button. Anything else: `404 NOT_FOUND`, or `405 METHOD_NOT_ALLOWED` on a known path. The list is code, not configuration, so a settings slip cannot open more of the API. `/health/ready` is **not** passed on: it names tables and views. |
 | Header cleaning | Drops `X-Dev-User` (test sign-in), `Forwarded`, `X-Original-For`; sets its own `X-Forwarded-For`/`-Proto` so the API sees the phone's address. Removes `Server` and `X-Powered-By` from answers. |
-| Size limits | JSON 64 KB, photos 2.1 MB: larger is `413 REQUEST_TOO_LARGE` before it reaches the API. |
+| Size limits | JSON 64 KB, an inspection visit 512 KB, photos 2.1 MB: larger is `413 REQUEST_TOO_LARGE` before it reaches the API. |
 | Rate limits per address | 600 requests a minute overall; 10 phone registrations a minute (`429 RATE_LIMITED`). |
 | Mutual TLS to the API | Shows its client certificate; can pin the API's certificate by thumbprint. Refuses to start without a client certificate when the API address is https (outside Development). |
 | API down | `502`/`504 API_UNAVAILABLE`; the phone keeps the reading in its encrypted queue and sends later. |

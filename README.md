@@ -19,7 +19,11 @@ readings to billing.
   photos stored in the database); copy of accepted readings into `MaintainMeterReading`
   (off until switched on, see [docs/readings-table.md](docs/readings-table.md#copying-readings-into-maintainmeterreading));
   the reader checks the property's tenant before every reading is saved (spec FR-006.12);
-  118 tests against SQL Server 2022. Work is not assigned.
+  146 tests against SQL Server 2022. Work is not assigned.
+- **Field Inspection** (spec §21): inspectors (the same readers) visit planned properties, record each
+  unit as As recorded, Vacant, Subleased, Disputed, Rejected or Pending with people seen, reasons and
+  stamped photos, and send the visit (or keep it on the phone without signal). Database `db/010`,
+  API with 28 tests, gateway routes, phone screens with JVM tests. Mock: [docs/field-inspection-mock.html](docs/field-inspection-mock.html).
 - **DMZ gateway:** YARP reverse proxy for a DMZ without database access: fixed list of the app's
   requests, size and rate limits, mutual TLS to the API (which then accepts only the gateway); 30 tests.
 - **Android:** all reader screens, connected to the API; opens with the phone's own lock (PIN,

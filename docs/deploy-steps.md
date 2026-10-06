@@ -32,6 +32,12 @@ do part B on an *internal* server and then part **B+** (the gateway in the DMZ).
 - **Check:** `SELECT name FROM sys.tables WHERE schema_id = SCHEMA_ID('mr')` lists
   `Device`, `DeviceRegistrationCode`, `ReadingImage`, `ReadingImageData`, `ReadingTransaction`.
 
+**A3b. Field Inspection** (when the inspection views are ready):
+1. In PropertyManagementSystem, remove `TOP (1000)` from `vw_MR_InspectionUnit` and add `TenantCode`.
+2. In MRDB run `db/010_field_inspection.sql`, then `db/011_inspection_wrapper_views.sql`.
+3. Run `db/001_check_source_views.sql`: no rows about `vw_MR_Inspection*` in results 1 and 2.
+- **Check:** after A4, `/health/ready` is ready and `/api/v1/me` (with a registered phone) says `"canInspect":true`.
+
 **A4. The API's login `mr_api`.** It exists already. **Change its password**, because the old
 one was pushed to GitHub:
 ```sql

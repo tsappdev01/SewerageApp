@@ -121,7 +121,7 @@ fun AppNavHost() {
                 onInspections = { nav.navigate(Routes.INSPECTIONS) },
             )
         }
-        // Field inspection (spec §16).
+        // Field inspection (spec §21).
         composable(Routes.INSPECTIONS) {
             com.meterreading.reader.ui.inspection.InspectionPlanScreen(
                 onPlan = { nav.navigate(Routes.inspection(it)) },

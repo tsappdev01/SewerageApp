@@ -1,6 +1,6 @@
 namespace MeterReading.Api.Contracts;
 
-// Field Inspection (spec §16). Same casing rules as Dtos.cs: what the Android app reads and sends.
+// Field Inspection (spec §21). Same casing rules as Dtos.cs: what the Android app reads and sends.
 
 /// <summary>Where a plan row stands: no visit yet, visited but units left to check, or every active unit checked.</summary>
 public enum InspectionState { NOT_STARTED, COME_BACK, DONE }

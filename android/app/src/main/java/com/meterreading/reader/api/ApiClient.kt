@@ -99,7 +99,7 @@ class ApiClient(
         ) { json.decodeFromString(ImageUploadResponse.serializer(), it) }
     }
 
-    // --- Field Inspection (spec §16) ---
+    // --- Field Inspection (spec §21) ---
 
     override suspend fun inspectionPlan(): InspectionPlanListDto = get("/api/v1/inspections/plan")
 

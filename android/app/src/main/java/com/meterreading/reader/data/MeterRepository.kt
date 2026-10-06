@@ -115,7 +115,7 @@ object AppGraph {
     val isReady: Boolean get() = _current.value != null
 
     private val _inspections = MutableStateFlow<InspectionRepository?>(null)
-    /** Field Inspection (spec §16), set next to [repository]. */
+    /** Field Inspection (spec §21), set next to [repository]. */
     val inspectionsFlow: StateFlow<InspectionRepository?> = _inspections
     var inspections: InspectionRepository?
         get() = _inspections.value

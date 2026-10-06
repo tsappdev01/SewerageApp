@@ -173,7 +173,7 @@ object AppServices {
             )
         }
         AppGraph.repository = meters
-        // Field inspection uses the same server, phone key, reader and encryption (spec §16).
+        // Field inspection uses the same server, phone key, reader and encryption (spec §21).
         AppGraph.inspections = com.meterreading.reader.data.InspectionRepository(
             api = if (BuildConfig.USE_FAKE_DATA) com.meterreading.reader.data.FakeInspectionApi { meters.online.value } else client,
             store = inspectionStore,

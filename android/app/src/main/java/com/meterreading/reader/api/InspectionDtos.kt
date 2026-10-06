@@ -2,7 +2,7 @@ package com.meterreading.reader.api
 
 import kotlinx.serialization.Serializable
 
-// Field Inspection JSON (api/src/MeterReading.Api/Contracts/InspectionDtos.cs, spec §16).
+// Field Inspection JSON (api/src/MeterReading.Api/Contracts/InspectionDtos.cs, spec §21).
 
 @Serializable
 data class InspectionPlanDto(

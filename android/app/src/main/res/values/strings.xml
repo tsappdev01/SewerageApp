@@ -261,7 +261,7 @@
     <string name="speak_result_rejected">Not sent. Press Home and tell your supervisor.</string>
     <string name="speak_readings">These are your readings. Red means read the meter again.</string>
 
-    <!-- Field inspection (spec §16) -->
+    <!-- Field inspection (spec §21) -->
     <string name="insp_title">Field Inspection</string>
     <string name="insp_tile_counts">%1$d today · %2$d late</string>
     <string name="insp_waiting">%1$d inspections waiting to send</string>

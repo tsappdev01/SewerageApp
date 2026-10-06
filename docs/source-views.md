@@ -115,6 +115,36 @@ property's rows from this view; the reader taps the tenant on site. A property c
 arrives, so a tenant that changed since the phone's last sync is refused (`TENANT_CHANGED`).
 **A property with no row here cannot be read** (`NO_TENANT`); `db/001` counts them.
 
+## 7. Field Inspection views (optional; spec §21)
+
+Without both views the Field Inspection job is off and the rest works as before. Wrappers in MRDB
+over `PropertyManagementSystem`, like the others; `db/008` grants SELECT on them.
+
+**`vw_MR_InspectionPlan`** — one row per period, property and tenant to inspect.
+
+| Column | Read as | Notes |
+|---|---|---|
+| PeriodCode | text, e.g. `2026-11` | Part of the key |
+| InspectionPlanDate | date | Late when past and not done |
+| PropertyCode, TenantCode | text | Key with PeriodCode; units are matched on both |
+| CompanyName | text | Shown on the plan |
+| ActiveUnits, InactiveUnits, TotalUnits | int | For the office; the app counts the units it receives |
+
+**`vw_MR_InspectionUnit`** — one row per unit. **No `TOP (1000)`** (the first version had it, which
+cut the list at 1,000 rows; `db/001` warns when a view returns exactly 1,000).
+
+| Column | Read as | Notes |
+|---|---|---|
+| UnitId | key | Unique |
+| PropertyCode, **TenantCode** | text | `TenantCode` added 2026-10-06, so a property with two tenants splits its units |
+| BuildingName, UnitCode | text | Grouping and the number on the door |
+| Category | text like `Commercial>Warehouse>Warehouse` | The app shows the last non-empty level |
+| SubTenantName | text | The sub-tenant on record, checked on site |
+| Active | 1/0, Y/N, True/False | Inactive units are listed apart; finding one occupied is a result like any other |
+
+The MRDB wrappers after the fixes: `db/011_inspection_wrapper_views.sql` (it checks that the
+PMS view has `TenantCode` first). Then run `db/008` again so `mr_api` can read them.
+
 ## Work is not assigned
 
 There is no assignment view. Every active reader may read every active meter in the open period;

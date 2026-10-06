@@ -10,7 +10,7 @@ using Microsoft.Data.SqlClient;
 
 namespace MeterReading.Api.Tests;
 
-/// <summary>Rules of Field Inspection that need no database (spec §16).</summary>
+/// <summary>Rules of Field Inspection that need no database (spec §21).</summary>
 public class InspectionRuleTests
 {
     private static UnitResultRequest Unit(UnitResult result, string? occupant = null, string[]? reasons = null, string? note = null, int photos = 0, string? unitId = "1001") =>

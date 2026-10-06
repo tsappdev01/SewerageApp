@@ -109,7 +109,7 @@ fun HomeScreen(
                 HomeTile(Icons.AutoMirrored.Rounded.ListAlt, stringResource(R.string.my_readings), onReadings, Modifier.weight(1f), badge = readAgain)
                 HomeTile(Icons.Rounded.BarChart, stringResource(R.string.summary), onSummary, Modifier.weight(1f), badge = queued, badgeColor = AppColors.Queued)
             }
-            // Spec §16: shown only when the server has field inspection set up.
+            // Spec §21: shown only when the server has field inspection set up.
             val inspections by AppGraph.inspectionsFlow.collectAsStateWithLifecycle()
             inspections?.let { InspectionCard(it, onInspections) }
         }
