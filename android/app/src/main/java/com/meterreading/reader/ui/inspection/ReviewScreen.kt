@@ -75,6 +75,11 @@ fun InspectionReviewScreen(planId: String, onNextProperty: (String) -> Unit, onP
     val plan = plans.firstOrNull { it.id == planId }
     val draft = drafts[planId]
     if (plan == null || draft == null) {
+        // While sending, the visit has left the open list but is not done yet: wait here for the answer.
+        if (sending) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            return
+        }
         LaunchedEffect(Unit) { onBack() }
         return
     }

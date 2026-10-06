@@ -1,6 +1,10 @@
 package com.meterreading.reader.data
 
 import com.meterreading.reader.api.ApiClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -22,6 +26,7 @@ import org.junit.Test
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
+import java.util.concurrent.TimeUnit
 import javax.crypto.KeyGenerator
 
 /** Field inspection on the phone against a scripted server: plan, units, sending, and working without signal (FR-036). */
@@ -169,6 +174,25 @@ class InspectionRepositoryTest {
         repo.startVisit(p)
         repo.update(p.id) { it.copy(atProperty = true, latitude = 26.0, longitude = 55.0) }
         assertEquals(111.2, repo.officeDistanceKm(repo.draft(p.id)!!)!!, 0.05)
+    }
+
+    @Test fun FR036_leaving_the_screen_while_sending_does_not_lose_the_visit() = runBlocking {
+        val repo = app()
+        val id = startVisit(repo)
+        server.takeRequest(); server.takeRequest()
+        repo.saveEntry(id, UnitEntry("res-1", "1001", "1", result = UnitResult.AS_RECORDED))
+        server.enqueue(
+            MockResponse().setResponseCode(201).setBodyDelay(1, TimeUnit.SECONDS)
+                .setBody("""{"visitId":"x","state":"COME_BACK","units":1,"flaggedUnits":0,"photosExpected":0}"""),
+        )
+        // The screen that pressed Send closes while the server is still answering.
+        val sending = launch(Dispatchers.Default) { repo.finish(id) }
+        delay(300)
+        sending.cancelAndJoin()
+        assertNotNull(server.takeRequest(5, TimeUnit.SECONDS))
+        assertEquals("COME_BACK", repo.plans.value.single().state) // stored, not dropped
+        assertNull(repo.draft(id))
+        assertFalse(repo.hasWaiting())
     }
 
     @Test fun a_retry_sends_the_same_visit_id_so_it_is_not_stored_twice() = runBlocking {

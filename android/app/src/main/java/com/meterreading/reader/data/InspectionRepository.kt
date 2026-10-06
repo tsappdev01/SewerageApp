@@ -10,11 +10,13 @@ import com.meterreading.reader.api.LastUnitResultDto
 import com.meterreading.reader.api.SubmitInspectionRequest
 import com.meterreading.reader.api.SubmitInspectionResponse
 import com.meterreading.reader.api.UnitResultRequest
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
@@ -233,7 +235,13 @@ class InspectionRepository(
         draft.recorded.flatMap { it.photos }.forEach { vault.seal(it.path) }
         draft.signature?.let { vault.seal(it.path) }
         _drafts.value = _drafts.value - planId
-        try {
+        // From here the visit is only in this call: it must end stored or queued, even if the screen
+        // that asked for it goes away and cancels its scope (FR-036).
+        withContext(NonCancellable) { sendOrKeep(planId, open, draft) }
+    }
+
+    private suspend fun sendOrKeep(planId: String, open: VisitDraft, draft: VisitDraft): FinishResult {
+        return try {
             val response = api.submitInspection(draft.toRequest())
             stored(draft, InspectionState.valueOf(response.state))
             uploadPhotos()
