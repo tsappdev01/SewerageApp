@@ -43,7 +43,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowLooper
 import java.io.File
-import java.time.Duration
+import java.util.concurrent.TimeUnit
 
 /**
  * Pictures of the meter-reading screens with the demo data (FakeMeterRepository), for guides and
@@ -75,7 +75,7 @@ class MeterReadingScreenshots {
     }
 
     private fun shot(name: String) {
-        ShadowLooper.idleMainLooper(Duration.ofSeconds(2))
+        ShadowLooper.idleMainLooper(2, TimeUnit.SECONDS)
         compose.waitForIdle()
         captureScreenRoboImage("build/screenshots/$name.png")
     }
