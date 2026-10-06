@@ -54,6 +54,8 @@ data class VisitDraft(
     val latitude: Double? = null,
     val longitude: Double? = null,
     val gpsAccuracyM: Double? = null,
+    /** The answer to "Are you at the property now?" when the visit started; null until asked. */
+    val atProperty: Boolean? = null,
     val personMet: String = "",
     val signature: EvidencePhoto? = null,
     /** By [UnitEntry.key], in the order recorded. */
@@ -102,6 +104,15 @@ object InspectionRules {
         e.photos.size > MAX_PHOTOS -> Problem.TOO_MANY_PHOTOS
         (e.peopleSeen ?: 0) !in 0..MAX_PEOPLE -> Problem.PEOPLE
         else -> null
+    }
+
+    /** Great-circle distance in km (haversine); mirrors the server's Domain/Geo.cs (FR-031.2). */
+    fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        fun rad(d: Double) = d * Math.PI / 180
+        val dLat = rad(lat2 - lat1)
+        val dLon = rad(lon2 - lon1)
+        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        return 2 * 6371.0088 * Math.asin(Math.min(1.0, Math.sqrt(a)))
     }
 
     /** "Commercial>Warehouse>Warehouse" is shown as "Warehouse"; "Commercial> >" as "Commercial". */

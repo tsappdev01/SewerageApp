@@ -19,6 +19,8 @@ data class InspectionPlanDto(
     val checkedUnits: Int = 0,
     val flaggedUnits: Int = 0,
     val lastVisitAtUtc: String? = null,
+    /** From the DIP office, from the latest visit made at the property (FR-031.2). */
+    val distanceFromOfficeKm: Double? = null,
 ) {
     /** One plan row: a property and tenant in a period. Used as the key everywhere on the phone. */
     val id: String get() = "$periodCode|$propertyCode|$tenantCode"
@@ -31,6 +33,9 @@ data class InspectionPlanListDto(
     val to: String,
     val plans: List<InspectionPlanDto>,
     val serverTimeUtc: String,
+    /** The DIP office, for the distance of a location the phone has just taken. */
+    val officeLatitude: Double? = null,
+    val officeLongitude: Double? = null,
 )
 
 @Serializable
@@ -80,6 +85,8 @@ data class SubmitInspectionRequest(
     val latitude: Double? = null,
     val longitude: Double? = null,
     val gpsAccuracyM: Double? = null,
+    /** "Are you at the property now?" when starting (FR-031.2). False: no location is sent. */
+    val atProperty: Boolean? = null,
 )
 
 @Serializable

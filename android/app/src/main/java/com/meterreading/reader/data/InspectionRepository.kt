@@ -94,6 +94,17 @@ class InspectionRepository(
 
     fun hasWaiting(): Boolean = queue.isNotEmpty() || photoQueue.isNotEmpty()
 
+    /** FR-031.2: how far the location taken for [draft] is from the DIP office, when both are known. */
+    fun officeDistanceKm(draft: VisitDraft): Double? {
+        val plan = saved.plan ?: return null
+        val oLat = plan.officeLatitude ?: return null
+        val oLon = plan.officeLongitude ?: return null
+        val lat = draft.latitude ?: return null
+        val lon = draft.longitude ?: return null
+        if (draft.atProperty == false) return null
+        return InspectionRules.distanceKm(oLat, oLon, lat, lon)
+    }
+
     private fun counts() {
         _waitingVisits.value = queue.size
         _waitingPhotos.value = photoQueue.size
@@ -316,6 +327,7 @@ class InspectionRepository(
             checkedUnits = results.values.count { it != null && it != UnitResult.PENDING },
             flaggedUnits = results.values.count { it in InspectionRules.flagged },
             lastVisitAtUtc = draft.finishedAtUtc,
+            distanceFromOfficeKm = officeDistanceKm(draft)?.let { Math.round(it * 10) / 10.0 } ?: p.distanceFromOfficeKm,
         )
     }
 
@@ -374,9 +386,11 @@ class InspectionRepository(
         },
         personMet = personMet.trim().ifEmpty { null },
         hasSignature = signature != null,
-        latitude = latitude,
-        longitude = longitude,
-        gpsAccuracyM = gpsAccuracyM,
+        // Away from the property no location is sent, even if one was taken earlier.
+        latitude = latitude.takeIf { atProperty != false },
+        longitude = longitude.takeIf { atProperty != false },
+        gpsAccuracyM = gpsAccuracyM.takeIf { atProperty != false },
+        atProperty = atProperty,
     )
 
     private fun sha256Hex(bytes: ByteArray): String =

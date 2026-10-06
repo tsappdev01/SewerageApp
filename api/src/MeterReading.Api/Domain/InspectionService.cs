@@ -43,7 +43,9 @@ public sealed partial class InspectionService(InspectionRepository repo, TimePro
         var unitsTask = repo.GetUnitsAsync(codes, ct);
         var latestTask = repo.GetLatestResultsAsync(codes, ct);
         var visitsTask = repo.GetVisitSummariesAsync(codes, ct);
+        var distancesTask = repo.GetPropertyDistancesAsync(codes, ct);
         var units = (await unitsTask).ToLookup(u => u.PropertyCode);
+        var distances = await distancesTask;
         var latest = (await latestTask).ToLookup(r => (r.PeriodCode, r.PropertyCode, r.TenantCode));
         var visits = (await visitsTask).ToDictionary(v => (v.PeriodCode, v.PropertyCode, v.TenantCode), v => v.LastFinishedAtUtc);
 
@@ -52,7 +54,8 @@ public sealed partial class InspectionService(InspectionRepository repo, TimePro
             .Select(p => Progress(p,
                 units[p.PropertyCode].Where(u => u.BelongsTo(p.TenantCode)).ToList(),
                 latest[(p.PeriodCode, p.PropertyCode, p.TenantCode)].ToList(),
-                visits.TryGetValue((p.PeriodCode, p.PropertyCode, p.TenantCode), out var last) ? last : null))
+                visits.TryGetValue((p.PeriodCode, p.PropertyCode, p.TenantCode), out var last) ? last : null,
+                distances.TryGetValue(p.PropertyCode, out var km) ? km : null))
             .ToList();
     }
 
@@ -60,7 +63,8 @@ public sealed partial class InspectionService(InspectionRepository repo, TimePro
     /// FR-034: DONE when every active unit has a result other than PENDING and no unit's latest result is
     /// PENDING; COME_BACK when visited but not done; NOT_STARTED before the first visit.
     /// </summary>
-    public static InspectionPlanDto Progress(InspectionPlanRow p, IReadOnlyList<InspectionUnitRow> units, IReadOnlyList<LatestUnitResultRow> latest, DateTime? lastVisit)
+    public static InspectionPlanDto Progress(
+        InspectionPlanRow p, IReadOnlyList<InspectionUnitRow> units, IReadOnlyList<LatestUnitResultRow> latest, DateTime? lastVisit, double? distanceKm = null)
     {
         var onList = units.Select(u => u.UnitId).ToHashSet(StringComparer.Ordinal);
         var results = latest.Where(r => onList.Contains(r.UnitId)).ToDictionary(r => r.UnitId, r => Parse(r.Result), StringComparer.Ordinal);
@@ -76,7 +80,8 @@ public sealed partial class InspectionService(InspectionRepository repo, TimePro
             state,
             CheckedUnits: results.Values.Count(r => r != UnitResult.PENDING),
             FlaggedUnits: results.Values.Count(Flagged.Contains),
-            LastVisitAtUtc: lastVisit is { } t ? DateTime.SpecifyKind(t, DateTimeKind.Utc) : null);
+            LastVisitAtUtc: lastVisit is { } t ? DateTime.SpecifyKind(t, DateTimeKind.Utc) : null,
+            DistanceFromOfficeKm: distanceKm is { } d ? Math.Round(d, 1) : null);
     }
 
     public async Task<InspectionUnitsDto?> LoadUnitsAsync(string periodCode, string propertyCode, string tenantCode, CancellationToken ct)
@@ -86,7 +91,9 @@ public sealed partial class InspectionService(InspectionRepository repo, TimePro
         var unitsTask = repo.GetUnitsAsync([propertyCode], ct);
         var latestTask = repo.GetLatestResultsAsync([propertyCode], ct);
         var visitsTask = repo.GetVisitSummariesAsync([propertyCode], ct);
+        var distancesTask = repo.GetPropertyDistancesAsync([propertyCode], ct);
         var units = (await unitsTask).Where(u => u.BelongsTo(tenantCode)).ToList();
+        var distance = (await distancesTask).TryGetValue(propertyCode, out var km) ? km : (double?)null;
         var latest = await latestTask;
         var visits = await visitsTask;
 
@@ -94,7 +101,7 @@ public sealed partial class InspectionService(InspectionRepository repo, TimePro
         var lastByUnit = latest.GroupBy(r => r.UnitId, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.MaxBy(r => r.FinishedAtUtc)!, StringComparer.Ordinal);
         var lastVisit = visits.Where(v => v.PeriodCode == periodCode && v.TenantCode == tenantCode).Select(v => (DateTime?)v.LastFinishedAtUtc).Max();
-        var progress = Progress(plan, units, latest.Where(r => r.PeriodCode == periodCode && r.TenantCode == tenantCode).ToList(), lastVisit);
+        var progress = Progress(plan, units, latest.Where(r => r.PeriodCode == periodCode && r.TenantCode == tenantCode).ToList(), lastVisit, distance);
 
         var list = units
             .OrderByDescending(u => u.Active)
@@ -171,6 +178,13 @@ public sealed partial class InspectionService(InspectionRepository repo, TimePro
         }
 
         var photos = r.Units.Sum(u => u.PhotoCount) + (r.HasSignature ? 1 : 0);
+        // FR-031.2: a location is kept only when the inspector said they were at the property; from it,
+        // the distance from the DIP office. (No answer: an older phone, which only sent a location on site.)
+        var atProperty = r.AtProperty != false;
+        var located = atProperty && r.Latitude is { } lat && r.Longitude is { } lon && Math.Abs(lat) <= 90 && Math.Abs(lon) <= 180;
+        decimal? distanceKm = located && O.OfficeLatitude is { } oLat && O.OfficeLongitude is { } oLon
+            ? Math.Round((decimal)Geo.DistanceKm(oLat, oLon, (double)r.Latitude!.Value, (double)r.Longitude!.Value), 3)
+            : null;
         var visit = new NewVisitRow
         {
             VisitId = r.VisitId,
@@ -183,9 +197,11 @@ public sealed partial class InspectionService(InspectionRepository repo, TimePro
             DeviceId = r.DeviceId,
             StartedAtUtc = started,
             FinishedAtUtc = finished,
-            Latitude = r.Latitude,
-            Longitude = r.Longitude,
-            GpsAccuracyM = r.GpsAccuracyM,
+            Latitude = located ? r.Latitude : null,
+            Longitude = located ? r.Longitude : null,
+            GpsAccuracyM = located ? r.GpsAccuracyM : null,
+            AtProperty = r.AtProperty,
+            DistanceFromOfficeKm = distanceKm,
             PersonMet = Trimmed(r.PersonMet, 100),
             ExpectedPhotos = photos,
             PayloadHash = hash,

@@ -23,6 +23,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("ConnectionStrings:MeterReading", ConnectionString);
         builder.UseSetting("SourceViews:HasReadingHistory", "true"); // db/dev has the optional history view
         builder.UseSetting("Auth:Mode", "Development");
+        // A DIP office for the inspection distances (spec FR-031.2).
+        builder.UseSetting("Inspection:OfficeLatitude", "25.0000");
+        builder.UseSetting("Inspection:OfficeLongitude", "55.1500");
     }
 }
 

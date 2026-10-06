@@ -147,6 +147,30 @@ class InspectionRepositoryTest {
         assertFalse(again.hasWaiting())
     }
 
+    @Test fun FR031_2_away_from_the_property_no_location_is_sent() = runBlocking {
+        val repo = app()
+        val id = startVisit(repo)
+        server.takeRequest(); server.takeRequest()
+        // A location taken earlier is dropped once the inspector says they are not at the property.
+        repo.update(id) { it.copy(atProperty = false, latitude = 25.01, longitude = 55.15) }
+        repo.saveEntry(id, UnitEntry("res-1", "1001", "1", result = UnitResult.AS_RECORDED))
+        ok("""{"visitId":"x","state":"COME_BACK","units":1,"flaggedUnits":0,"photosExpected":0}""", 201)
+        repo.finish(id)
+        val visit = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals("false", visit["atProperty"]!!.jsonPrimitive.content)
+        assertNull(visit["latitude"])
+    }
+
+    @Test fun FR031_2_at_the_property_the_distance_from_the_office_is_worked_out_on_the_phone() = runBlocking {
+        val repo = app()
+        ok(plan.replace("\"serverTimeUtc\"", "\"officeLatitude\":25.0,\"officeLongitude\":55.0,\"serverTimeUtc\""))
+        repo.refreshPlan()
+        val p = repo.plans.value.single()
+        repo.startVisit(p)
+        repo.update(p.id) { it.copy(atProperty = true, latitude = 26.0, longitude = 55.0) }
+        assertEquals(111.2, repo.officeDistanceKm(repo.draft(p.id)!!)!!, 0.05)
+    }
+
     @Test fun a_retry_sends_the_same_visit_id_so_it_is_not_stored_twice() = runBlocking {
         val repo = app()
         val id = startVisit(repo)

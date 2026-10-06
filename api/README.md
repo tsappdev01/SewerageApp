@@ -22,6 +22,7 @@ The API reads five `vw_MR_*` views in `PropertyManagementSystem` (plus an option
 | `007_reading_image_data.sql` | Creates `mr.ReadingImageData`, which holds the photos when `ImageStore:Kind` is `Database` (the default). Re-runnable. | Any environment |
 | `009_device_keys.sql` | Registered phones: `mr.Device` key hash, label, revoke time; `mr.DeviceRegistrationCode` for one-time codes. Re-runnable. | Any environment |
 | `010_field_inspection.sql` | Field Inspection: `mr.InspectionVisit`, `mr.InspectionUnitResult`, `mr.InspectionImage`, and `mr.vw_InspectionResult` for the office (spec §21). Re-runnable. | Any environment |
+| `012_inspection_location.sql` | Adds `AtProperty` and `DistanceFromOfficeKm` to `mr.InspectionVisit` (spec FR-031.2). Re-runnable. | Any environment |
 | `011_inspection_wrapper_views.sql` | The MRDB wrappers `vw_MR_InspectionPlan` / `vw_MR_InspectionUnit` over PMS (no `TOP (1000)`; `TenantCode` on units passed through only if PMS has it). Then run `008` again. | UAT and production (dev has stand-ins) |
 | `ops/new_device_code.sql`, `ops/list_devices.sql`, `ops/revoke_device.sql` | IT's tasks: make a one-time registration code, list phones, block a lost phone (`docs/deployment.md` 2.11). | Any environment, as needed |
 | `008_create_api_login.sql` | Creates the API's login `mr_api` (set `@Password` first) and grants what it needs in the `mr` database and in the views' database (SELECT on the views, SELECT/INSERT/UPDATE on `mr`, optional INSERT on `MaintainMeterReading`). Re-runnable. | Any environment |

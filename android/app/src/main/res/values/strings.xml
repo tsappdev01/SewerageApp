@@ -409,4 +409,12 @@
     <string name="speak_insp_done_sent">Sent. Press Next property.</string>
     <string name="speak_insp_done_saved">Saved on the phone. It sends when there is signal.</string>
     <string name="speak_insp_done_rejected">Not sent. Read the message, then fix the units.</string>
+    <string name="insp_at_property_q">Are you at the property now?</string>
+    <string name="insp_at_property_text">Yes: the phone saves where you are with the visit to %1$s. No: you can still record the units, without a location.</string>
+    <string name="insp_at_property_yes">Yes, I am here</string>
+    <string name="insp_at_property_no">No</string>
+    <string name="insp_at_property_now">I am here now</string>
+    <string name="insp_location_away">Not at the property: no location saved</string>
+    <string name="insp_from_office">%1$s from the DIP office</string>
+    <string name="speak_insp_at_property">Are you at the property now? Press Yes if you are standing at it. Press No if you are not.</string>
 </resources>

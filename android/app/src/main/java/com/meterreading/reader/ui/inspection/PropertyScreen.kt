@@ -51,6 +51,7 @@ fun InspectionPropertyScreen(planId: String, onStart: () -> Unit, onBack: () -> 
     var loadFailed by remember { mutableStateOf(false) }
     var locating by remember { mutableStateOf(false) }
     var askDiscard by remember { mutableStateOf(false) }
+    var askAtProperty by remember { mutableStateOf(false) }
 
     LaunchedEffect(planId) {
         val loaded = repo.units(plan)
@@ -66,10 +67,17 @@ fun InspectionPropertyScreen(planId: String, onStart: () -> Unit, onBack: () -> 
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { locate() }
 
-    fun start() {
-        repo.startVisit(plan)
+    /** FR-031.2: the location is taken only when the inspector says they are at the property now. */
+    fun atProperty() {
+        repo.update(planId) { it.copy(atProperty = true) }
         if (hasLocationPermission(context)) locate()
         else permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+    }
+
+    fun start(here: Boolean) {
+        askAtProperty = false
+        repo.startVisit(plan)
+        if (here) atProperty() else repo.update(planId) { it.copy(atProperty = false, latitude = null, longitude = null, gpsAccuracyM = null) }
         onStart()
     }
 
@@ -93,7 +101,11 @@ fun InspectionPropertyScreen(planId: String, onStart: () -> Unit, onBack: () -> 
                     Text(stringResource(R.string.insp_tenant_line, plan.tenantCode, date?.let(::formatDay) ?: plan.planDate), color = AppColors.SubInk)
                 }
             }
-            if (draft != null) LocationLine(draft.latitude != null, draft.gpsAccuracyM, locating, onRetry = { if (hasLocationPermission(context)) locate() else permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)) })
+            if (draft != null) {
+                LocationLine(draft.atProperty, draft.latitude != null, draft.gpsAccuracyM, repo.officeDistanceKm(draft), locating, onAtProperty = ::atProperty)
+            } else {
+                plan.distanceFromOfficeKm?.let { DistanceLine(it) }
+            }
 
             Text(stringResource(R.string.insp_units_on_record), style = MaterialTheme.typography.labelMedium, color = AppColors.SubInk)
             UnitBar(plan.activeUnits, plan.inactiveUnits)
@@ -106,7 +118,7 @@ fun InspectionPropertyScreen(planId: String, onStart: () -> Unit, onBack: () -> 
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             BigButton(
                 stringResource(if (draft == null) R.string.insp_start else R.string.insp_continue),
-                { if (draft == null) start() else onStart() },
+                { if (draft == null) askAtProperty = true else onStart() },
                 icon = Icons.Rounded.FactCheck,
                 enabled = units != null,
             )
@@ -119,6 +131,27 @@ fun InspectionPropertyScreen(planId: String, onStart: () -> Unit, onBack: () -> 
             }
         }
     }
+    if (askAtProperty) {
+        AlertDialog(
+            onDismissRequest = { askAtProperty = false },
+            icon = { Icon(Icons.Rounded.LocationOn, null, tint = AppColors.Navy, modifier = Modifier.size(36.dp)) },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.insp_at_property_q), modifier = Modifier.weight(1f))
+                    SpeakButton(stringResource(R.string.speak_insp_at_property))
+                }
+            },
+            text = { Text(stringResource(R.string.insp_at_property_text, plan.propertyCode), style = MaterialTheme.typography.bodyLarge) },
+            confirmButton = {
+                Button(onClick = { start(here = true) }, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Navy), modifier = Modifier.heightIn(min = 52.dp)) {
+                    Icon(Icons.Rounded.LocationOn, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.insp_at_property_yes))
+                }
+            },
+            dismissButton = { TextButton(onClick = { start(here = false) }, modifier = Modifier.heightIn(min = 52.dp)) { Text(stringResource(R.string.insp_at_property_no)) } },
+        )
+    }
     if (askDiscard) {
         AlertDialog(
             onDismissRequest = { askDiscard = false },
@@ -130,8 +163,14 @@ fun InspectionPropertyScreen(planId: String, onStart: () -> Unit, onBack: () -> 
 }
 
 @Composable
-private fun LocationLine(saved: Boolean, accuracy: Double?, locating: Boolean, onRetry: () -> Unit) {
-    val (fg, bg) = if (saved) AppColors.Ok to AppColors.OkTint else AppColors.Warn to AppColors.WarnTint
+private fun LocationLine(atProperty: Boolean?, saved: Boolean, accuracy: Double?, distanceKm: Double?, locating: Boolean, onAtProperty: () -> Unit) {
+    // Away from the property is a normal choice, shown plainly; a failed location on site is a warning.
+    val away = atProperty == false
+    val (fg, bg) = when {
+        saved -> AppColors.Ok to AppColors.OkTint
+        away -> AppColors.SubInk to AppColors.PendingTint
+        else -> AppColors.Warn to AppColors.WarnTint
+    }
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(bg).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -144,16 +183,32 @@ private fun LocationLine(saved: Boolean, accuracy: Double?, locating: Boolean, o
                     when {
                         saved -> R.string.insp_location_ok
                         locating -> R.string.insp_location_wait
+                        away -> R.string.insp_location_away
                         else -> R.string.insp_location_off
                     },
                 ),
                 color = fg, style = MaterialTheme.typography.titleMedium,
             )
             if (saved && accuracy != null) Text(stringResource(R.string.insp_location_acc, accuracy.toInt()), color = AppColors.SubInk)
+            if (saved && distanceKm != null) Text(stringResource(R.string.insp_from_office, formatKm(distanceKm)), color = AppColors.Ink, style = MaterialTheme.typography.labelMedium)
         }
-        if (!saved && !locating) TextButton(onClick = onRetry) { Text(stringResource(R.string.insp_location_retry)) }
+        if (!saved && !locating) {
+            TextButton(onClick = onAtProperty) { Text(stringResource(if (away) R.string.insp_at_property_now else R.string.insp_location_retry)) }
+        }
     }
 }
+
+/** The property's distance from the DIP office, from an earlier visit made there. */
+@Composable
+fun DistanceLine(km: Double) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(Icons.Rounded.Straighten, null, tint = AppColors.SubInk, modifier = Modifier.size(20.dp))
+        Text(stringResource(R.string.insp_from_office, formatKm(km)), color = AppColors.SubInk)
+    }
+}
+
+/** 0.4 km, 12.4 km, 35 km. */
+fun formatKm(km: Double): String = if (km >= 20) "%.0f km".format(java.util.Locale.US, km) else "%.1f km".format(java.util.Locale.US, km)
 
 /** Active and inactive units on record as one bar with its key in words. */
 @Composable

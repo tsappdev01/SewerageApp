@@ -30,7 +30,7 @@ public static partial class InspectionEndpoints
     {
         var (views, tables) = await repo.AvailableAsync(ct);
         if (!views) return (null, Problems.Of(404, "INSPECTION_OFF", "Field inspection is not set up on this server."));
-        if (!tables) return (null, Problems.Of(503, "INSPECTION_OFF", "Field inspection tables are missing (db/010_field_inspection.sql)."));
+        if (!tables) return (null, Problems.Of(503, "INSPECTION_OFF", "Field inspection tables are missing (db/010_field_inspection.sql, db/012_inspection_location.sql)."));
         return await current.ResolveAsync(ct);
     }
 
@@ -45,7 +45,7 @@ public static partial class InspectionEndpoints
         var t = to ?? today.AddDays(options.Value.PlanDaysAhead);
         if (t < f || t.DayNumber - f.DayNumber > 366) return Problems.Invalid("from must be before to, at most a year apart.");
         var plans = await service.LoadPlanAsync(f, t, ct);
-        return Results.Ok(new InspectionPlanListDto(today, f, t, plans, DateTime.UtcNow));
+        return Results.Ok(new InspectionPlanListDto(today, f, t, plans, DateTime.UtcNow, options.Value.OfficeLatitude, options.Value.OfficeLongitude));
     }
 
     private static async Task<IResult> GetUnits(

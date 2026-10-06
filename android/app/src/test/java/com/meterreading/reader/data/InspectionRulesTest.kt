@@ -28,6 +28,12 @@ class InspectionRulesTest {
     @Test fun FR033_at_most_six_photos() = assertEquals(InspectionRules.Problem.TOO_MANY_PHOTOS, InspectionRules.problem(entry(UnitResult.AS_RECORDED, photos = 7)))
     @Test fun FR035_unit_not_on_list_needs_its_number() = assertEquals(InspectionRules.Problem.UNIT_CODE, InspectionRules.problem(entry(UnitResult.VACANT, unitId = null, code = " ")))
 
+    @Test fun FR031_2_distance_matches_the_server() {
+        assertEquals(0.0, InspectionRules.distanceKm(25.0, 55.0, 25.0, 55.0), 1e-9)
+        assertEquals(111.2, InspectionRules.distanceKm(25.0, 55.0, 26.0, 55.0), 0.05)
+        assertEquals(100.8, InspectionRules.distanceKm(25.0, 55.0, 25.0, 56.0), 0.05)
+    }
+
     @Test fun categories_show_their_last_level() {
         assertEquals("Warehouse", InspectionRules.categoryName("Commercial>Warehouse>Warehouse"))
         assertEquals("Commercial", InspectionRules.categoryName("Commercial> >"))

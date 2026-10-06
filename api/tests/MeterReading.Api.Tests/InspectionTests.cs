@@ -30,6 +30,14 @@ public class InspectionRuleTests
     [Fact] public void Reason_codes_are_checked() => Assert.Equal("INVALID_LOV_CODE", Code(Unit(UnitResult.PENDING, reasons: ["no access!"])));
 
     [Fact]
+    public void FR031_2_distance_is_the_great_circle_distance()
+    {
+        Assert.Equal(0, Geo.DistanceKm(25, 55, 25, 55), 6);
+        Assert.Equal(111.2, Geo.DistanceKm(25, 55, 26, 55), 1);   // one degree of latitude
+        Assert.Equal(100.8, Geo.DistanceKm(25, 55, 25, 56), 1);   // one degree of longitude at 25° N
+    }
+
+    [Fact]
     public void FR030_without_TenantCode_on_units_every_unit_of_the_property_belongs_to_each_tenant()
     {
         var noTenant = new InspectionUnitRow { UnitId = "1", PropertyCode = "P", TenantCode = "" };
@@ -119,11 +127,11 @@ public sealed class InspectionTests(ApiFactory factory) : IAsyncLifetime
         new { resultId = resultId ?? Guid.NewGuid(), unitId, result, occupantName = occupant, reasons, note, photoCount = photos, peopleSeen = people, unitCode };
 
     private static object Visit(string property, string tenant, object[] units, Guid? id = null, DateTime? finished = null, string period = "2026-10",
-        bool signature = false, string? personMet = null) => new
+        bool signature = false, string? personMet = null, bool? atProperty = true) => new
     {
         visitId = id ?? Guid.NewGuid(), periodCode = period, propertyCode = property, tenantCode = tenant,
         startedAtUtc = (finished ?? DateTime.UtcNow.AddMinutes(-1)).AddMinutes(-20), finishedAtUtc = finished ?? DateTime.UtcNow.AddMinutes(-1),
-        units, hasSignature = signature, personMet, latitude = 25.0143m, longitude = 55.1529m,
+        units, hasSignature = signature, personMet, latitude = 25.0143m, longitude = 55.1529m, atProperty,
     };
 
     private async Task<(HttpStatusCode Status, JsonElement Body)> Post(object body, string user = Rashid)
@@ -261,6 +269,27 @@ public sealed class InspectionTests(ApiFactory factory) : IAsyncLifetime
         await using var c = new SqlConnection(ApiFactory.ConnectionString);
         await c.OpenAsync();
         await using var cmd = new SqlCommand("SELECT COUNT(*) FROM mr.vw_InspectionResult WHERE UnitId IS NULL AND UnitCode = N'02A' AND Result = 'SUBLEASED'", c);
+        Assert.Equal(1, (int)(await cmd.ExecuteScalarAsync())!);
+    }
+
+    [Fact]
+    public async Task FR031_2_at_the_property_the_distance_from_the_office_is_kept_and_shown()
+    {
+        var plan = await Get($"/api/v1/inspections/plan?{Window}");
+        Assert.Equal(25.0, plan.GetProperty("officeLatitude").GetDouble());
+        await Post(Visit("597-559", "T-0559", [U("1001", "AS_RECORDED")]));
+        // 25.0143 N 55.1529 E is about 1.6 km from the test office.
+        Assert.Equal(1.6, (await PlanRow("597-559", "T-0559")).GetProperty("distanceFromOfficeKm").GetDouble(), 1);
+    }
+
+    [Fact]
+    public async Task FR031_2_away_from_the_property_no_location_is_kept()
+    {
+        await Post(Visit("597-972", "T-0972", [U("2001", "AS_RECORDED")], atProperty: false));
+        Assert.Equal(JsonValueKind.Null, (await PlanRow("597-972", "T-0972")).GetProperty("distanceFromOfficeKm").ValueKind);
+        await using var c = new SqlConnection(ApiFactory.ConnectionString);
+        await c.OpenAsync();
+        await using var cmd = new SqlCommand("SELECT COUNT(*) FROM mr.InspectionVisit WHERE PropertyCode = '597-972' AND AtProperty = 0 AND Latitude IS NULL AND DistanceFromOfficeKm IS NULL", c);
         Assert.Equal(1, (int)(await cmd.ExecuteScalarAsync())!);
     }
 

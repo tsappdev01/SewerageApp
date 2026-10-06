@@ -116,7 +116,7 @@ app.MapGet("/health/ready", async (MeterReadingRepository repo, PmsTransferServi
             missing.Add("mr.DeviceRegistrationCode (run db/009_device_keys.sql)");
         // Field inspection is optional: only when its views exist must its tables exist too.
         if (await inspections.AvailableAsync(ct) is (true, false))
-            missing.Add("mr.InspectionVisit (run db/010_field_inspection.sql)");
+            missing.Add("mr.InspectionVisit or its AtProperty column (run db/010_field_inspection.sql and db/012_inspection_location.sql)");
         return missing.Count == 0
             ? Results.Ok(new { status = "ready" })
             : Results.Json(new { status = "not ready", missing }, statusCode: StatusCodes.Status503ServiceUnavailable);

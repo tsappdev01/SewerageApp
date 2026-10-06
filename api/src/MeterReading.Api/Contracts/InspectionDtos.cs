@@ -23,9 +23,14 @@ public sealed record InspectionPlanDto(
     int CheckedUnits,
     /// <summary>Units whose latest result is SUBLEASED, DISPUTED or REJECTED.</summary>
     int FlaggedUnits,
-    DateTime? LastVisitAtUtc);
+    DateTime? LastVisitAtUtc,
+    /// <summary>From the DIP office to the property, from the latest visit made at the property (FR-031.2).</summary>
+    double? DistanceFromOfficeKm = null);
 
-public sealed record InspectionPlanListDto(DateOnly Today, DateOnly From, DateOnly To, IReadOnlyList<InspectionPlanDto> Plans, DateTime ServerTimeUtc);
+/// <summary>OfficeLatitude/Longitude: the DIP office, so the phone can show the distance of a location it just took.</summary>
+public sealed record InspectionPlanListDto(
+    DateOnly Today, DateOnly From, DateOnly To, IReadOnlyList<InspectionPlanDto> Plans, DateTime ServerTimeUtc,
+    double? OfficeLatitude = null, double? OfficeLongitude = null);
 
 /// <summary>The latest result recorded for a unit, from any earlier visit.</summary>
 public sealed record LastUnitResultDto(UnitResult Result, DateTime AtUtc, string? OccupantName, int? PeopleSeen);
@@ -75,7 +80,9 @@ public sealed record SubmitInspectionRequest(
     Guid? DeviceId = null,
     decimal? Latitude = null,
     decimal? Longitude = null,
-    decimal? GpsAccuracyM = null);
+    decimal? GpsAccuracyM = null,
+    /// <summary>The inspector's answer to "Are you at the property now?" when starting. False: no location is kept.</summary>
+    bool? AtProperty = null);
 
 public sealed record SubmitInspectionResponse(Guid VisitId, InspectionState State, int Units, int FlaggedUnits, int PhotosExpected);
 

@@ -148,6 +148,7 @@ private fun PlanCard(p: InspectionPlanDto, today: LocalDate, inProgress: Boolean
                     }
                     Text(stringResource(R.string.insp_units_active_inactive, p.activeUnits, p.inactiveUnits), color = AppColors.SubInk, maxLines = 1)
                 }
+                p.distanceFromOfficeKm?.let { DistanceLine(it) }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (inProgress) Pill(stringResource(R.string.insp_in_progress), AppColors.Navy, AppColors.NavyTint, Icons.Rounded.EditNote)
                     else if (state != InspectionState.NOT_STARTED) StatePill(state)

@@ -313,7 +313,7 @@ need fixing before the app can be built on these views.</p>
     <div class="fchips"><span class="on"><svg><use href="#i-pin"/></svg>Nearest</span><span>Zone 597</span><span>Zone 598</span><span><svg><use href="#i-filter"/></svg></span></div>
     <div class="card">
       <div class="pr"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" stroke="var(--app-line)" stroke-width="4"/><circle cx="18" cy="18" r="15" stroke="var(--ok)" stroke-width="4" stroke-dasharray="56.5 94.2"/></svg><span class="v">3/5</span></div>
-      <div class="main"><div class="code">597-559</div><div class="co">Elegant Industries · Gurcoat Garage</div><div class="row mut"><span class="due"><svg><use href="#i-pin"/></svg>0.4 km</span>· 5 units</div></div>
+      <div class="main"><div class="code">597-559</div><div class="co">Elegant Industries · Gurcoat Garage</div><div class="row mut"><span class="due"><svg><use href="#i-pin"/></svg>4.2 km from office</span>· 5 units</div></div>
       <svg width="20" height="20" style="color:var(--app-sub)"><use href="#i-right"/></svg>
     </div>
     <div class="card">
@@ -340,7 +340,7 @@ need fixing before the app can be built on these views.</p>
   <div class="body">
     <div class="card"><span class="mod" style="padding:0;border:0"><span class="ic" style="background:var(--taupe-tint);color:var(--taupe);width:44px;height:44px;border-radius:12px;display:grid;place-items:center"><svg width="24" height="24"><use href="#i-build"/></svg></span></span>
       <div class="main"><div class="co">Elegant Industries 1–5</div><div class="mut">Industrial › Warehouse</div></div></div>
-    <div class="gps"><svg><use href="#i-pin"/></svg><div>You are at the property<small>40 m from the site · 09:51 · saved with the visit</small></div></div>
+    <div class="gps"><svg><use href="#i-pin"/></svg><div>Location saved with the visit<small>About 12 m · 09:51 · 4.2 km from the DIP office</small></div></div>
     <div class="lab">Units on record</div>
     <div class="ubar"><i style="flex:5;background:var(--primary)"></i><i style="flex:0.0001;background:var(--app-line)"></i></div>
     <div class="keyrow"><span><i style="background:var(--primary)"></i>5 active</span><span><i style="background:var(--app-line)"></i>0 inactive</span><span>1 building</span></div>
@@ -351,8 +351,26 @@ need fixing before the app can be built on these views.</p>
     <div class="big go" style="margin-top:auto"><svg><use href="#i-clip"/></svg>Start inspection</div>
   </div>
 </div>
-<figcaption><span class="no">03</span><b>Property and check-in</b>The phone's location is checked against the property and saved with the visit as proof it took place. Far away: a warning, not a block (GPS can be off inside large buildings).</figcaption>
-<div class="speakline">"You are at 597-559. Five units to check. Press Start inspection."</div>
+<figcaption><span class="no">03</span><b>Property and check-in</b>After "Yes, I am here" the location is saved with the visit, and the distance from the DIP office is worked out from it and kept for the property (shown on the plan from then on).</figcaption>
+<div class="speakline">"Five units to check. Press Start inspection."</div>
+</figure>
+
+<!-- 3b Are you at the property? -->
+<figure>
+<div class="phone">
+  <div class="sb"><span>9:51</span><span>5G ▮▮▮</span></div>
+  <div class="bar"><span class="ib"><svg><use href="#i-back"/></svg></span><div class="t">597-559<small>Tenant T64 · plan 11 Oct</small></div></div>
+  <div class="scrim"></div>
+  <div class="sheet" style="bottom:auto;top:30%;margin:0 14px;border-radius:22px;left:0;right:0">
+    <div class="row" style="justify-content:space-between"><svg width="34" height="34" style="color:var(--primary)"><use href="#i-pin"/></svg><span class="ib speak"><svg><use href="#i-speak"/></svg></span></div>
+    <div style="font-size:20px;font-weight:700">Are you at the property now?</div>
+    <div class="mut" style="font-size:14px">Yes: the phone saves where you are with the visit to 597-559. No: you can still record the units, without a location.</div>
+    <div class="big go" style="min-height:52px;font-size:17px"><svg><use href="#i-pin"/></svg>Yes, I am here</div>
+    <div class="big ghost" style="min-height:46px">No</div>
+  </div>
+</div>
+<figcaption><span class="no">03b</span><b>Are you at the property?</b>Asked every time an inspection starts. Yes: the location is taken and the distance from the DIP office worked out. No: no location is kept; "I am here now" takes it later if the inspector arrives.</figcaption>
+<div class="speakline">"Are you at the property now? Press Yes if you are standing at it."</div>
 </figure>
 
 <!-- 4 Unit checklist -->

@@ -78,6 +78,11 @@ public sealed class InspectionOptions
 
     /// <summary>Hours ahead of UTC for "today" (UAE: 4).</summary>
     public int UtcOffsetHours { get; set; } = 4;
+
+    /// <summary>The DIP office, for the distance to each property (FR-031.2). Empty: no distances.</summary>
+    public double? OfficeLatitude { get; set; }
+
+    public double? OfficeLongitude { get; set; }
 }
 
 /// <summary>

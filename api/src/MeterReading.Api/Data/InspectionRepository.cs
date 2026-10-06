@@ -83,6 +83,8 @@ public sealed class NewVisitRow
     public string? PersonMet { get; init; }
     public int ExpectedPhotos { get; init; }
     public string PayloadHash { get; init; } = "";
+    public bool? AtProperty { get; init; }
+    public decimal? DistanceFromOfficeKm { get; init; }
 }
 
 public sealed class NewUnitResultRow
@@ -142,7 +144,7 @@ public sealed class InspectionRepository(SqlConnectionFactory db)
             new { plan = _v.InspectionPlan, unit = _v.InspectionUnit }, ct)) == 1;
         await using var mr = await db.OpenMeterReadingAsync(ct);
         var tables = await mr.ExecuteScalarAsync<int>(Cmd(
-            "SELECT CASE WHEN OBJECT_ID(N'mr.InspectionImage') IS NOT NULL THEN 1 ELSE 0 END", null, ct)) == 1;
+            "SELECT CASE WHEN OBJECT_ID(N'mr.InspectionImage') IS NOT NULL AND COL_LENGTH(N'mr.InspectionVisit', N'AtProperty') IS NOT NULL THEN 1 ELSE 0 END", null, ct)) == 1;
         return (views, tables);
     }
 
@@ -211,6 +213,27 @@ public sealed class InspectionRepository(SqlConnectionFactory db)
         return (await c.QueryAsync<VisitSummaryRow>(Cmd(sql, new { codes = SqlList.Of(propertyCodes) }, ct))).AsList();
     }
 
+    /// <summary>
+    /// FR-031.2: each property's distance from the DIP office, from its latest visit made at the property.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, double>> GetPropertyDistancesAsync(IReadOnlyCollection<string> propertyCodes, CancellationToken ct)
+    {
+        if (propertyCodes.Count == 0) return new Dictionary<string, double>();
+        var sql = $"""
+            SELECT PropertyCode, CAST(DistanceFromOfficeKm AS float) AS Km
+            FROM (
+                SELECT PropertyCode, DistanceFromOfficeKm,
+                       ROW_NUMBER() OVER (PARTITION BY PropertyCode ORDER BY FinishedAtUtc DESC) AS rn
+                FROM mr.InspectionVisit
+                WHERE DistanceFromOfficeKm IS NOT NULL AND PropertyCode IN ({SqlList.Select("@codes", "varchar(30)")})
+            ) x
+            WHERE x.rn = 1
+            """;
+        await using var c = await db.OpenMeterReadingAsync(ct);
+        var rows = await c.QueryAsync<(string PropertyCode, double Km)>(Cmd(sql, new { codes = SqlList.Of(propertyCodes) }, ct));
+        return rows.ToDictionary(r => r.PropertyCode, r => r.Km, StringComparer.Ordinal);
+    }
+
     /// <summary>The latest result of each listed unit per plan row (period, property, tenant), for the given properties.</summary>
     public async Task<IReadOnlyList<LatestUnitResultRow>> GetLatestResultsAsync(IReadOnlyCollection<string> propertyCodes, CancellationToken ct)
     {
@@ -255,9 +278,9 @@ public sealed class InspectionRepository(SqlConnectionFactory db)
     {
         const string visitSql = """
             INSERT mr.InspectionVisit (VisitId, PeriodCode, PropertyCode, TenantCode, CompanyName, PlanDate, InspectorId, DeviceId,
-                StartedAtUtc, FinishedAtUtc, Latitude, Longitude, GpsAccuracyM, PersonMet, ExpectedPhotos, PayloadHash)
+                StartedAtUtc, FinishedAtUtc, Latitude, Longitude, GpsAccuracyM, PersonMet, ExpectedPhotos, PayloadHash, AtProperty, DistanceFromOfficeKm)
             SELECT @VisitId, @PeriodCode, @PropertyCode, @TenantCode, @CompanyName, @PlanDate, @InspectorId, @DeviceId,
-                @StartedAtUtc, @FinishedAtUtc, @Latitude, @Longitude, @GpsAccuracyM, @PersonMet, @ExpectedPhotos, @PayloadHash
+                @StartedAtUtc, @FinishedAtUtc, @Latitude, @Longitude, @GpsAccuracyM, @PersonMet, @ExpectedPhotos, @PayloadHash, @AtProperty, @DistanceFromOfficeKm
             WHERE NOT EXISTS (SELECT 1 FROM mr.InspectionVisit WITH (UPDLOCK, HOLDLOCK) WHERE VisitId = @VisitId);
             SELECT @@ROWCOUNT;
             """;
