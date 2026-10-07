@@ -119,7 +119,7 @@ class InspectionScreenshots {
         return f
     }
 
-    private fun photo(text: String) = EvidencePhoto(UUID.randomUUID().toString(), signPhoto(text).path, Instant.now().toString())
+    private fun photo(text: String) = EvidencePhoto(UUID.randomUUID().toString(), signPhoto(text).path, kotlinx.datetime.Clock.System.now().toString())
 
     private fun entry(unitId: String, code: String, result: UnitResult?, people: Int? = null, occupant: String = "", reasons: List<String> = emptyList(), photos: List<EvidencePhoto> = emptyList()) =
         UnitEntry(UUID.randomUUID().toString(), unitId, code, "ELEGANT INDUSTRIES", "Industrial>Warehouse>Warehouse", result, people, occupant, reasons, "", photos)

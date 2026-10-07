@@ -1,5 +1,6 @@
 package com.meterreading.reader.data
 
+import kotlinx.datetime.Clock
 import com.meterreading.reader.platform.*
 import com.meterreading.reader.api.ApiClient
 import com.meterreading.reader.api.ApiException
@@ -40,7 +41,7 @@ class ApiMeterRepository(
     private val vault: PhotoVault = PhotoVault(null),
     private val onWaiting: (() -> Unit)? = null,
     private val listCache: MeterListCache? = null,
-    private val clock: () -> Instant = { Instant.now() },
+    private val clock: () -> Instant = { Clock.System.now() },
 ) : MeterRepository() {
     private val _readerName = MutableStateFlow("")
     override val readerName: StateFlow<String> = _readerName.asStateFlow()

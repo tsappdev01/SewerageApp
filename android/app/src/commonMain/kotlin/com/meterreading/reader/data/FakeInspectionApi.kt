@@ -1,5 +1,6 @@
 package com.meterreading.reader.data
 
+import kotlinx.datetime.Clock
 import com.meterreading.reader.platform.*
 import com.meterreading.reader.api.InspectionImageResponse
 import com.meterreading.reader.api.InspectionPlanDto
@@ -30,9 +31,9 @@ class FakeInspectionApi(private val online: () -> Boolean = { true }) : Inspecti
         plan("598-1187", "T-1187", "Technical Supplies and Services Co (LLC)", 2, 2, 3),
         // Visited already: some units left to check, and one finished.
         plan("598-1204", "T-1204", "Gulf Steel Profiles LLC", -1, 6, 0)
-            .copy(state = "COME_BACK", checkedUnits = 4, flaggedUnits = 1, lastVisitAtUtc = Instant.now().minusSeconds(86_400).toString(), distanceFromOfficeKm = 4.2),
+            .copy(state = "COME_BACK", checkedUnits = 4, flaggedUnits = 1, lastVisitAtUtc = Clock.System.now().minusSeconds(86_400).toString(), distanceFromOfficeKm = 4.2),
         plan("602-310", "T-0310", "Al Waha Food Stuff Trading", -2, 3, 1)
-            .copy(state = "DONE", checkedUnits = 3, lastVisitAtUtc = Instant.now().minusSeconds(172_800).toString(), distanceFromOfficeKm = 6.8),
+            .copy(state = "DONE", checkedUnits = 3, lastVisitAtUtc = Clock.System.now().minusSeconds(172_800).toString(), distanceFromOfficeKm = 6.8),
     )
 
     private fun unit(id: String, building: String, code: String, category: String, sub: String?, active: Boolean = true) =
@@ -63,7 +64,7 @@ class FakeInspectionApi(private val online: () -> Boolean = { true }) : Inspecti
         delay(300)
         // The DIP office, as in the API's appsettings.json (Inspection:OfficeLatitude/Longitude).
         return InspectionPlanListDto(
-            today.toString(), today.minusDays(60).toString(), today.plusDays(14).toString(), plans, Instant.now().toString(),
+            today.toString(), today.minusDays(60).toString(), today.plusDays(14).toString(), plans, Clock.System.now().toString(),
             officeLatitude = 24.999906, officeLongitude = 55.170344,
         )
     }

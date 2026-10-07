@@ -72,7 +72,7 @@ fun problemLabel(p: com.meterreading.reader.data.InspectionRules.Problem): Strin
 }
 
 /** Types offered for a unit not on the list, as category paths like the unit view's. */
-val newUnitTypes: List<Pair<Int, String>> = listOf(
+val newUnitTypes: List<Pair<StringResource, String>> = listOf(
     Res.string.insp_t_warehouse to "Industrial>Warehouse>Warehouse",
     Res.string.insp_t_shop to "Commercial>Shop>Shop",
     Res.string.insp_t_office to "Commercial>Office>Office",

@@ -28,7 +28,6 @@ val localZone: TimeZone get() = TimeZone.currentSystemDefault()
 
 fun currentTimeMillis(): Long = Clock.System.now().toEpochMilliseconds()
 
-fun Instant.Companion.now(): Instant = Clock.System.now()
 fun Instant.Companion.ofEpochMilli(millis: Long): Instant = fromEpochMilliseconds(millis)
 fun Instant.toEpochMilli(): Long = toEpochMilliseconds()
 fun Instant.isBefore(other: Instant): Boolean = this < other

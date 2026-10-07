@@ -1,5 +1,6 @@
 package com.meterreading.reader.settings
 
+import kotlinx.datetime.Clock
 import android.content.Context
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
@@ -15,7 +16,6 @@ import com.meterreading.reader.data.SyncPrompt
 import com.meterreading.reader.platform.AndroidPlatform
 import com.meterreading.reader.platform.between
 import com.meterreading.reader.platform.isBefore
-import com.meterreading.reader.platform.now
 import kotlinx.datetime.Instant
 import kotlin.time.Duration
 import java.util.concurrent.TimeUnit
@@ -38,7 +38,7 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         }
         if (!AppGraph.hasWaiting()) return Result.success()
         val snoozedUntil = AppServices.snoozedUntil
-        val now = Instant.now()
+        val now = Clock.System.now()
         if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
             scheduleCheck(applicationContext, Duration.between(now, snoozedUntil))
         } else if (!AppServices.inForeground) {

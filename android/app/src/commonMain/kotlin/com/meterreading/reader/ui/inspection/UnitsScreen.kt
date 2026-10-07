@@ -1,5 +1,6 @@
 package com.meterreading.reader.ui.inspection
 
+import kotlinx.datetime.Clock
 import com.meterreading.reader.platform.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -85,7 +86,7 @@ fun InspectionUnitsScreen(planId: String, inspector: String, onReview: () -> Uni
             showFrame = false,
         ) { file ->
             scope.launch {
-                val now = Instant.now()
+                val now = Clock.System.now()
                 val lines = listOfNotNull(
                     "${plan.propertyCode} · $unitWord ${photoFor.unitCode.ifBlank { "?" }} · $resultWord",
                     formatStamp(now.toLocalDateTime(localZone)) + (draft.latitude?.let { " · " + formatDecimal(it, 5) + ", " + formatDecimal(draft.longitude ?: 0.0, 5) } ?: ""),

@@ -1,5 +1,6 @@
 package com.meterreading.reader.ui.nav
 
+import kotlinx.datetime.Clock
 import com.meterreading.reader.platform.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -93,7 +94,7 @@ fun AppNavHost() {
     // The demo has no real network: its "no signal" switch stands in.
     val signal = if (repo.isDemo) online else connected
     val askToSend = remember(signal, queuedReadings, photosWaiting, waitingInspectionPhotos, capturing, locked, sending, minute) {
-        !locked && !sending && SyncPrompt.shouldAsk(AppGraph.hasWaiting(), signal, AppServices.snoozedUntil, Instant.now(), capturing)
+        !locked && !sending && SyncPrompt.shouldAsk(AppGraph.hasWaiting(), signal, AppServices.snoozedUntil, Clock.System.now(), capturing)
     }
     // The server did not accept this reader: back to the start screen; waiting readings stay on the phone.
     LaunchedEffect(repo) {
@@ -217,11 +218,11 @@ fun AppNavHost() {
                 scope.launch {
                     AppGraph.sendAll()
                     // Signal dropped again before all went up: ask again a little later.
-                    if (AppGraph.hasWaiting()) AppServices.snooze(Instant.now(), SyncPrompt.RETRY)
+                    if (AppGraph.hasWaiting()) AppServices.snooze(Clock.System.now(), SyncPrompt.RETRY)
                     sending = false
                 }
             },
-            onLater = { AppServices.snooze(Instant.now()) },
+            onLater = { AppServices.snooze(Clock.System.now()) },
         )
     }
     if (askPin) {

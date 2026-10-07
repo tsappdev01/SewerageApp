@@ -1,5 +1,6 @@
 package com.meterreading.reader.ui.inspection
 
+import kotlinx.datetime.Clock
 import com.meterreading.reader.platform.*
 import com.meterreading.reader.settings.AppServices
 import org.jetbrains.compose.resources.StringResource
@@ -98,7 +99,7 @@ fun InspectionReviewScreen(planId: String, onNextProperty: (String) -> Unit, onP
                 val file = File(AppServices.capturesDir, "sig-${randomUuid()}.jpg")
                 withContext(ioDispatcher) { saveSignature(file, strokes.toList(), padSize) }
                 draft.signature?.let { File(it.path).delete() }
-                repo.update(planId) { it.copy(signature = EvidencePhoto(randomUuid(), file.path, Instant.now().toString())) }
+                repo.update(planId) { it.copy(signature = EvidencePhoto(randomUuid(), file.path, Clock.System.now().toString())) }
             }
             result = repo.finish(planId)
             sending = false

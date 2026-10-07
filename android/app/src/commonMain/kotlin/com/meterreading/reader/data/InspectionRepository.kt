@@ -1,5 +1,6 @@
 package com.meterreading.reader.data
 
+import kotlinx.datetime.Clock
 import com.meterreading.reader.platform.*
 import com.meterreading.reader.api.ApiException
 import com.meterreading.reader.api.InspectionImageResponse
@@ -53,7 +54,7 @@ class InspectionRepository(
     private val vault: PhotoVault = PhotoVault(null),
     private val onWaiting: (() -> Unit)? = null,
     private val onSignInNeeded: ((String) -> Unit)? = null,
-    private val clock: () -> Instant = { Instant.now() },
+    private val clock: () -> Instant = { Clock.System.now() },
     private val zone: TimeZone = TimeZone.of("Asia/Dubai"),
 ) {
     /** Null until the server answers once; false when the server has no field inspection. */
