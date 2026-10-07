@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -70,7 +71,8 @@ class MeterReadingScreenshots {
     private fun show(content: @Composable () -> Unit) {
         compose.setContent {
             // Robolectric does not start the provider that gives Compose resources the Android context.
-            PreviewContextConfigurationEffect()
+            // The effect only sets it in inspection mode, so turn that on for the effect alone.
+            CompositionLocalProvider(LocalInspectionMode provides true) { PreviewContextConfigurationEffect() }
             MeterReaderTheme {
                 CompositionLocalProvider(LocalSpeaker provides null) {
                     Box(Modifier.fillMaxSize().background(AppColors.Background)) { content() }
