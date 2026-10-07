@@ -16,7 +16,7 @@ class NetworkSecurityConfigTest {
         (0 until getElementsByTagName(tag).length).map { getElementsByTagName(tag).item(it) as Element }
 
     @Test fun SEC_release_allows_no_plain_http_and_trusts_only_the_phones_own_authorities() {
-        val config = read("src/main/res/xml/network_security_config.xml")
+        val config = read("src/androidMain/res/xml/network_security_config.xml")
         val base = config.children("base-config").single()
         assertEquals("false", base.getAttribute("cleartextTrafficPermitted"))
         assertEquals(listOf("system"), config.children("certificates").map { it.getAttribute("src") })
@@ -25,14 +25,14 @@ class NetworkSecurityConfigTest {
     }
 
     @Test fun SEC_debug_allows_plain_http_only_to_the_development_computer() {
-        val config = read("src/debug/res/xml/network_security_config.xml")
+        val config = read("src/androidDebug/res/xml/network_security_config.xml")
         assertEquals("false", config.children("base-config").single().getAttribute("cleartextTrafficPermitted"))
         val domains = config.children("domain-config").single().children("domain").map { it.textContent.trim() }
         assertEquals(setOf("10.0.2.2", "localhost", "127.0.0.1"), domains.toSet())
     }
 
     @Test fun SEC_the_manifest_uses_the_config() {
-        val manifest = File("src/main/AndroidManifest.xml").readText()
+        val manifest = File("src/androidMain/AndroidManifest.xml").readText()
         assertTrue(manifest.contains("android:networkSecurityConfig=\"@xml/network_security_config\""))
         assertTrue(!manifest.contains("usesCleartextTraffic"))
     }

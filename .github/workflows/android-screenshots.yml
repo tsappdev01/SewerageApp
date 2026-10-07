@@ -6,7 +6,7 @@ name: Android screenshots
 on:
   push:
     paths:
-      - 'android/app/src/test/java/com/meterreading/reader/screenshots/**'
+      - 'android/app/src/androidUnitTest/kotlin/com/meterreading/reader/screenshots/**'
       - '.github/workflows/android-screenshots.yml'
   workflow_dispatch:
 
