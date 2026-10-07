@@ -75,8 +75,8 @@ object IosPlatform {
         val readings = repo.readings.value.count { it.state == ReadingState.QUEUED } + (AppGraph.inspections?.waitingVisits?.value ?: 0)
         val photos = repo.photosWaiting.value + (AppGraph.inspections?.waitingPhotos?.value ?: 0)
         val content = UNMutableNotificationContent().apply {
-            setTitle("Waiting to send")
-            setBody("On the phone: $readings readings, $photos photos. Open DIP Field Service when you have signal.")
+            title = "Waiting to send"
+            body = "On the phone: $readings readings, $photos photos. Open DIP Field Service when you have signal."
         }
         val trigger = UNTimeIntervalNotificationTrigger.triggerWithTimeInterval(30.0 * 60, repeats = false)
         val request = UNNotificationRequest.requestWithIdentifier("waiting", content, trigger)

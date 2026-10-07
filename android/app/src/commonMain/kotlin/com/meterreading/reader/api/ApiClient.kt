@@ -147,7 +147,7 @@ class ApiClient(
         setBody(bytes)
     }
 
-    private suspend fun <T> send(method: HttpMethod, path: String, build: HttpRequestBuilder.() -> Unit, parse: (String) -> T): T {
+    private suspend fun <T> send(method: HttpMethod, path: String, configure: HttpRequestBuilder.() -> Unit, parse: (String) -> T): T {
         val (status, body) = transport {
             val response = http.request("$base$path") {
                 this.method = method
@@ -159,7 +159,7 @@ class ApiClient(
                 } else {
                     devUser?.let { header("X-Dev-User", it) }
                 }
-                build()
+                configure()
             }
             response.status.value to response.bodyAsText()
         }
