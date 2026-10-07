@@ -47,12 +47,13 @@ jobs:
 
       - name: Build for the simulator (demo data, no lock, so the screenshots show the screens)
         run: |
+          set -o pipefail
           cd ios
           xcodebuild -project DIPFieldService.xcodeproj -scheme DIPFieldService -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
             MR_USE_FAKE_DATA=YES MR_DEVICE_LOCK=NO MR_READER_LOGIN=rashid@dip.example \
-            build | tail -n 80
+            build 2>&1 | grep -E "error|warning: .*ComposeApp|BUILD|e: " | tail -n 120
           test -d build/Build/Products/Debug-iphonesimulator/DIPFieldService.app
 
       - name: Run on iPhone and iPad simulators and take screenshots

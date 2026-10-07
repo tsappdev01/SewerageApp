@@ -32,21 +32,19 @@ actual fun secureRandomBytes(size: Int): ByteArray {
 actual fun pbkdf2HmacSha256(password: String, salt: ByteArray, iterations: Int, keyBits: Int): ByteArray {
     val pass = password.encodeToByteArray()
     val out = ByteArray(keyBits / 8)
-    val status = pass.usePinned { p ->
-        salt.usePinned { s ->
-            out.usePinned { o ->
-                CCKeyDerivationPBKDF(
-                    kCCPBKDF2,
-                    p.addressOf(0),
-                    pass.size.convert(),
-                    s.addressOf(0).reinterpret(),
-                    salt.size.convert(),
-                    kCCPRFHmacAlgSHA256,
-                    iterations.convert(),
-                    o.addressOf(0).reinterpret(),
-                    out.size.convert(),
-                )
-            }
+    val status = salt.usePinned { s ->
+        out.usePinned { o ->
+            CCKeyDerivationPBKDF(
+                kCCPBKDF2,
+                password,
+                pass.size.convert(),
+                s.addressOf(0).reinterpret(),
+                salt.size.convert(),
+                kCCPRFHmacAlgSHA256,
+                iterations.convert(),
+                o.addressOf(0).reinterpret(),
+                out.size.convert(),
+            )
         }
     }
     check(status == 0) { "PBKDF2 failed ($status)" }

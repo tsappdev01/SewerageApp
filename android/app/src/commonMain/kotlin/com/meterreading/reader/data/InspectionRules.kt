@@ -109,11 +109,12 @@ object InspectionRules {
 
     /** Great-circle distance in km (haversine); mirrors the server's Domain/Geo.cs (FR-031.2). */
     fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        fun rad(d: Double) = d * Math.PI / 180
+        fun rad(d: Double) = d * kotlin.math.PI / 180
         val dLat = rad(lat2 - lat1)
         val dLon = rad(lon2 - lon1)
-        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
-        return 2 * 6371.0088 * Math.asin(Math.min(1.0, Math.sqrt(a)))
+        val a = kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
+            kotlin.math.cos(rad(lat1)) * kotlin.math.cos(rad(lat2)) * kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
+        return 2 * 6371.0088 * kotlin.math.asin(kotlin.math.min(1.0, kotlin.math.sqrt(a)))
     }
 
     /** "Commercial>Warehouse>Warehouse" is shown as "Warehouse"; "Commercial> >" as "Commercial". */

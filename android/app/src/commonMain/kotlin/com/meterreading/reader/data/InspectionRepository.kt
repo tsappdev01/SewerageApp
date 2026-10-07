@@ -335,7 +335,7 @@ class InspectionRepository(
             checkedUnits = results.values.count { it != null && it != UnitResult.PENDING },
             flaggedUnits = results.values.count { it in InspectionRules.flagged },
             lastVisitAtUtc = draft.finishedAtUtc,
-            distanceFromOfficeKm = officeDistanceKm(draft)?.let { Math.round(it * 10) / 10.0 } ?: p.distanceFromOfficeKm,
+            distanceFromOfficeKm = officeDistanceKm(draft)?.let { kotlin.math.round(it * 10) / 10.0 } ?: p.distanceFromOfficeKm,
         )
     }
 

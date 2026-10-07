@@ -39,7 +39,7 @@ never run outside development.
   job is off). Units belong to a plan row by property (and tenant, only if the unit view has `TenantCode`,
   which UAT does not). Inspectors are the active readers.
 - Results AS_RECORDED, VACANT, SUBLEASED, DISPUTED, REJECTED, PENDING; what each needs is in
-  `Domain/InspectionService.Validate` and mirrored in android `data/InspectionRules.kt`; change both.
+  `Domain/InspectionService.Validate` and mirrored in the phone app `commonMain/.../data/InspectionRules.kt`; change both.
 - A visit is one POST with all its units, keyed by a phone-made `visitId` (safe to retry); photos follow.
   Visits go to `mr.Inspection*` only; PMS is never written.
 - A new inspection endpoint must be added to the gateway's `Routes.cs` too.
@@ -52,8 +52,15 @@ never run outside development.
   that only from `Gateway:KnownProxies` and can require the gateway's client certificate.
 - `dotnet test gateway/MeterReading.Gateway.slnx` needs no database.
 
-## Android (`android/`)
+## Phone app (`android/` and `ios/`)
 
+- One Kotlin Multiplatform code base for Android and iOS (iPhone and iPad): `android/app/src/commonMain`
+  holds the screens, rules, offline queue and server calls; `androidMain` / `iosMain` only what each
+  platform does its own way (camera, key store, lock, location, speech, notifications). Put new code in
+  `commonMain` unless it needs the platform. `ios/` is the Xcode shell (XcodeGen `project.yml`).
+- No java.* in commonMain: kotlinx-datetime, `platform.File` (okio), Ktor; helpers in `platform/`.
+- Texts are in `commonMain/composeResources/values/strings.xml` (`Res.string.*`).
 - Plain, short English; every screen has a read-aloud line (`speak_*` strings).
 - One navy primary button per screen; state is never shown by colour alone.
 - Business rules mirror the server's in `data/`; the server decides.
+- iOS builds need a Mac: the "iOS app" workflow builds it and takes iPhone/iPad screenshots.

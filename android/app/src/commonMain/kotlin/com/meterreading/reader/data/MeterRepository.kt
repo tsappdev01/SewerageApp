@@ -1,5 +1,6 @@
 package com.meterreading.reader.data
 
+import kotlin.concurrent.Volatile
 import com.meterreading.reader.platform.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
