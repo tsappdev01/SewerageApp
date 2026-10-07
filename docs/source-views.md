@@ -156,9 +156,10 @@ a meter read by anyone shows as done for everyone. Readers choose zones on the p
 ## To fix in the views before go-live
 
 1. **`vw_MR_Reader.LoginEmail`**: fixed on UAT (7 Oct 2026), each user now has their own address.
-   Two are active (`nayyar@techsource.ae`, `mastekcrm@techsource.ae`). `farhan@techsource.ae` is on four
-   inactive rows (001, 002, 004, 005): activating more than one of them refuses that sign-in with
-   `LOGIN_NOT_UNIQUE`, so give each reader their own address before making them active.
+   `[MRDB].[dbo].[vw_MR_Reader]` lists only the active ones: `nayyar@techsource.ae` (Nayyar_Prod) and
+   `mastekcrm@techsource.ae` (mastekcrm). In PMS, `farhan@techsource.ae` is on four inactive users
+   (001, 002, 004, 005): activating more than one of them refuses that sign-in with `LOGIN_NOT_UNIQUE`,
+   so give each reader their own address before making them active.
 2. **`RegisterDigits` 10 and `DecimalDigits` 4** are the same for every meter. The phone shows one
    box per wheel, so it would ask readers for 14 digits on every meter. Please provide each meter's
    real number of wheels; if decimals are not read from the meter, set `DecimalDigits` to 0.
