@@ -53,7 +53,7 @@ jobs:
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
             CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
             MR_USE_FAKE_DATA=YES MR_DEVICE_LOCK=NO MR_READER_LOGIN=rashid@dip.example \
-            build 2>&1 | grep -E "error|warning: .*ComposeApp|BUILD|e: " | tail -n 120
+            build > xcodebuild.log 2>&1 || { grep -nE "error|e: |FAILURE|What went wrong" xcodebuild.log | tail -n 60; tail -n 80 xcodebuild.log; exit 1; }
           test -d build/Build/Products/Debug-iphonesimulator/DIPFieldService.app
 
       - name: Run on iPhone and iPad simulators and take screenshots
