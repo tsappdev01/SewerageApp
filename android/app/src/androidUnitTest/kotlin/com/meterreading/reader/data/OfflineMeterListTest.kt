@@ -1,5 +1,6 @@
 package com.meterreading.reader.data
 
+import com.meterreading.reader.platform.*
 import com.meterreading.reader.api.ApiClient
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
@@ -17,11 +18,10 @@ import org.junit.Test
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
-import java.time.Duration
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneOffset
-import java.util.UUID
+import kotlin.time.Duration
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
 import javax.crypto.KeyGenerator
 
 /** FR-020.1: the meter list is kept on the phone, encrypted, so the app opens and works without signal. */
@@ -53,9 +53,9 @@ class OfflineMeterListTest {
             .addInterceptor(Interceptor { chain -> if (offline) throw IOException("no signal") else chain.proceed(chain.request()) })
             .build()
         return ApiMeterRepository(
-            ApiClient(server.url("/").toString(), http), ZoneOffset.UTC,
-            store = QueueStore(File(dir, "queue.mrq"), sealer), vault = PhotoVault(sealer),
-            listCache = MeterListCache(File(dir, "meters.mrq"), sealer), clock = { now },
+            ApiClient(server.url("/").toString(), http), TimeZone.UTC,
+            store = QueueStore(File(dir, "queue.mrq").common(), sealer), vault = PhotoVault(sealer),
+            listCache = MeterListCache(File(dir, "meters.mrq").common(), sealer), clock = { now },
         )
     }
 
@@ -66,7 +66,7 @@ class OfflineMeterListTest {
     }
 
     private fun draft(meterId: String) = ReadingDraft(
-        transactionId = UUID.randomUUID().toString(), meterId = meterId, condition = MeterCondition.WORKING,
+        transactionId = randomUuid(), meterId = meterId, condition = MeterCondition.WORKING,
         reasonCode = null, note = "", numbers = mapOf(NumberTarget.CURRENT to 52_840L), newMeterNumber = null,
         photos = emptyList(), readerConfirmedWarning = false, capturedAt = LocalDateTime.of(2026, 10, 4, 7, 15), tenantCode = "T-0201",
     )
@@ -97,7 +97,7 @@ class OfflineMeterListTest {
         signInOnline(app())
         offline = true
         assertTrue(runBlocking { app().signIn("anil@dip.ae") } is SignInResult.Failed)
-        assertNull(MeterListCache(File(dir, "meters.mrq"), sealer).load("https://other.example", "rashid@dip.ae", now))
+        assertNull(MeterListCache(File(dir, "meters.mrq").common(), sealer).load("https://other.example", "rashid@dip.ae", now))
         now = now.plus(Duration.ofDays(7))
         assertTrue(runBlocking { app().signIn("rashid@dip.ae") } is SignInResult.Failed)
     }

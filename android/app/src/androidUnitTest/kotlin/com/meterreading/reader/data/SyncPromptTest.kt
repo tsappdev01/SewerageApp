@@ -1,9 +1,10 @@
 package com.meterreading.reader.data
 
+import com.meterreading.reader.platform.*
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.Instant
+import kotlinx.datetime.Instant
 
 /** FR-020.4: ask "Send now / Later" when signal is back; never interrupt a capture; Later waits. */
 class SyncPromptTest {

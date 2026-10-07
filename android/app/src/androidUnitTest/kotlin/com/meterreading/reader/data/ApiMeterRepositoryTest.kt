@@ -1,5 +1,6 @@
 package com.meterreading.reader.data
 
+import com.meterreading.reader.platform.*
 import com.meterreading.reader.api.ApiClient
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
@@ -15,9 +16,8 @@ import org.junit.Test
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
-import java.time.LocalDateTime
-import java.time.ZoneOffset
-import java.util.UUID
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
 
 /** ApiMeterRepository against a scripted server: JSON mapping, sign-in errors, the offline queue. */
 class ApiMeterRepositoryTest {
@@ -49,7 +49,7 @@ class ApiMeterRepositoryTest {
         val http = OkHttpClient.Builder()
             .addInterceptor(Interceptor { chain -> if (offline) throw IOException("no signal") else chain.proceed(chain.request()) })
             .build()
-        repo = ApiMeterRepository(ApiClient(server.url("/").toString(), http), ZoneOffset.UTC)
+        repo = ApiMeterRepository(ApiClient(server.url("/").toString(), http), TimeZone.UTC)
     }
 
     @After
@@ -63,7 +63,7 @@ class ApiMeterRepositoryTest {
     }
 
     private fun draft(meterId: String = "BC0006", reading: Long = 52_840, photos: List<DraftPhoto> = emptyList()) = ReadingDraft(
-        transactionId = UUID.randomUUID().toString(), meterId = meterId, condition = MeterCondition.WORKING,
+        transactionId = randomUuid(), meterId = meterId, condition = MeterCondition.WORKING,
         reasonCode = null, note = "", numbers = mapOf(NumberTarget.CURRENT to reading), newMeterNumber = null,
         photos = photos, readerConfirmedWarning = false, capturedAt = LocalDateTime.of(2026, 10, 4, 7, 15),
         tenantCode = "T-0201",
@@ -71,7 +71,7 @@ class ApiMeterRepositoryTest {
 
     private fun photo(bytes: ByteArray = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 1, 2, 3)): DraftPhoto {
         val file = File.createTempFile("meter", ".jpg").apply { writeBytes(bytes); deleteOnExit() }
-        return DraftPhoto(UUID.randomUUID().toString(), ImageRole.DISPLAY, file.path)
+        return DraftPhoto(randomUuid(), ImageRole.DISPLAY, file.path)
     }
 
     private fun sha256(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02X".format(it) }

@@ -1,5 +1,6 @@
 package com.meterreading.reader.data
 
+import com.meterreading.reader.platform.*
 import com.meterreading.reader.api.ApiClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
@@ -60,7 +61,7 @@ class InspectionRepositoryTest {
             .addInterceptor(Interceptor { chain -> if (offline) throw IOException("no signal") else chain.proceed(chain.request()) })
             .build()
         val client = ApiClient(server.url("/").toString(), http).apply { devUser = "rashid@dip.ae" }
-        return InspectionRepository(client, InspectionStore(storeFile, sealer), PhotoVault(sealer))
+        return InspectionRepository(client, InspectionStore(storeFile.common(), sealer), PhotoVault(sealer))
     }
 
     private fun photo(name: String): EvidencePhoto {

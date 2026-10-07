@@ -1,12 +1,13 @@
 package com.meterreading.reader.data
 
+import com.meterreading.reader.platform.*
 import com.meterreading.reader.api.InspectionPlanDto
 import com.meterreading.reader.api.InspectionUnitDto
 import com.meterreading.reader.api.LastUnitResultDto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import java.time.LocalDate
+import kotlinx.datetime.LocalDate
 
 /** Field inspection rules on the phone (spec §21); they mirror the server's InspectionService. */
 class InspectionRulesTest {

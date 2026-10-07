@@ -4,32 +4,22 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import com.meterreading.reader.settings.SyncNotification
 import android.os.Bundle
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.Modifier
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import com.meterreading.reader.platform.AndroidPlatform
 import com.meterreading.reader.settings.AppServices
-import com.meterreading.reader.ui.nav.AppNavHost
-import com.meterreading.reader.ui.theme.AppColors
-import com.meterreading.reader.ui.theme.MeterReaderTheme
-import com.meterreading.reader.util.LocalSpeaker
-import com.meterreading.reader.util.Speaker
+import com.meterreading.reader.settings.SyncNotification
+import com.meterreading.reader.ui.App
+import com.meterreading.reader.util.AndroidSpeaker
 
 /** A FragmentActivity because Android's lock prompt (BiometricPrompt) needs one. */
 class MainActivity : FragmentActivity() {
-    private lateinit var speaker: Speaker
+    private lateinit var speaker: AndroidSpeaker
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,23 +28,12 @@ class MainActivity : FragmentActivity() {
             statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
         )
-        speaker = Speaker(this)
+        speaker = AndroidSpeaker(this)
         // Settings saved on the phone pick the server and the sign-in; done once for the app's life.
-        AppServices.init(applicationContext)
+        AndroidPlatform.start(applicationContext)
         askForNotificationsOnce()
         setContent {
-            MeterReaderTheme {
-                CompositionLocalProvider(LocalSpeaker provides speaker) {
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .background(AppColors.Background)
-                            .windowInsetsPadding(WindowInsets.safeDrawing),
-                    ) {
-                        AppNavHost()
-                    }
-                }
-            }
+            App(speaker)
         }
     }
 

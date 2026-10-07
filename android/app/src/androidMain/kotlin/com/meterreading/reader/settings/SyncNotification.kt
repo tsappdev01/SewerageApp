@@ -14,7 +14,6 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.meterreading.reader.MainActivity
 import com.meterreading.reader.R
-import java.time.Instant
 
 /** The "Signal is back — Send now / Later" notification shown while the app is closed (FR-020.4). */
 object SyncNotification {
@@ -58,8 +57,8 @@ class SyncActionReceiver : BroadcastReceiver() {
         when (intent.action) {
             SEND -> UploadWorker.sendNow(context)
             LATER -> {
-                AppServices.init(context)
-                AppServices.snooze(Instant.now())
+                com.meterreading.reader.platform.AndroidPlatform.start(context)
+                AppServices.snooze(kotlinx.datetime.Clock.System.now())
                 UploadWorker.scheduleCheck(context, com.meterreading.reader.data.SyncPrompt.SNOOZE)
             }
         }

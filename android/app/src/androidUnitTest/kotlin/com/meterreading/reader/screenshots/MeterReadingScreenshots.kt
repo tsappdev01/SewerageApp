@@ -21,6 +21,7 @@ import com.github.takahirom.roborazzi.captureScreenRoboImage
 import com.meterreading.reader.data.AppGraph
 import com.meterreading.reader.data.FakeMeterRepository
 import com.meterreading.reader.data.ImageRole
+import com.meterreading.reader.data.common
 import com.meterreading.reader.data.MeterCondition
 import com.meterreading.reader.data.NumberTarget
 import com.meterreading.reader.ui.capture.CaptureScreen
@@ -137,7 +138,7 @@ class MeterReadingScreenshots {
     @Test fun s06_photo_check() {
         val vm = captureVm("BC0003")
         vm.chooseCondition(MeterCondition.WORKING)
-        vm.photos[ImageRole.DISPLAY] = samplePhoto("30587")
+        vm.photos[ImageRole.DISPLAY] = samplePhoto("30587").common()
         vm.next()
         show { CaptureScreen("BC0003", onNextMeter = {}, onHome = {}, onExit = {}) }
         shot("06_capture_photo_clear")
@@ -145,7 +146,7 @@ class MeterReadingScreenshots {
 
     @Test fun s07_number() {
         val vm = captureVm("BC0003")
-        vm.photos[ImageRole.DISPLAY] = samplePhoto("30587")
+        vm.photos[ImageRole.DISPLAY] = samplePhoto("30587").common()
         vm.next(); vm.next()
         "30587".forEach { vm.typeDigit(NumberTarget.CURRENT, it) }
         show { CaptureScreen("BC0003", onNextMeter = {}, onHome = {}, onExit = {}) }
@@ -155,7 +156,7 @@ class MeterReadingScreenshots {
     @Test fun s08_number_warning() {
         // Sewerage meter 2002-2: last 17040, usual at most 900 a month; 19950 is far above.
         val vm = captureVm("BC0007")
-        vm.photos[ImageRole.DISPLAY] = samplePhoto("19950")
+        vm.photos[ImageRole.DISPLAY] = samplePhoto("19950").common()
         vm.next(); vm.next()
         "19950".forEach { vm.typeDigit(NumberTarget.CURRENT, it) }
         show { CaptureScreen("BC0007", onNextMeter = {}, onHome = {}, onExit = {}) }
@@ -164,7 +165,7 @@ class MeterReadingScreenshots {
 
     @Test fun s09_confirm_tenant() {
         val vm = captureVm("BC0003")
-        vm.photos[ImageRole.DISPLAY] = samplePhoto("30587")
+        vm.photos[ImageRole.DISPLAY] = samplePhoto("30587").common()
         vm.next(); vm.next()
         "30587".forEach { vm.typeDigit(NumberTarget.CURRENT, it) }
         vm.next()
@@ -175,7 +176,7 @@ class MeterReadingScreenshots {
 
     @Test fun s10_sent() {
         val vm = captureVm("BC0003")
-        vm.photos[ImageRole.DISPLAY] = samplePhoto("30587")
+        vm.photos[ImageRole.DISPLAY] = samplePhoto("30587").common()
         vm.next(); vm.next()
         "30587".forEach { vm.typeDigit(NumberTarget.CURRENT, it) }
         vm.next()
@@ -188,7 +189,7 @@ class MeterReadingScreenshots {
     @Test fun s11_saved_no_signal() {
         repo.online.value = false
         val vm = captureVm("BC0012")
-        vm.photos[ImageRole.DISPLAY] = samplePhoto("12460")
+        vm.photos[ImageRole.DISPLAY] = samplePhoto("12460").common()
         vm.next(); vm.next()
         "12460".forEach { vm.typeDigit(NumberTarget.CURRENT, it) }
         vm.next()

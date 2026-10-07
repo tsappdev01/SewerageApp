@@ -1,5 +1,6 @@
 package com.meterreading.reader.data
 
+import com.meterreading.reader.platform.*
 import com.meterreading.reader.api.ApiClient
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
@@ -12,9 +13,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.time.LocalDateTime
-import java.time.ZoneOffset
-import java.util.UUID
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
 
 /** Settings rules, the phone-lock timing (FR-001.1, FR-001.5) and the supervisor PIN. */
 class SettingsLockAndPinTest {
@@ -115,7 +115,7 @@ class SettingsLockAndPinTest {
 
     @Test
     fun `the phone's reader is sent with each call`() {
-        val repo = ApiMeterRepository(ApiClient(server.url("/").toString()), ZoneOffset.UTC)
+        val repo = ApiMeterRepository(ApiClient(server.url("/").toString()), TimeZone.UTC)
         ok(me); ok(sync); ok("[]")
         runBlocking { repo.signIn("rashid@dip.ae") }
         repeat(3) { assertEquals("rashid@dip.ae", server.takeRequest().getHeader("X-Dev-User")) }
@@ -123,12 +123,12 @@ class SettingsLockAndPinTest {
 
     @Test
     fun `a reader the server does not accept keeps the reading on the phone`() {
-        val repo = ApiMeterRepository(ApiClient(server.url("/").toString()), ZoneOffset.UTC)
+        val repo = ApiMeterRepository(ApiClient(server.url("/").toString()), TimeZone.UTC)
         ok(me); ok(sync); ok("[]")
         runBlocking { repo.signIn("rashid@dip.ae") }
         server.enqueue(MockResponse().setResponseCode(401).setBody(""))
         val draft = ReadingDraft(
-            transactionId = UUID.randomUUID().toString(), meterId = "BC0006", condition = MeterCondition.WORKING,
+            transactionId = randomUuid(), meterId = "BC0006", condition = MeterCondition.WORKING,
             reasonCode = null, note = "", numbers = mapOf(NumberTarget.CURRENT to 52_840L), newMeterNumber = null,
             photos = emptyList(), readerConfirmedWarning = false, capturedAt = LocalDateTime.of(2026, 10, 4, 7, 15), tenantCode = "T-0201",
         )

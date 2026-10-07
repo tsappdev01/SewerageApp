@@ -12,8 +12,12 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.meterreading.reader.data.AppGraph
 import com.meterreading.reader.data.SyncPrompt
-import java.time.Duration
-import java.time.Instant
+import com.meterreading.reader.platform.AndroidPlatform
+import com.meterreading.reader.platform.between
+import com.meterreading.reader.platform.isBefore
+import com.meterreading.reader.platform.now
+import kotlinx.datetime.Instant
+import kotlin.time.Duration
 import java.util.concurrent.TimeUnit
 
 /**
@@ -23,7 +27,7 @@ import java.util.concurrent.TimeUnit
  */
 class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        AppServices.init(applicationContext)
+        AndroidPlatform.start(applicationContext)
         val repo = AppGraph.repository
         if (inputData.getBoolean(KEY_SEND, false)) {
             AppGraph.sendAll()
@@ -58,9 +62,9 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         fun scheduleCheck(context: Context, delay: Duration = Duration.ZERO) {
             val request = OneTimeWorkRequestBuilder<UploadWorker>()
                 .setConstraints(network)
-                .setInitialDelay(delay.toMillis(), TimeUnit.MILLISECONDS)
+                .setInitialDelay(delay.inWholeMilliseconds, TimeUnit.MILLISECONDS)
                 .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(CHECK, if (delay.isZero) ExistingWorkPolicy.KEEP else ExistingWorkPolicy.REPLACE, request)
+            WorkManager.getInstance(context).enqueueUniqueWork(CHECK, if (delay == Duration.ZERO) ExistingWorkPolicy.KEEP else ExistingWorkPolicy.REPLACE, request)
         }
 
         /** The reader tapped Send now on the notification. */

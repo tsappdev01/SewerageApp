@@ -1,5 +1,6 @@
 package com.meterreading.reader.data
 
+import com.meterreading.reader.platform.*
 import com.meterreading.reader.api.ApiClient
 import com.meterreading.reader.api.ApiException
 import com.meterreading.reader.api.DeviceCredentials
@@ -13,9 +14,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
-import java.time.LocalDateTime
-import java.time.ZoneOffset
-import java.util.UUID
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
 
 /** Registered phones (spec FR-002): registration, the key on every call, and a blocked phone. */
 class DeviceRegistrationTest {
@@ -58,7 +58,7 @@ class DeviceRegistrationTest {
 
     @Test
     fun `FR002_6 a registered phone sends its id and key with the reader, not the test header`() {
-        val repo = ApiMeterRepository(client().apply { this.device = this@DeviceRegistrationTest.device }, ZoneOffset.UTC)
+        val repo = ApiMeterRepository(client().apply { this.device = this@DeviceRegistrationTest.device }, TimeZone.UTC)
         ok(me); ok(sync); ok("[]")
         runBlocking { repo.signIn("rashid@dip.ae") }
         val first = server.takeRequest()
@@ -70,12 +70,12 @@ class DeviceRegistrationTest {
 
     @Test
     fun `FR002_3 a blocked phone keeps its readings and says why`() {
-        val repo = ApiMeterRepository(client().apply { this.device = this@DeviceRegistrationTest.device }, ZoneOffset.UTC)
+        val repo = ApiMeterRepository(client().apply { this.device = this@DeviceRegistrationTest.device }, TimeZone.UTC)
         ok(me); ok(sync); ok("[]")
         runBlocking { repo.signIn("rashid@dip.ae") }
         server.enqueue(MockResponse().setResponseCode(403).setBody("""{"title":"This phone has been blocked. Give it to your supervisor. Readings on it are kept.","status":403,"code":"DEVICE_REVOKED"}"""))
         val draft = ReadingDraft(
-            transactionId = UUID.randomUUID().toString(), meterId = "BC0006", condition = MeterCondition.WORKING,
+            transactionId = randomUuid(), meterId = "BC0006", condition = MeterCondition.WORKING,
             reasonCode = null, note = "", numbers = mapOf(NumberTarget.CURRENT to 52_840L), newMeterNumber = null,
             photos = emptyList(), readerConfirmedWarning = false, capturedAt = LocalDateTime.of(2026, 10, 4, 7, 15), tenantCode = "T-0201",
         )

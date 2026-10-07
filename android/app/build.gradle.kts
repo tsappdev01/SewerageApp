@@ -32,13 +32,19 @@ kotlin {
             implementation(compose.components.resources)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.datetime)
+            implementation(libs.okio)
+            implementation(libs.ktor.client.core)
+            implementation(libs.jb.lifecycle.viewmodel.compose)
+            implementation(libs.jb.lifecycle.runtime.compose)
+            implementation(libs.jb.navigation.compose)
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
         }
         androidMain.dependencies {
             implementation(libs.androidx.core.ktx)
             implementation(libs.androidx.activity.compose)
-            implementation(libs.androidx.lifecycle.runtime.compose)
-            implementation(libs.androidx.lifecycle.viewmodel.compose)
-            implementation(libs.androidx.navigation.compose)
             implementation(project.dependencies.platform(libs.androidx.compose.bom))
             implementation(libs.androidx.compose.ui)
             implementation(libs.androidx.compose.ui.graphics)
@@ -52,6 +58,7 @@ kotlin {
             implementation(libs.androidx.exifinterface)
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.okhttp)
+            implementation(libs.ktor.client.okhttp)
             implementation(libs.androidx.biometric)
             implementation(libs.androidx.fragment.ktx)
             implementation(libs.androidx.work.runtime.ktx)
@@ -70,6 +77,13 @@ kotlin {
             }
         }
     }
+}
+
+// Texts and the DIP logo, shared by Android and iOS (commonMain/composeResources).
+compose.resources {
+    publicResClass = false
+    packageOfResClass = "com.meterreading.reader.resources"
+    generateResClass = always
 }
 
 android {

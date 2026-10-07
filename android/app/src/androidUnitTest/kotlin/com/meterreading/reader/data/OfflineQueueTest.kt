@@ -1,5 +1,6 @@
 package com.meterreading.reader.data
 
+import com.meterreading.reader.platform.*
 import com.meterreading.reader.api.ApiClient
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
@@ -17,9 +18,8 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.security.MessageDigest
-import java.time.LocalDateTime
-import java.time.ZoneOffset
-import java.util.UUID
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
 import javax.crypto.KeyGenerator
 
 /** The encrypted offline queue (spec §9, FR-020, FR-008.6): it survives a restart and nothing on disk is readable. */
@@ -52,19 +52,19 @@ class OfflineQueueTest {
             .addInterceptor(Interceptor { chain -> if (offline) throw IOException("no signal") else chain.proceed(chain.request()) })
             .build()
         return ApiMeterRepository(
-            ApiClient(server.url("/").toString(), http), ZoneOffset.UTC,
-            store = QueueStore(queueFile, sealer), vault = PhotoVault(sealer), onWaiting = onWaiting,
+            ApiClient(server.url("/").toString(), http), TimeZone.UTC,
+            store = QueueStore(queueFile.common(), sealer), vault = PhotoVault(sealer), onWaiting = onWaiting,
         )
     }
 
     private val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte()) + "meter photo 52840".toByteArray()
 
     private fun draft(): ReadingDraft {
-        val photo = File(dir, "${UUID.randomUUID()}.jpg").apply { writeBytes(jpeg) }
+        val photo = File(dir, "${randomUuid()}.jpg").apply { writeBytes(jpeg) }
         return ReadingDraft(
-            transactionId = UUID.randomUUID().toString(), meterId = "BC0006", condition = MeterCondition.WORKING,
+            transactionId = randomUuid(), meterId = "BC0006", condition = MeterCondition.WORKING,
             reasonCode = null, note = "Cover broken", numbers = mapOf(NumberTarget.CURRENT to 52_840L), newMeterNumber = null,
-            photos = listOf(DraftPhoto(UUID.randomUUID().toString(), ImageRole.DISPLAY, photo.path)), readerConfirmedWarning = false,
+            photos = listOf(DraftPhoto(randomUuid(), ImageRole.DISPLAY, photo.path)), readerConfirmedWarning = false,
             capturedAt = LocalDateTime.of(2026, 10, 4, 7, 15), subTenant = "Al Fajr", tenantCode = "T-0201",
         )
     }
@@ -125,7 +125,7 @@ class OfflineQueueTest {
     @Test
     fun `a queue file that cannot be opened is kept aside, not lost and not a crash`() {
         queueFile.writeBytes(sealer.seal("{\"readings\":[".toByteArray()))
-        val store = QueueStore(queueFile, sealer)
+        val store = QueueStore(queueFile.common(), sealer)
         assertTrue(store.load().readings.isEmpty())
         assertTrue(dir.listFiles()!!.any { it.name.startsWith("queue.mrq.unreadable-") })
     }

@@ -1,13 +1,13 @@
 package com.meterreading.reader.data
 
+import com.meterreading.reader.platform.*
 import com.meterreading.reader.api.ApiClient
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
-import java.time.LocalDateTime
-import java.util.UUID
+import kotlinx.datetime.LocalDateTime
 
 /**
  * Runs only when MR_API_URL points at an API in Development with the dev data (api/README.md).
@@ -34,7 +34,7 @@ class LiveApiTest {
         val repo = ApiMeterRepository(ApiClient(url!!))
         runBlocking { repo.signIn("rashid@dip.example") }
         val tooLong = ReadingDraft(
-            transactionId = UUID.randomUUID().toString(), meterId = "BC0003", condition = MeterCondition.WORKING,
+            transactionId = randomUuid(), meterId = "BC0003", condition = MeterCondition.WORKING,
             reasonCode = null, note = "", numbers = mapOf(NumberTarget.CURRENT to 123_456L), newMeterNumber = null,
             photos = emptyList(), readerConfirmedWarning = false, capturedAt = LocalDateTime.now().minusMinutes(1),
             tenantCode = "T-0102",
@@ -61,7 +61,7 @@ class LiveApiTest {
         assertEquals(listOf("T-0102", "T-0199"), repo.property("1101").tenants.map { it.code }.sorted())
         assertTrue(repo.property("3010").tenants.isEmpty()) // lease ended
         val draft = ReadingDraft(
-            transactionId = UUID.randomUUID().toString(), meterId = "BC0017", condition = MeterCondition.WORKING,
+            transactionId = randomUuid(), meterId = "BC0017", condition = MeterCondition.WORKING,
             reasonCode = null, note = "", numbers = mapOf(NumberTarget.CURRENT to 4_800L), newMeterNumber = null,
             photos = emptyList(), readerConfirmedWarning = false, capturedAt = LocalDateTime.now().minusMinutes(1),
             tenantCode = "T-0301",
