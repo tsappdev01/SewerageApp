@@ -59,7 +59,15 @@ object IosPlatform {
             AppServices.inForeground = true
             AppServices.onForeground(currentTimeMillis())
             UNUserNotificationCenter.currentNotificationCenter().removeAllPendingNotificationRequests()
+            if (AppGraph.isReady && AppGraph.hasWaiting()) askForReminders()
         }
+    }
+
+    /**
+     * Asked only once there is work waiting, not at first start, so the reader's first sight of the app
+     * is the app and the question comes when the reminder makes sense. iOS asks the person only once.
+     */
+    private fun askForReminders() {
         UNUserNotificationCenter.currentNotificationCenter()
             .requestAuthorizationWithOptions(UNAuthorizationOptionAlert or UNAuthorizationOptionSound) { _, _ -> }
     }
@@ -71,6 +79,7 @@ object IosPlatform {
      */
     private fun remindIfWaiting() {
         if (!AppServices.isStarted || !AppGraph.isReady || !AppGraph.hasWaiting()) return
+        askForReminders()
         val repo = AppGraph.repository
         val readings = repo.readings.value.count { it.state == ReadingState.QUEUED } + (AppGraph.inspections?.waitingVisits?.value ?: 0)
         val photos = repo.photosWaiting.value + (AppGraph.inspections?.waitingPhotos?.value ?: 0)

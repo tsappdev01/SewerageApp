@@ -36,6 +36,8 @@ import com.meterreading.reader.ui.screens.ZonesScreen
 import com.meterreading.reader.ui.theme.AppColors
 import com.meterreading.reader.ui.theme.MeterReaderTheme
 import com.meterreading.reader.util.LocalSpeaker
+import org.jetbrains.compose.resources.ExperimentalResourceApi
+import org.jetbrains.compose.resources.PreviewContextConfigurationEffect
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -51,7 +53,7 @@ import java.util.concurrent.TimeUnit
  * reviews. Not a test of behaviour: run only with -Pscreenshots (workflow "Android screenshots").
  * Pictures go to app/build/screenshots/.
  */
-@OptIn(ExperimentalRoborazziApi::class)
+@OptIn(ExperimentalRoborazziApi::class, ExperimentalResourceApi::class)
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
@@ -67,6 +69,8 @@ class MeterReadingScreenshots {
 
     private fun show(content: @Composable () -> Unit) {
         compose.setContent {
+            // Robolectric does not start the provider that gives Compose resources the Android context.
+            PreviewContextConfigurationEffect()
             MeterReaderTheme {
                 CompositionLocalProvider(LocalSpeaker provides null) {
                     Box(Modifier.fillMaxSize().background(AppColors.Background)) { content() }

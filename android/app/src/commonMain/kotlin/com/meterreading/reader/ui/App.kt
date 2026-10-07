@@ -3,7 +3,9 @@ package com.meterreading.reader.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -37,9 +39,16 @@ fun App(speaker: Speaker?) {
                     .background(AppColors.Background)
                     .windowInsetsPadding(WindowInsets.safeDrawing),
             ) {
-                AppNavHost()
-                SnackbarHost(messages, Modifier.align(Alignment.BottomCenter).padding(16.dp))
+                // Tablets (iPad, Android tablets): the phone layout in a centred column of readable width,
+                // rather than cards and buttons stretched across the whole screen.
+                Box(Modifier.fillMaxHeight().widthIn(max = MAX_CONTENT_WIDTH).align(Alignment.TopCenter)) {
+                    AppNavHost()
+                }
+                SnackbarHost(messages, Modifier.align(Alignment.BottomCenter).widthIn(max = MAX_CONTENT_WIDTH).padding(16.dp))
             }
         }
     }
 }
+
+/** Widest the screens are drawn: a large phone's width and a little more. */
+private val MAX_CONTENT_WIDTH = 720.dp
