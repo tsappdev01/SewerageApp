@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace MeterReading.Gateway.Tests;
 
@@ -331,5 +332,91 @@ public sealed class GatewayCertificateTests : IAsyncLifetime
         var response = await gateway.CreateClient().GetAsync("/api/v1/me");
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
         Assert.Empty(api.Seen);
+    }
+}
+
+/// <summary>DMZ 3.5 and 3.7: security headers, limits per phone, and the audit log.</summary>
+public sealed class GatewayHardeningTests
+{
+    private static HttpRequestMessage FromPhone(HttpMethod method, string path, string phone, string key = "secret-key-123")
+    {
+        var request = new HttpRequestMessage(method, path);
+        request.Headers.Add("X-Device-Id", phone);
+        request.Headers.Add("X-Device-Key", key);
+        if (method == HttpMethod.Put) request.Content = new ByteArrayContent([1, 2, 3]);
+        return request;
+    }
+
+    private const string Upload = "/api/v1/readings/6f1c2b4a-1111-4222-8333-444455556666/images/7f1c2b4a-1111-4222-8333-444455556666?role=DISPLAY";
+
+    [Theory]
+    [InlineData("/api/v1/me")]       // passed on to the API
+    [InlineData("/api/v1/secrets")]  // answered by the gateway
+    public async Task Every_answer_carries_the_security_headers(string path)
+    {
+        await using var api = await FakeApi.StartAsync();
+        await using var gateway = new GatewayFactory(api.BaseUrl);
+        var response = await gateway.CreateClient().GetAsync(path);
+        Assert.Equal("max-age=31536000", response.Headers.GetValues("Strict-Transport-Security").Single());
+        Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
+        Assert.True(response.Headers.CacheControl?.NoStore);
+    }
+
+    [Fact]
+    public async Task Each_phone_has_its_own_limit_and_photo_uploads_their_own()
+    {
+        await using var api = await FakeApi.StartAsync();
+        await using var gateway = new GatewayFactory(api.BaseUrl, new()
+        {
+            ["Gateway:RequestsPerMinutePerPhone"] = "2",
+            ["Gateway:UploadsPerMinutePerPhone"] = "3",
+        });
+        var client = gateway.CreateClient();
+        var a = Guid.NewGuid().ToString();
+        var b = Guid.NewGuid().ToString();
+        async Task<HttpStatusCode> Send(HttpMethod m, string path, string phone) => (await client.SendAsync(FromPhone(m, path, phone))).StatusCode;
+
+        Assert.Equal(HttpStatusCode.OK, await Send(HttpMethod.Get, "/api/v1/me", a));
+        Assert.Equal(HttpStatusCode.OK, await Send(HttpMethod.Get, "/api/v1/me", a));
+        Assert.Equal(HttpStatusCode.TooManyRequests, await Send(HttpMethod.Get, "/api/v1/me", a));
+        // Another phone on the same address is not held back by the first.
+        Assert.Equal(HttpStatusCode.OK, await Send(HttpMethod.Get, "/api/v1/me", b));
+        // Photos waiting on phone a still go up: uploads count apart.
+        for (var i = 0; i < 3; i++) Assert.Equal(HttpStatusCode.OK, await Send(HttpMethod.Put, Upload, a));
+        Assert.Equal(HttpStatusCode.TooManyRequests, await Send(HttpMethod.Put, Upload, a));
+    }
+
+    [Fact]
+    public async Task All_phones_together_have_a_ceiling()
+    {
+        await using var api = await FakeApi.StartAsync();
+        await using var gateway = new GatewayFactory(api.BaseUrl, new() { ["Gateway:TotalRequestsPerMinute"] = "3" });
+        var client = gateway.CreateClient();
+        for (var i = 0; i < 3; i++)
+            Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(FromPhone(HttpMethod.Get, "/api/v1/me", Guid.NewGuid().ToString()))).StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, (await client.SendAsync(FromPhone(HttpMethod.Get, "/api/v1/me", Guid.NewGuid().ToString()))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Requests_and_refusals_are_audited_with_reason_codes_and_never_the_key()
+    {
+        var log = new LogCapture(GatewayAudit.Category);
+        await using var api = await FakeApi.StartAsync();
+        await using var gateway = new GatewayFactory(api.BaseUrl, new() { ["Gateway:RequestsPerMinutePerPhone"] = "1" })
+            .WithWebHostBuilder(b => b.ConfigureLogging(l => l.AddProvider(log)));
+        var client = gateway.CreateClient();
+        var phone = Guid.NewGuid().ToString();
+
+        await client.SendAsync(FromPhone(HttpMethod.Get, "/api/v1/me", phone, "phone-key-should-not-appear"));
+        await client.SendAsync(FromPhone(HttpMethod.Get, "/api/v1/me", phone, "phone-key-should-not-appear"));
+        await client.GetAsync("/web.config");
+        await client.DeleteAsync("/api/v1/me");
+
+        var lines = log.Lines.ToArray();
+        Assert.Contains(lines, l => l.StartsWith("Information") && l.Contains("GET me 200") && l.Contains($"device={phone}"));
+        Assert.Contains(lines, l => l.StartsWith("Warning") && l.Contains("429") && l.Contains("reason=RATE_LIMITED"));
+        Assert.Contains(lines, l => l.Contains("/web.config 404") && l.Contains("reason=NOT_FOUND"));
+        Assert.Contains(lines, l => l.Contains("405") && l.Contains("reason=METHOD_NOT_ALLOWED"));
+        Assert.DoesNotContain(lines, l => l.Contains("phone-key-should-not-appear"));
     }
 }

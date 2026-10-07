@@ -51,7 +51,16 @@ builder.Services.AddScoped<CurrentReader>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
-builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.ConfigureHttpJsonOptions(o =>
+{
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    // DMZ 3.5: a field the API does not know is refused, not silently dropped (VALIDATION_FAILED).
+    // So the API must be updated before an app that sends a new field.
+    o.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
+});
+// Unreadable bodies reach BadRequestHandler (Audit.cs) instead of an empty 400.
+builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = true);
+builder.Services.AddExceptionHandler<BadRequestHandler>();
 
 // DMZ gateway (gateway/): trust its X-Forwarded-For, and optionally require its client certificate.
 var gateway = config.GetSection(GatewayTrustOptions.Section).Get<GatewayTrustOptions>() ?? new GatewayTrustOptions();
@@ -94,6 +103,8 @@ var app = builder.Build();
 // Fail at startup, not on the first request, if the view schema setting is unusable.
 _ = app.Services.GetRequiredService<SqlConnectionFactory>();
 
+// First, so every request gets its audit line with the final status (Audit.cs).
+app.UseMiddleware<RequestAudit>();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 // The phone's address from the gateway, before the rate limiter counts per address.

@@ -28,8 +28,7 @@ android {
 
     buildTypes {
         debug {
-            // The development API runs on plain http (10.0.2.2 is the computer running the emulator).
-            manifestPlaceholders["usesCleartextTraffic"] = "true"
+            // Plain http to the development API (10.0.2.2): src/debug/res/xml/network_security_config.xml.
             // The development data's first reader, unless -PreaderLogin says otherwise.
             buildConfigField("String", "READER_LOGIN", "\"${project.findProperty("readerLogin") ?: "rashid@dip.example"}\"")
         }
@@ -38,7 +37,6 @@ android {
             buildConfigField("String", "API_BASE_URL", "\"${project.findProperty("apiBaseUrl") ?: "https://zApps.dipark.com/"}\"")
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            manifestPlaceholders["usesCleartextTraffic"] = "false"
         }
     }
     compileOptions {

@@ -24,10 +24,16 @@ builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     o.OnRejected = (context, ct) => new ValueTask(Problem(context.HttpContext, 429, "RATE_LIMITED", "Too many requests. Wait a minute and try again.").ExecuteAsync(context.HttpContext));
-    o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(http => RateLimitPartition.GetFixedWindowLimiter(
-        ClientAddress(http), _ => new FixedWindowRateLimiterOptions { PermitLimit = options.RequestsPerMinute, Window = TimeSpan.FromMinutes(1) }));
-    o.AddPolicy(Routes.RegisterPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
-        ClientAddress(http), _ => new FixedWindowRateLimiterOptions { PermitLimit = options.RegistrationsPerMinute, Window = TimeSpan.FromMinutes(1) }));
+    // DMZ 3.5: per phone (uploads apart from the rest), with a ceiling per address and one for everyone.
+    o.GlobalLimiter = PartitionedRateLimiter.CreateChained(
+        PartitionedRateLimiter.Create<HttpContext, string>(http => PerMinute(ClientAddress(http), options.RequestsPerMinute)),
+        PartitionedRateLimiter.Create<HttpContext, string>(http => PhoneId(http) is not { } phone
+            ? RateLimitPartition.GetNoLimiter("no-phone")
+            : Routes.IsImageUpload(http.Request)
+                ? PerMinute("upload:" + phone, options.UploadsPerMinutePerPhone)
+                : PerMinute("phone:" + phone, options.RequestsPerMinutePerPhone)),
+        PartitionedRateLimiter.Create<HttpContext, string>(_ => PerMinute("all", options.TotalRequestsPerMinute)));
+    o.AddPolicy(Routes.RegisterPolicy, http => PerMinute(ClientAddress(http), options.RegistrationsPerMinute));
 });
 
 builder.Services.AddReverseProxy()
@@ -63,6 +69,24 @@ builder.Services.AddReverseProxy()
     });
 
 var app = builder.Build();
+
+// One audit line per request, with a reason code for every refusal (DMZ 3.7; GatewayAudit.cs).
+app.UseMiddleware<GatewayAudit>();
+
+// DMZ 3.5: on every answer, the gateway's own or the API's.
+app.Use(async (http, next) =>
+{
+    http.Response.OnStarting(() =>
+    {
+        var headers = http.Response.Headers;
+        headers.StrictTransportSecurity = "max-age=31536000";
+        headers.XContentTypeOptions = "nosniff";
+        headers.CacheControl = "no-store";
+        headers.Pragma = "no-cache";
+        return Task.CompletedTask;
+    });
+    await next();
+});
 
 // Size limits first: a body larger than its route allows never reaches the API.
 app.Use(async (http, next) =>
@@ -100,8 +124,19 @@ app.MapFallback("{**path}", http => (Routes.IsKnownPath(http.Request.Path)
 
 app.Run();
 
-static IResult Problem(HttpContext http, int status, string code, string title) =>
-    Results.Problem(title: title, statusCode: status, extensions: new Dictionary<string, object?> { ["code"] = code });
+static IResult Problem(HttpContext http, int status, string code, string title)
+{
+    GatewayAudit.Reason(http, code);
+    return Results.Problem(title: title, statusCode: status, extensions: new Dictionary<string, object?> { ["code"] = code });
+}
+
+static RateLimitPartition<string> PerMinute(string key, int limit) =>
+    RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions { PermitLimit = limit, Window = TimeSpan.FromMinutes(1) });
+
+// The phone's id as it sends it. Not proven here (the API checks its key), so it only spreads the limits;
+// the per-address and total limits hold for anyone who makes ids up.
+static string? PhoneId(HttpContext http) =>
+    Guid.TryParse(http.Request.Headers["X-Device-Id"].ToString(), out var id) ? id.ToString() : null;
 
 // The gateway faces the internet directly, so the connection's address is the phone's (or its carrier's).
 static string ClientAddress(HttpContext http) => http.Connection.RemoteIpAddress?.ToString() ?? "unknown";

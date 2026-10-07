@@ -25,20 +25,21 @@ public sealed class DeviceAuthHandler(
     public const string KeyHeader = "X-Device-Key";
     public const string ReaderHeader = "X-Reader";
     private const string FailureKey = "device-auth-failure";
+    private const string NotRegistered = "This phone is not registered. Ask your supervisor to register it in Settings.";
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var idText = Request.Headers[IdHeader].ToString();
         var key = Request.Headers[KeyHeader].ToString();
-        if (idText.Length == 0 && key.Length == 0) return Fail("DEVICE_NOT_REGISTERED", "This phone is not registered. Ask your supervisor to register it in Settings.");
-        if (!Guid.TryParse(idText, out var deviceId) || key.Length == 0) return Fail("DEVICE_NOT_REGISTERED", "This phone is not registered. Ask your supervisor to register it in Settings.");
+        if (idText.Length == 0 && key.Length == 0) return Fail("DEVICE_NOT_REGISTERED", NotRegistered, "DEVICE_HEADERS_MISSING");
+        if (!Guid.TryParse(idText, out var deviceId) || key.Length == 0) return Fail("DEVICE_NOT_REGISTERED", NotRegistered, "DEVICE_HEADERS_INVALID");
 
         var devices = Context.RequestServices.GetRequiredService<DeviceRepository>();
         var device = await devices.FindAsync(deviceId, Context.RequestAborted);
-        if (device?.KeyHash is not { } hash || !DeviceKeys.Matches(key, hash))
-            return Fail("DEVICE_NOT_REGISTERED", "This phone is not registered. Ask your supervisor to register it in Settings.");
+        if (device?.KeyHash is not { } hash) return Fail("DEVICE_NOT_REGISTERED", NotRegistered, "DEVICE_UNKNOWN");
+        if (!DeviceKeys.Matches(key, hash)) return Fail("DEVICE_NOT_REGISTERED", NotRegistered, "DEVICE_KEY_WRONG");
         if (!string.Equals(device.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase))
-            return Fail("DEVICE_REVOKED", "This phone has been blocked. Give it to your supervisor. Readings on it are kept.");
+            return Fail("DEVICE_REVOKED", "This phone has been blocked. Give it to your supervisor. Readings on it are kept.", "DEVICE_REVOKED");
 
         var reader = Request.Headers[ReaderHeader].ToString().Trim();
         await devices.TouchAsync(deviceId, reader.Length > 0 ? reader : null, Context.RequestAborted);
@@ -48,8 +49,10 @@ public sealed class DeviceAuthHandler(
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName));
     }
 
-    private AuthenticateResult Fail(string code, string title)
+    /// <summary>The phone is told only DEVICE_NOT_REGISTERED; the audit log gets the finer <paramref name="reason"/>.</summary>
+    private AuthenticateResult Fail(string code, string title, string reason)
     {
+        Audit.Reason(Context, reason);
         Context.Items[FailureKey] = (code, title);
         return AuthenticateResult.Fail(code);
     }

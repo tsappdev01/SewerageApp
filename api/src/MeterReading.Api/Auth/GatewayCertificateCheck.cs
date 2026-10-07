@@ -24,6 +24,7 @@ public sealed class GatewayCertificateCheck(RequestDelegate next, IOptions<Gatew
         var certificate = http.Connection.ClientCertificate ?? await http.Connection.GetClientCertificateAsync(http.RequestAborted);
         if (certificate is null || !_allowed.Contains(certificate.Thumbprint))
         {
+            Audit.Reason(http, certificate is null ? "GATEWAY_CERT_MISSING" : "GATEWAY_CERT_UNKNOWN");
             await Problems.Of(StatusCodes.Status403Forbidden, "GATEWAY_REQUIRED", "This server is only reached through the gateway.").ExecuteAsync(http);
             return;
         }

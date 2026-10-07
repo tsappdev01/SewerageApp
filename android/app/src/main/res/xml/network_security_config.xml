@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 3.4: no plain http, and only the certificate authorities built into the phone. Certificates a
+  user added to the phone are not trusted, so a proxy on the phone cannot read the app's traffic.
+  Debug builds use src/debug/res/xml/network_security_config.xml instead.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -5,6 +5,7 @@ using MeterReading.Api.Auth;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
 
 namespace MeterReading.Api.Tests;
 
@@ -74,6 +75,57 @@ public sealed class DeviceTests : IClassFixture<DeviceApiFactory>, IAsyncLifetim
         client.DefaultRequestHeaders.Add(DeviceAuthHandler.KeyHeader, key);
         client.DefaultRequestHeaders.Add(DeviceAuthHandler.ReaderHeader, reader);
         return client;
+    }
+
+    [Fact]
+    public async Task DMZ_3_7_refusals_are_audited_with_a_reason_code_and_never_the_key()
+    {
+        var log = new LogCapture(MeterReading.Api.Audit.Category);
+        await using var audited = _factory.WithWebHostBuilder(b => b.ConfigureLogging(l => l.AddProvider(log)));
+        var (id, key) = await Registered();
+
+        HttpClient Client(Guid deviceId, string deviceKey)
+        {
+            var c = audited.CreateClient();
+            c.DefaultRequestHeaders.Add(DeviceAuthHandler.IdHeader, deviceId.ToString());
+            c.DefaultRequestHeaders.Add(DeviceAuthHandler.KeyHeader, deviceKey);
+            c.DefaultRequestHeaders.Add(DeviceAuthHandler.ReaderHeader, Rashid);
+            return c;
+        }
+
+        Assert.Equal(HttpStatusCode.OK, (await Client(id, key).GetAsync("/api/v1/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Client(id, key + "x").GetAsync("/api/v1/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Client(Guid.NewGuid(), key).GetAsync("/api/v1/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await audited.CreateClient().GetAsync("/api/v1/me")).StatusCode);
+
+        var lines = log.Lines.ToArray();
+        Assert.Contains(lines, l => l.StartsWith("Information") && l.Contains("GET /api/v1/me 200") && l.Contains($"device={id}") && l.Contains($"reader={Rashid}"));
+        Assert.Contains(lines, l => l.StartsWith("Warning") && l.Contains("403") && l.Contains("reason=DEVICE_KEY_WRONG"));
+        Assert.Contains(lines, l => l.Contains("reason=DEVICE_UNKNOWN"));
+        Assert.Contains(lines, l => l.Contains("reason=DEVICE_HEADERS_MISSING"));
+        Assert.DoesNotContain(lines, l => l.Contains(key));
+    }
+
+    [Fact]
+    public async Task DMZ_3_5_a_field_the_api_does_not_know_is_refused()
+    {
+        var (id, key) = await Registered();
+        var body = new StringContent(
+            """{"code":"ZZZZ-ZZZZ-ZZZZ","model":"Galaxy A15","colour":"red"}""", System.Text.Encoding.UTF8, "application/json");
+        var response = await Phone(id, key).PostAsync("/api/v1/devices/register", body);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("VALIDATION_FAILED", await Code(response));
+        Assert.DoesNotContain("colour", await response.Content.ReadAsStringAsync()); // no parser detail
+    }
+
+    [Fact]
+    public async Task The_fields_the_phone_sends_are_all_known_to_the_api()
+    {
+        // The phone's RegisterDeviceRequest (android api/ApiDtos.kt), every field set.
+        var body = new StringContent(
+            $$"""{"code":"{{await NewCode()}}","model":"Galaxy A15","androidVersion":"14","appVersion":"0.4.1"}""", System.Text.Encoding.UTF8, "application/json");
+        var response = await _factory.CreateClient().PostAsync("/api/v1/devices/register", body);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
     private static async Task<string> Code(HttpResponseMessage r) =>

@@ -173,6 +173,14 @@ dotnet test                                          # all tests; integration te
   so a reading is copied once even with two API instances running. A failure rolls back and
   is counted in `PmsCopyAttempts` / `PmsCopyError`.
 - Dapper rather than EF Core: the API does not own the source schema.
+- **Unknown fields are refused.** A request body with a field the API does not know gets
+  `400 VALIDATION_FAILED` (DMZ 3.5). So when the phone gets a new field, **deploy the API first**,
+  then the app. `DeviceTests.The_fields_the_phone_sends_are_all_known_to_the_api` checks the phone's fields.
+- **Audit log.** One line per request under the log category `Audit` (`Audit.cs`): route, status,
+  time, phone id, reader, address, trace id, and a reason code for refusals (`DEVICE_HEADERS_MISSING`,
+  `DEVICE_UNKNOWN`, `DEVICE_KEY_WRONG`, `DEVICE_REVOKED`, `GATEWAY_CERT_MISSING`, `GATEWAY_CERT_UNKNOWN`,
+  `RATE_LIMITED`, `BODY_UNREADABLE`). The phone is only told `DEVICE_NOT_REGISTERED`; the finer reason
+  is for IT. Never logged: device keys, tokens, bodies, query strings.
 
 ## Next
 

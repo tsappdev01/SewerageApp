@@ -26,7 +26,9 @@ database, no connection string and stores nothing**.
 | Fixed list of requests | Only the app's calls, each with its methods (`Routes.cs`): register, me, sync/meters, properties/search, readings/mine, summary, meters/{id}, send a reading, photo GET/PUT, the four Field Inspection calls, and `/health/live` for the app's **Test** button. Anything else: `404 NOT_FOUND`, or `405 METHOD_NOT_ALLOWED` on a known path. The list is code, not configuration, so a settings slip cannot open more of the API. `/health/ready` is **not** passed on: it names tables and views. |
 | Header cleaning | Drops `X-Dev-User` (test sign-in), `Forwarded`, `X-Original-For`; sets its own `X-Forwarded-For`/`-Proto` so the API sees the phone's address. Removes `Server` and `X-Powered-By` from answers. |
 | Size limits | JSON 64 KB, an inspection visit 512 KB, photos 2.1 MB: larger is `413 REQUEST_TOO_LARGE` before it reaches the API. |
-| Rate limits per address | 600 requests a minute overall; 10 phone registrations a minute (`429 RATE_LIMITED`). |
+| Rate limits | Per phone (its `X-Device-Id`): 120 requests a minute, and photo uploads apart, 120 a minute. Per internet address 3,000 a minute (phones on one mobile network share an address), 6,000 a minute for everyone together, 10 phone registrations a minute per address. Over a limit: `429 RATE_LIMITED`. |
+| Security headers | Every answer: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`. |
+| Audit log | One line per request under the log category `Audit`: route, status, time, phone id, address, trace id, and a reason code when refused (`NOT_FOUND`, `METHOD_NOT_ALLOWED`, `REQUEST_TOO_LARGE`, `RATE_LIMITED`, `API_UNAVAILABLE`, or `API_REFUSED` when the API said no; the API logs why). Never the device key, bodies or query strings. |
 | Mutual TLS to the API | Shows its client certificate; can pin the API's certificate by thumbprint. Refuses to start without a client certificate when the API address is https (outside Development). |
 | API down | `502`/`504 API_UNAVAILABLE`; the phone keeps the reading in its encrypted queue and sends later. |
 
@@ -79,7 +81,12 @@ internal CA the API server already trusts.
 | `Gateway__ClientCertificate__Thumbprint` | the gateway client certificate's thumbprint (or `__Path` + `__Password` for a `.pfx`) |
 | `Gateway__ApiCertificateThumbprint` | *optional*: the API server certificate's thumbprint. Use it when that certificate is self-signed or from a CA the DMZ server does not trust. Update it when the certificate is renewed. |
 
-Optional: `Gateway__RequestsPerMinute`, `Gateway__RegistrationsPerMinute`, `Gateway__TimeoutSeconds`.
+Optional: `Gateway__RequestsPerMinutePerPhone`, `Gateway__UploadsPerMinutePerPhone`, `Gateway__RequestsPerMinute`
+(per address), `Gateway__TotalRequestsPerMinute`, `Gateway__RegistrationsPerMinute`, `Gateway__TimeoutSeconds`.
+
+To keep the audit lines in a file for the SIEM, turn on `stdoutLogEnabled="true"` in `web.config`
+(they go to `logs\stdout_*.log`) or point the SIEM agent at the Windows event log; set
+`Logging__LogLevel__Audit` to `Warning` to keep only refusals.
 
 4. **Check:** `https://<public address>/gateway/health` → `{"status":"live"}` (the gateway alone);
    `https://<public address>/health/live` → `{"status":"live"}` (through to the API);
@@ -116,7 +123,7 @@ certificate (`403 GATEWAY_REQUIRED`).
 | Internet | API server | any | **block** |
 
 If a load balancer or WAF sits in front of the gateway and hides the phones' addresses, all phones
-share one address for the rate limits; raise `Gateway__RequestsPerMinute` or let the WAF limit.
+share one address; the per-phone limits still apply, so raise `Gateway__RequestsPerMinute` (per address) or let the WAF limit.
 
 ### 5. Phones
 

@@ -26,8 +26,20 @@ public sealed class GatewayOptions
     /// <summary>Largest photo upload; a little above the API's 2 MB limit so the API can answer with its own message.</summary>
     public long MaxImageBytes { get; set; } = 2_100_000;
 
-    /// <summary>Requests per minute per address, for all routes together.</summary>
-    public int RequestsPerMinute { get; set; } = 600;
+    /// <summary>
+    /// Requests per minute per internet address, all routes together: a ceiling only, because many phones
+    /// on one mobile network can share an address. The per-phone limits below do the real work.
+    /// </summary>
+    public int RequestsPerMinute { get; set; } = 3000;
+
+    /// <summary>Requests per minute per phone (its X-Device-Id), photo uploads not counted (DMZ 3.5).</summary>
+    public int RequestsPerMinutePerPhone { get; set; } = 120;
+
+    /// <summary>Photo uploads per minute per phone: a day's photos waiting on a phone go up one after another.</summary>
+    public int UploadsPerMinutePerPhone { get; set; } = 120;
+
+    /// <summary>All requests through the gateway together, from every phone.</summary>
+    public int TotalRequestsPerMinute { get; set; } = 6000;
 
     /// <summary>Phone registrations per minute per address (one-time codes must not be guessable).</summary>
     public int RegistrationsPerMinute { get; set; } = 10;
