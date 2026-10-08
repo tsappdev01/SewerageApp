@@ -88,14 +88,18 @@ compose.resources {
 
 android {
     namespace = "com.meterreading.reader"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.meterreading.reader"
+        // The Play Store ID: it can never change once the app is uploaded. The code's package stays
+        // com.meterreading.reader (namespace above).
+        applicationId = "ae.dipark.fieldservice"
         minSdk = 29
-        targetSdk = 35
-        versionCode = 7
-        versionName = "0.4.1"
+        // Google Play: new apps and updates must target the latest Android within a year of its release.
+        targetSdk = 36
+        // Every upload to Play needs a higher versionCode: CI passes its run number (-PversionCode=...).
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 8
+        versionName = "1.0.0"
 
         // Override per build: ./gradlew assembleDebug -PapiBaseUrl=https://... -PuseFakeData=true
         buildConfigField("String", "API_BASE_URL", "\"${project.findProperty("apiBaseUrl") ?: "http://10.0.2.2:5080/"}\"")
@@ -105,6 +109,18 @@ android {
         buildConfigField("String", "READER_LOGIN", "\"${project.findProperty("readerLogin") ?: ""}\"")
         buildConfigField("boolean", "DEVICE_LOCK", "${project.findProperty("deviceLock") ?: "true"}")
         buildConfigField("String", "SETTINGS_PIN", "\"${project.findProperty("settingsPin") ?: ""}\"")
+    }
+
+    // Release signing with the Play upload key, from the environment (CI secrets); never stored in the repo.
+    // Without it the release build is signed with the debug key, only so it can be installed and checked.
+    val uploadKey = System.getenv("MR_UPLOAD_KEYSTORE")?.takeIf { it.isNotBlank() && file(it).exists() }
+    signingConfigs {
+        if (uploadKey != null) create("upload") {
+            storeFile = file(uploadKey)
+            storePassword = System.getenv("MR_UPLOAD_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("MR_UPLOAD_KEY_ALIAS")
+            keyPassword = System.getenv("MR_UPLOAD_KEY_PASSWORD")
+        }
     }
 
     buildTypes {
@@ -117,6 +133,8 @@ android {
             // Phones reach the system through the DMZ gateway (gateway/README.md).
             buildConfigField("String", "API_BASE_URL", "\"${project.findProperty("apiBaseUrl") ?: "https://zApps.dipark.com/"}\"")
             isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

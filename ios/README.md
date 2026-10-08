@@ -41,7 +41,7 @@ First values for phones (changed later in Settings, behind the supervisor PIN) a
 iOS apps cannot be installed from a file like an APK. DIP needs:
 
 1. **Apple Developer Program, as an organisation** ($99 a year). Enrolling needs DIP's D-U-N-S number.
-2. A **bundle id**: `com.meterreading.reader` (as Android), or change `PRODUCT_BUNDLE_IDENTIFIER` in
+2. A **bundle id**: now `com.meterreading.reader`; Android's Play ID is `ae.dipark.fieldservice`, so consider changing `PRODUCT_BUNDLE_IDENTIFIER` in
    `project.yml` before the first upload; it cannot change afterwards.
 3. Then one of:
    - **TestFlight** (pilot): upload a build from Xcode (*Product → Archive → Distribute App → App Store

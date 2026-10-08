@@ -1,7 +1,8 @@
 # DIP Field Service (Android)
 
-Shown on the phone as **DIP Field Service** (package `com.meterreading.reader`, unchanged so updates install over
-earlier builds).
+Shown on the phone as **DIP Field Service**. App ID (Google Play) `ae.dipark.fieldservice` from version 1.0.0;
+test builds before it were `com.meterreading.reader`, so uninstall those first. The code's package is still
+`com.meterreading.reader`. Publishing on Google Play: `docs/play-store/README.md`.
 
 The Meter Reader role of the Sewerage & Irrigation Meter Reading System. The app talks to the
 Meter Reading API (`../api`); a demo build runs on built-in sample data instead

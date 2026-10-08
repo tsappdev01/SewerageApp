@@ -64,3 +64,5 @@ never run outside development.
 - One navy primary button per screen; state is never shown by colour alone.
 - Business rules mirror the server's in `data/`; the server decides.
 - iOS builds need a Mac: the "iOS app" workflow builds it and takes iPhone/iPad screenshots.
+- Google Play: app ID `ae.dipark.fieldservice` (never change it), `docs/play-store/`. Something new collected
+  from the phone means updating `docs/play-store/data-safety.md` and the privacy policy too.

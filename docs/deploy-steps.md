@@ -142,43 +142,41 @@ from the DMZ or internet to SQL Server or the API.
 
 ## Part C — Build the Android app (developer, once per release)
 
-**C1. Build machine.** Install **Android Studio** (current stable) with **Android SDK 35**. Open the
+**C1. Build machine.** Install **Android Studio** (current stable) with **Android SDK 36**. Open the
 `android` folder and let Gradle sync.
-- The same code builds on GitHub Actions (first build 2026-10-04 passed), so a failing sync here is
-  almost always the network or proxy (`docs/deployment.md` 3.1), not the code.
-- **No Android Studio at hand?** The workflow `.github/workflows/android-apk.yml` builds the APK on
-  every push and attaches it to the repository's **Releases** page. With the signing secrets set
-  (see the comment at the top of the workflow) it also produces the signed release APK, so C3–C5
-  can be done there instead.
+- **No Android Studio at hand?** The workflow `.github/workflows/android-apk.yml` builds on every push:
+  tests, debug APK, and the release build, which it also starts on an emulator. With the upload-key
+  secrets set it attaches the signed **release APK** and the **Play bundle (.aab)** to the Releases
+  page, so C3–C5 are done there.
 - **Check:** *Build → Make Project* succeeds.
 
-**C2. Tests.** In the Android Studio terminal: `.\gradlew test`.
-- **Check:** all pass (70; 4 skip unless a test server is set).
+**C2. Tests.** In the Android Studio terminal: `.\gradlew testDebugUnitTest`.
+- **Check:** all pass.
 
-**C3. Signing key (once, keep it forever).**
+**C3. Upload key (once, keep it forever).**
 ```powershell
-keytool -genkeypair -v -keystore meterreader-release.jks -alias meterreader -keyalg RSA -keysize 2048 -validity 10000
+keytool -genkeypair -v -keystore dip-upload.jks -alias dip-upload -keyalg RSA -keysize 2048 -validity 10000
 ```
-Keep the `.jks` file and both passwords in the password vault. Every future update must be signed
-with this same key.
+Keep the `.jks` file and both passwords in the password vault. With Google Play App Signing, Google
+holds the key the phones see and this is the *upload* key; if it is lost, Google can reset it. For
+the workflow add the secrets `ANDROID_KEYSTORE_BASE64` (`base64 -w0 dip-upload.jks`),
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
 
-**C4. Version.** In `android\app\build.gradle.kts` raise `versionCode` (whole number, always up)
-and set `versionName`, e.g. `1` / `1.0.0` for the first release.
+**C4. Version.** `versionName` is in `android\app\build.gradle.kts` (1.0.0). `versionCode` must go up
+with every upload: the workflow uses its run number; by hand pass `-PversionCode=<number>`.
 
-**C5. Build the release APK** with the API address and a first supervisor PIN:
+**C5. Build the signed release** (bundle for Google Play, APK for direct install):
 ```powershell
-.\gradlew assembleRelease -PapiBaseUrl=https://<address>/ -PsettingsPin=<4-8 digits>
+$env:MR_UPLOAD_KEYSTORE="C:\keys\dip-upload.jks"; $env:MR_UPLOAD_KEYSTORE_PASSWORD="..."
+$env:MR_UPLOAD_KEY_ALIAS="dip-upload"; $env:MR_UPLOAD_KEY_PASSWORD="..."
+.\gradlew bundleRelease assembleRelease -PversionCode=<number> -PapiBaseUrl=https://zApps.dipark.com/
 ```
-Sign it (the Android SDK's `build-tools` folder has `apksigner`):
-```powershell
-apksigner sign --ks meterreader-release.jks --out DIPFieldService-1.0.0.apk app\build\outputs\apk\release\app-release-unsigned.apk
-apksigner verify DIPFieldService-1.0.0.apk
-```
-Or use Android Studio: *Build → Generate Signed App Bundle / APK → APK*, then enter the same
-`-P` values under *Gradle properties*.
-- **Check:** `apksigner verify` prints nothing, which means OK.
+Outputs: `app\build\outputs\bundle\release\app-release.aab` and `app\build\outputs\apk\release\app-release.apk`.
+Without the `MR_UPLOAD_*` values the release is signed with the debug key: fine for trying, refused
+by Google Play.
+- **Check:** `apksigner verify --print-certs app-release.apk` shows the upload key's certificate.
 
-**C6. Try it on one phone** before handing out: install with `adb install DIPFieldService-1.0.0.apk`
+**C6. Try it on one phone** before handing out: install with `adb install app-release.apk`
 or copy the file to the phone. Then do D3–D6 on that phone.
 
 ---

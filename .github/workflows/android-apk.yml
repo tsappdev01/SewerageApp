@@ -2,7 +2,8 @@
 # Runs on every push that changes android/, or by hand (Actions → Android APK → Run workflow).
 #
 # The debug APK is signed with a throw-away debug key: fine for testing, installable by copying it to
-# a phone. For a release APK signed with your own key, add these repository secrets (Settings →
+# a phone. The release (R8-shrunk) is always built and started on an emulator. For the Google Play bundle
+# (.aab) and release APK signed with the Play upload key, add these repository secrets (Settings →
 # Secrets and variables → Actions): ANDROID_KEYSTORE_BASE64 (the .jks file, base64), ANDROID_KEYSTORE_PASSWORD,
 # ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD. Optional repository variables: MR_API_URL (server address
 # built in as the first value; default the DMZ gateway https://zApps.dipark.com/) and MR_SETTINGS_PIN (first supervisor PIN).
@@ -14,6 +15,7 @@ on:
       - 'android/**'
       - '!android/**/*.md'
       - '.github/workflows/android-apk.yml'
+      - '.github/scripts/release-smoke-test.sh'
   workflow_dispatch:
     inputs:
       api_base_url:
@@ -59,39 +61,63 @@ jobs:
         run: ./gradlew --no-daemon --stacktrace testDebugUnitTest
 
       - name: Build debug APK
-        run: ./gradlew --no-daemon --stacktrace assembleDebug $GRADLE_ARGS
+        run: ./gradlew --no-daemon --stacktrace assembleDebug $GRADLE_ARGS -PversionCode=${{ github.run_number }}
 
-      - name: Build release APK signed with your key (only when the signing secrets are set)
+      - name: Build the release (Play bundle and APK; signed with the upload key when the secrets are set)
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          MR_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          MR_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          MR_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "No signing secrets: only the debug APK is built."
-            exit 0
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            export MR_UPLOAD_KEYSTORE="$RUNNER_TEMP/upload.jks"
+            echo "SIGNED=yes" >> "$GITHUB_ENV"
+          else
+            echo "No signing secrets: the release is built and checked, signed with the debug key, and not published."
           fi
-          ./gradlew --no-daemon --stacktrace assembleRelease $GRADLE_ARGS
-          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
-          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          "$BUILD_TOOLS/apksigner" sign --ks "$RUNNER_TEMP/release.jks" --ks-pass env:KEYSTORE_PASSWORD \
-            --ks-key-alias "$KEY_ALIAS" --key-pass env:KEY_PASSWORD \
-            --out "app/build/outputs/apk/release/DIPFieldService-$APP_VERSION.apk" app/build/outputs/apk/release/app-release-unsigned.apk
-          "$BUILD_TOOLS/apksigner" verify "app/build/outputs/apk/release/DIPFieldService-$APP_VERSION.apk"
-          rm -f "$RUNNER_TEMP/release.jks"
+          ./gradlew --no-daemon --stacktrace assembleRelease bundleRelease $GRADLE_ARGS -PversionCode=${{ github.run_number }}
+          rm -f "$RUNNER_TEMP/upload.jks"
+
+      # The release build is shrunk by R8, which can remove code the app needs at run time. Start it on an
+      # emulator and fail if it closes.
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+
+      - name: Start the release build on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          working-directory: android
+          script: bash ../.github/scripts/release-smoke-test.sh app/build/outputs/apk/release/app-release.apk
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-start-screen
+          path: android/build/smoke/*.png
+          if-no-files-found: ignore
 
       - name: Name the APK
         run: |
           mkdir -p "$RUNNER_TEMP/apk"
           cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/apk/DIPFieldService-$APP_VERSION-build${{ github.run_number }}-debug.apk"
-          cp app/build/outputs/apk/release/DIPFieldService-*.apk "$RUNNER_TEMP/apk/" 2>/dev/null || true
+          if [ "$SIGNED" = "yes" ]; then
+            cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/apk/DIPFieldService-$APP_VERSION-build${{ github.run_number }}-release.apk"
+            cp app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/apk/DIPFieldService-$APP_VERSION-build${{ github.run_number }}-play.aab"
+          fi
           ls -l "$RUNNER_TEMP/apk"
 
       - uses: actions/upload-artifact@v4
         with:
           name: DIPFieldService-${{ env.APP_VERSION }}-build${{ github.run_number }}
-          path: ${{ runner.temp }}/apk/*.apk
+          path: ${{ runner.temp }}/apk/*
 
       - name: Publish on the Releases page
         uses: softprops/action-gh-release@v2
@@ -100,10 +126,11 @@ jobs:
           name: DIP Field Service ${{ env.APP_VERSION }} (build ${{ github.run_number }})
           target_commitish: ${{ github.sha }}
           prerelease: true
-          files: ${{ runner.temp }}/apk/*.apk
+          files: ${{ runner.temp }}/apk/*
           body: |
             Built from `${{ github.ref_name }}` at ${{ github.sha }}.
             **Debug APK**: signed with a test key, for trying the app. Copy it to an Android 10+ phone and open it
             (allow installing from that app when asked). The server address and reader are set in the app's
             Settings (gear → supervisor PIN; the first person to open Settings sets the PIN).
-            For phones in the field use a release APK signed with your own key (see docs/deploy-steps.md, part C).
+            **Release APK / Play bundle (.aab)**: only when the upload-key secrets are set. The .aab is what goes
+            to Google Play (docs/play-store/README.md); the release APK is the same build for direct install.
