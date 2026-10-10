@@ -26,6 +26,7 @@ public sealed class DeviceApiFactory : WebApplicationFactory<Program>
 public sealed class DeviceTests : IClassFixture<DeviceApiFactory>, IAsyncLifetime
 {
     private const string Rashid = "rashid@dip.example";
+    private const string Anil = "anil@dip.example";
     private readonly DeviceApiFactory _factory;
     private readonly string _label = "test-" + Guid.NewGuid().ToString("N")[..8];
 
@@ -226,6 +227,40 @@ public sealed class DeviceTests : IClassFixture<DeviceApiFactory>, IAsyncLifetim
         var (id, key) = await Registered();
         var response = await Phone(id, key, reader: "nobody@dip.example").GetAsync("/api/v1/me");
         Assert.Equal("READER_NOT_FOUND", await Code(response));
+    }
+
+    [Fact]
+    public async Task FR002_7_a_phone_belongs_to_the_first_reader_it_signs_in_as()
+    {
+        var (id, key) = await Registered();
+        Assert.Equal(HttpStatusCode.OK, (await Phone(id, key).GetAsync("/api/v1/me")).StatusCode);
+        Assert.Equal(Rashid, (string)(await Sql("SELECT BoundReaderLogin FROM mr.Device WHERE DeviceId = @id", new() { ["@id"] = id }))!);
+
+        // Another reader on Rashid's phone: refused, for every endpoint, before anything is read.
+        var other = await Phone(id, key, reader: Anil).GetAsync("/api/v1/readings/mine");
+        Assert.Equal(HttpStatusCode.Forbidden, other.StatusCode);
+        Assert.Equal("READER_NOT_ON_THIS_PHONE", await Code(other));
+        Assert.Equal(HttpStatusCode.OK, (await Phone(id, key, reader: "RASHID@dip.example").GetAsync("/api/v1/me")).StatusCode); // case is not a new reader
+    }
+
+    [Fact]
+    public async Task FR002_7_an_unknown_reader_does_not_take_the_phone()
+    {
+        var (id, key) = await Registered();
+        await Phone(id, key, reader: "nobody@dip.example").GetAsync("/api/v1/me");
+        Assert.IsType<DBNull>(await Sql("SELECT BoundReaderLogin FROM mr.Device WHERE DeviceId = @id", new() { ["@id"] = id }));
+        Assert.Equal(HttpStatusCode.OK, (await Phone(id, key).GetAsync("/api/v1/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task FR002_7_IT_can_give_the_phone_to_another_reader()
+    {
+        var (id, key) = await Registered();
+        await Phone(id, key).GetAsync("/api/v1/me");
+        // db/ops/rebind_device.sql with @Reader NULL: the next reader takes it.
+        await Sql("UPDATE mr.Device SET BoundReaderLogin = NULL, BoundAtUtc = NULL WHERE DeviceId = @id", new() { ["@id"] = id });
+        Assert.Equal(HttpStatusCode.OK, (await Phone(id, key, reader: Anil).GetAsync("/api/v1/me")).StatusCode);
+        Assert.Equal("READER_NOT_ON_THIS_PHONE", await Code(await Phone(id, key).GetAsync("/api/v1/me")));
     }
 
     [Fact]

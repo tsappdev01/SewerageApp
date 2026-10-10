@@ -293,6 +293,10 @@ Every phone registers once. IT's scripts are in `db/ops/` and run in MRDB:
 4. **Lost or retired phone:** set `@Label` (or `@DeviceId`) in `db/ops/revoke_device.sql` and run
    it. Its next call is refused with `DEVICE_REVOKED`; readings on it stay on the phone. If it is
    found, set `Status = 'ACTIVE'` again so it can send them.
+5. **One phone, one reader (FR-002.7):** the first reader a phone opens as becomes its reader; any
+   other reader set on it is refused with "This phone belongs to another reader". To give a phone to
+   someone else, run `db/ops/rebind_device.sql` with its `@Label` (and `@Reader`, or NULL for "the
+   next reader set on it"). Run `db/013_device_reader_binding.sql` once before this API version.
 
 Reinstalling the app or clearing its data removes the key: register again with a new code. The
 registration endpoint allows `Devices__RegisterPerMinute` tries per address, so codes cannot be

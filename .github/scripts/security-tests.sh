@@ -105,10 +105,14 @@ s=$(call PUT "/api/v1/readings/$T1/images/$(uuidgen)?role=DISPLAY" "${B[@]}" -H 
 call GET /api/v1/readings/mine "${B[@]}" >/dev/null
 grep -q "$T1" "$BODY" && row 2.3 FAIL "My readings shows only the reader's own" "Anil sees Rashid's $T1" || row 2.3 PASS "My readings shows only the reader's own" "Rashid's reading not in Anil's list"
 s=$(call GET /api/v1/readings/mine -H "X-Device-Id: $B_ID" -H "X-Device-Key: $B_KEY" -H "X-Reader: $RASHID")
-if [ "$s" = 200 ]; then
-  grep -q "$T1" "$BODY" && seen="Rashid's reading $M1 listed" || seen="list returned"
-  row 2.4 FINDING "A registered phone can name any active reader (X-Reader) and act as that reader" "phone B (Anil's) with X-Reader Rashid → 200, $seen. The phone key is checked; the reader is not bound to the phone."
-else row 2.4 PASS "A phone cannot act as a reader other than its own" "phone B as Rashid → $s"; fi
+if [ "$s" = 403 ] && [ "$(code_of)" = READER_NOT_ON_THIS_PHONE ]; then
+  row 2.4 PASS "A phone cannot act as another reader (FR-002.7)" "Anil's phone with X-Reader Rashid → 403 READER_NOT_ON_THIS_PHONE"
+else
+  grep -q "$T1" "$BODY" && seen=", Rashid's reading listed" || seen=""
+  row 2.4 FAIL "A phone cannot act as another reader (FR-002.7)" "Anil's phone with X-Reader Rashid → $s $(code_of)$seen"
+fi
+s=$(call POST /api/v1/readings -H "X-Device-Id: $B_ID" -H "X-Device-Key: $B_KEY" -H "X-Reader: $RASHID" "${J[@]}" -d "$(reading "$(uuidgen)" "$M4" "$V4" "$N4")")
+[ "$s" = 403 ] && row 2.7 PASS "A phone cannot send a reading in another reader's name" "→ 403 $(code_of)" || row 2.7 FAIL "Reading in another reader's name" "HTTP $s $(code_of)"
 dev=$(sql "SELECT CONVERT(varchar(36), DeviceId) FROM mr.ReadingTransaction WHERE TransactionId='$T1'" | tr a-z A-Z)
 [ "$dev" = "$(echo "$A_ID" | tr a-z A-Z)" ] && row 2.5 PASS "A reading is stored with the phone that sent it" "DeviceId = phone A" || row 2.5 FAIL "Reading stored with its phone" "DeviceId=$dev"
 T2=$(uuidgen)

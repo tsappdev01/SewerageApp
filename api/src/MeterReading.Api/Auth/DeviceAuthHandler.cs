@@ -43,6 +43,17 @@ public sealed class DeviceAuthHandler(
             return Fail("DEVICE_REVOKED", "This phone has been blocked. Give it to your supervisor. Readings on it are kept.", "DEVICE_REVOKED");
 
         var reader = Request.Headers[ReaderHeader].ToString().Trim();
+        // FR-002.7: a phone belongs to the first active reader it signs in as; no other reader may use it.
+        var owner = device.BoundReaderLogin;
+        if (owner is null && reader.Length > 0)
+        {
+            var readers = Context.RequestServices.GetRequiredService<MeterReadingRepository>();
+            if ((await readers.FindReadersAsync(reader, Context.RequestAborted)).Count == 1)
+                owner = await devices.BindReaderAsync(deviceId, reader, Context.RequestAborted);
+        }
+        if (owner is not null && !string.Equals(owner.Trim(), reader, StringComparison.OrdinalIgnoreCase))
+            return Fail("READER_NOT_ON_THIS_PHONE", "This phone belongs to another reader. Ask IT to give it to you.", "READER_NOT_ON_THIS_PHONE");
+
         await devices.TouchAsync(deviceId, reader.Length > 0 ? reader : null, Context.RequestAborted);
 
         var claims = new List<Claim> { new(DeviceIdClaim, deviceId.ToString()), new(ClaimTypes.Role, auth.Value.ReaderRole) };

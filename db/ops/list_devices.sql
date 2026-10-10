@@ -1,5 +1,5 @@
 /* ops/list_devices.sql — registered phones, newest first, and codes not used yet. Run in MRDB. */
-SELECT DeviceId, Label, Status, LastReaderId, Model, AndroidVersion, AppVersion,
+SELECT DeviceId, Label, Status, BoundReaderLogin, LastReaderId, Model, AndroidVersion, AppVersion,
        RegisteredAtUtc, LastSyncAtUtc, RevokedAtUtc
 FROM mr.Device
 ORDER BY RegisteredAtUtc DESC;

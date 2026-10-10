@@ -28,7 +28,7 @@ do part B on an *internal* server and then part **B+** (the gateway in the DMZ).
 **A3. Create the API's tables.** In MRDB, run in this order:
 `002_create_mr_schema.sql`, `003_meter_id_as_text.sql`, `004_add_expected_photos.sql`,
 `005_reading_tenant_and_export.sql`, `006_pms_transfer.sql`, `007_reading_image_data.sql`,
-`009_device_keys.sql`. All are safe to run again. (`008` comes in A4.)
+`009_device_keys.sql`, `010_field_inspection.sql`, `012_inspection_location.sql`, `013_device_reader_binding.sql`. All are safe to run again. (`008` comes in A4.)
 - **Check:** `SELECT name FROM sys.tables WHERE schema_id = SCHEMA_ID('mr')` lists
   `Device`, `DeviceRegistrationCode`, `ReadingImage`, `ReadingImageData`, `ReadingTransaction`.
 
@@ -225,6 +225,8 @@ restart the phone, open the app (Home says "No signal: list from …"). Switch f
 
 - **Lost or retired phone:** `db/ops/revoke_device.sql` with its `@Label`. Its next call is refused;
   readings on it stay on it. Set `Status = 'ACTIVE'` again if it is found.
+- **A phone changes hands:** a phone works only for the first reader it was used by.
+  `db/ops/rebind_device.sql` with its `@Label` gives it to another reader.
 - **Copy into MaintainMeterReading** (optional, 2.8): first confirm the formats with the PMS team.
   Then re-run `008` with `@AllowPmsCopy = 1`, set `PmsTransfer__Enabled = true`, recycle the pool and
   check `/health/ready`.

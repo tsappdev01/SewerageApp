@@ -19,7 +19,7 @@ docker exec mrsql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SA_PASSW
 # The order of api/README.md "Run locally", plus 012.
 for f in dev/000_create_dev_source_views.sql 002_create_mr_schema.sql 003_meter_id_as_text.sql 004_add_expected_photos.sql \
          005_reading_tenant_and_export.sql 006_pms_transfer.sql 007_reading_image_data.sql 009_device_keys.sql \
-         010_field_inspection.sql 012_inspection_location.sql dev/010_seed_dev_readings.sql dev/020_create_dev_maintain_meter_reading.sql; do
+         010_field_inspection.sql 012_inspection_location.sql 013_device_reader_binding.sql dev/010_seed_dev_readings.sql dev/020_create_dev_maintain_meter_reading.sql; do
   echo "== db/$f"
   docker exec mrsql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SA_PASSWORD" -C -b -d MeterReading -i "/db/$f" > "$OUT/db-$(basename "$f" .sql).txt" 2>&1 \
     || { cat "$OUT/db-$(basename "$f" .sql).txt"; exit 1; }

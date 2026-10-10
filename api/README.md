@@ -22,9 +22,10 @@ The API reads five `vw_MR_*` views in `PropertyManagementSystem` (plus an option
 | `007_reading_image_data.sql` | Creates `mr.ReadingImageData`, which holds the photos when `ImageStore:Kind` is `Database` (the default). Re-runnable. | Any environment |
 | `009_device_keys.sql` | Registered phones: `mr.Device` key hash, label, revoke time; `mr.DeviceRegistrationCode` for one-time codes. Re-runnable. | Any environment |
 | `010_field_inspection.sql` | Field Inspection: `mr.InspectionVisit`, `mr.InspectionUnitResult`, `mr.InspectionImage`, and `mr.vw_InspectionResult` for the office (spec §21). Re-runnable. | Any environment |
+| `013_device_reader_binding.sql` | A phone belongs to the first reader it signs in as (`mr.Device.BoundReaderLogin`); other readers on it are refused with `READER_NOT_ON_THIS_PHONE` (spec FR-002.7). Re-runnable. | Any environment |
 | `012_inspection_location.sql` | Adds `AtProperty` and `DistanceFromOfficeKm` to `mr.InspectionVisit` (spec FR-031.2). Re-runnable. | Any environment |
 | `011_inspection_wrapper_views.sql` | The MRDB wrappers `vw_MR_InspectionPlan` / `vw_MR_InspectionUnit` over PMS (no `TOP (1000)`; `TenantCode` on units passed through only if PMS has it). Then run `008` again. | UAT and production (dev has stand-ins) |
-| `ops/new_device_code.sql`, `ops/list_devices.sql`, `ops/revoke_device.sql` | IT's tasks: make a one-time registration code, list phones, block a lost phone (`docs/deployment.md` 2.11). | Any environment, as needed |
+| `ops/new_device_code.sql`, `ops/list_devices.sql`, `ops/revoke_device.sql`, `ops/rebind_device.sql` | IT's tasks: make a one-time registration code, list phones, block a lost phone, give a phone to another reader (`docs/deployment.md` 2.11). | Any environment, as needed |
 | `008_create_api_login.sql` | Creates the API's login `mr_api` (set `@Password` first) and grants what it needs in the `mr` database and in the views' database (SELECT on the views, SELECT/INSERT/UPDATE on `mr`, optional INSERT on `MaintainMeterReading`). Re-runnable. | Any environment |
 | `003_meter_id_as_text.sql` | Brings an `mr` schema from an earlier `002` in line: `MeterId` as text (barcode), readings to 4 decimals. Does nothing on a fresh install. | Any environment |
 | `dev/000_create_dev_source_views.sql` | Test stand-ins shaped like the real views (barcode ids, Status 1, every month OPEN, ISNULL zeros), with sample data. | Development only |
@@ -149,7 +150,7 @@ docker run -d --name mrsql -p 1433:1433 -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='D
 # create database MeterReading, then run in order:
 #   ../db/dev/000_create_dev_source_views.sql, ../db/002_create_mr_schema.sql, ../db/003_meter_id_as_text.sql,
 #   ../db/004_add_expected_photos.sql, ../db/005_reading_tenant_and_export.sql, ../db/006_pms_transfer.sql, ../db/007_reading_image_data.sql,
-#   ../db/009_device_keys.sql, ../db/010_field_inspection.sql,
+#   ../db/009_device_keys.sql, ../db/010_field_inspection.sql, ../db/012_inspection_location.sql, ../db/013_device_reader_binding.sql,
 #   ../db/dev/010_seed_dev_readings.sql, ../db/dev/020_create_dev_maintain_meter_reading.sql
 dotnet run --project src/MeterReading.Api            # Development: http://localhost:5080
 curl -H "X-Dev-User: rashid@dip.example" "http://localhost:5080/api/v1/sync/meters?zone=598"

@@ -124,7 +124,7 @@ app.MapGet("/health/ready", async (MeterReadingRepository repo, PmsTransferServi
         var missing = (await repo.FindMissingViewsAsync(ct)).ToList();
         if (transferOptions.Value.Enabled && await transfer.FindProblemAsync(ct) is { } problem) missing.Add(problem);
         if (string.Equals(auth.Mode, "Device", StringComparison.OrdinalIgnoreCase) && !await devices.TablesExistAsync(ct))
-            missing.Add("mr.DeviceRegistrationCode (run db/009_device_keys.sql)");
+            missing.Add("mr.DeviceRegistrationCode or mr.Device.BoundReaderLogin (run db/009_device_keys.sql and db/013_device_reader_binding.sql)");
         // Field inspection is optional: only when its views exist must its tables exist too.
         if (await inspections.AvailableAsync(ct) is (true, false))
             missing.Add("mr.InspectionVisit or its AtProperty column (run db/010_field_inspection.sql and db/012_inspection_location.sql)");

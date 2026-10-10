@@ -215,6 +215,7 @@ device so a weak signal does not stop navigation or capture (§9).
 | FR-002.4 | The app should be deployed and managed through Microsoft Intune (MDM/MAM) where the organisation supports it. |
 | FR-002.5 | The app shall refuse to run on rooted devices or failed Play Integrity checks when `RequirePlayIntegrity` = true. The integrity token shall be **verified server-side** at registration and at least daily (SEC-010). |
 | FR-002.6 | Every API request from the app shall carry headers `X-Device-Id` and `X-Device-Key` (and `X-Reader`, the reader set on the phone); with `Auth:Mode` = `Device` the API refuses unknown phones or wrong keys with `DEVICE_NOT_REGISTERED` and blocked phones with `DEVICE_REVOKED` (both HTTP 403). `X-App-Version` and `MinAppVersion` are not built yet. The API shall reject app versions below `MinAppVersion` with `APP_VERSION_UNSUPPORTED` (HTTP 426). |
+| FR-002.7 | A registered phone belongs to one reader: the first active reader it signs in as (`X-Reader`) is kept with the phone (`mr.Device.BoundReaderLogin`, db/013), and the API refuses any other reader on that phone with `READER_NOT_ON_THIS_PHONE` (HTTP 403). IT gives a phone to another reader with `db/ops/rebind_device.sql`. Readings and visits are stored with the phone that signed in, taken from its key, never from the request body. |
 
 ### 4.3 Dashboard (FR-003)
 
@@ -1061,6 +1062,7 @@ is hidden (`/me` answers `canInspect: false`).
 | TRANSACTION_ID_REUSED | 409 | Same ID, different payload | Log as defect; re-capture with new ID |
 | DEVICE_REVOKED | 403 | Device revoked | Wipe per FR-002.3 |
 | DEVICE_NOT_REGISTERED | 403 | Unknown device or wrong key | Keep the queue; ask the supervisor to register the phone |
+| READER_NOT_ON_THIS_PHONE | 403 | The phone belongs to another reader (FR-002.7) | Keep the queue; show the message; IT moves the phone (db/ops/rebind_device.sql) |
 | REGISTRATION_CODE_INVALID | 422 | Registration code wrong, used or expired | Ask IT for a new code |
 | INTEGRITY_FAILED | 403 | Play Integrity failed | Block |
 | APP_VERSION_UNSUPPORTED | 426 | Update required | Prompt update |
