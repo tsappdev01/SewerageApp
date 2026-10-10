@@ -40,6 +40,7 @@ sql_file dev/900_e2e_checks.sql | tee "$OUT/db-checks.txt"
 
 echo "== Blocking the phone, then RevokedPhoneTest"
 sql_file ops/revoke_device.sql | tee "$OUT/revoke.txt"
+adb logcat -c
 adb shell am instrument -w -r -e class com.meterreading.reader.e2e.RevokedPhoneTest "$RUNNER" | tee "$OUT/instrument-revoked.txt"
 grep -q "^OK (" "$OUT/instrument-revoked.txt" || failed=1
 
@@ -47,5 +48,7 @@ kill $GEO 2>/dev/null || true
 adb pull "/sdcard/Android/data/$PKG/files/e2e/." "$OUT/screens/" >/dev/null 2>&1 || true
 adb exec-out screencap -p > "$OUT/screens/zz_last_screen.png" || true
 adb logcat -d > "$OUT/logcat.txt" || true
+# The app's own lines and its network calls during RevokedPhoneTest.
+grep -E "fieldservice|okhttp|OkHttp|meterreading|AndroidRuntime|System.err" "$OUT/logcat.txt" | tail -n 300 > "$OUT/logcat-revoked.txt" || true
 ls "$OUT/screens" | head -n 80
 exit $failed

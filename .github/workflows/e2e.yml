@@ -138,7 +138,7 @@ jobs:
           rm -rf results && git init -q results && cd results
           mkdir -p screens
           cp "$SRC"/screens/*.png "$SRC"/screens/*.xml screens/ 2>/dev/null || true
-          cp "$SRC"/instrument-*.txt "$SRC"/db-checks.txt "$SRC"/revoke.txt "$SRC"/api-tests.txt "$SRC"/gateway-tests.txt "$SRC"/security-results.md "$SRC"/zap-report.md "$SRC"/zap-report.html "$SRC"/zap-console.txt "$SRC"/dependencies.txt "$SRC"/gitleaks.txt "$SRC"/gitleaks.json . 2>/dev/null || true
+          cp "$SRC"/instrument-*.txt "$SRC"/db-checks.txt "$SRC"/revoke.txt "$SRC"/api-tests.txt "$SRC"/gateway-tests.txt "$SRC"/security-results.md "$SRC"/zap-report.md "$SRC"/zap-report.html "$SRC"/zap-console.txt "$SRC"/dependencies.txt "$SRC"/gitleaks.txt "$SRC"/gitleaks.json "$SRC"/logcat-revoked.txt . 2>/dev/null || true
           grep -E "MeterReading|Gateway|AUDIT|warn|fail|error" -i "$SRC/api.log" | tail -n 300 > api-log-excerpt.txt 2>/dev/null || true
           tail -n 200 "$SRC/gateway.log" > gateway-log-excerpt.txt 2>/dev/null || true
           git config user.name "github-actions"

@@ -15,9 +15,12 @@ class RevokedPhoneTest {
 
     @Test fun FR002_3_a_blocked_phone_cannot_open_the_app() {
         phone.openApp()
-        phone.waitText("Open", 30_000)
-        Thread.sleep(15_000) // the refused sign-in comes back
+        // The reader is told, in the app's words (spec Appendix A, DEVICE_REVOKED).
+        phone.waitContaining("This phone has been blocked", 30_000)
+        Thread.sleep(15_000)
         phone.shot("60_blocked_phone")
         assertFalse("A blocked phone must not reach Home", phone.has("Hello, Rashid"))
+        // The start button must not stay busy after the refusal.
+        phone.waitText("Open", 45_000)
     }
 }
