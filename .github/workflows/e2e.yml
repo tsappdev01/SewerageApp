@@ -21,6 +21,8 @@ on:
       - '!**/*.md'
       - '.github/workflows/e2e.yml'
       - '.github/scripts/e2e-*.sh'
+      - '.github/scripts/security-tests.sh'
+      - '.github/scripts/zap-scan.sh'
 
 permissions:
   contents: write
@@ -35,6 +37,8 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the secret scan reads the whole history
 
       - name: A password for this run's SQL Server
         run: |
@@ -77,6 +81,30 @@ jobs:
           working-directory: android
           script: bash ../.github/scripts/e2e-phone.sh
 
+      - name: Security tests from outside, through the gateway (docs/security-tests.md)
+        if: always()
+        run: bash .github/scripts/security-tests.sh
+
+      - name: OWASP ZAP API scan of the gateway (passive and active, this run's copy only)
+        if: always()
+        run: bash .github/scripts/zap-scan.sh
+
+      - name: Known-vulnerable packages (.NET, including transitive)
+        if: always()
+        run: |
+          for p in api/src/MeterReading.Api gateway/src/MeterReading.Gateway; do
+            echo "== $p"; dotnet list "$p" package --vulnerable --include-transitive 2>&1
+          done | tee e2e-out/dependencies.txt
+          ! grep -q "has the following vulnerable packages" e2e-out/dependencies.txt
+
+      - name: Secret scan of the whole git history (gitleaks)
+        if: always()
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar -xz -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" detect --source . --redact -v --report-format json --report-path e2e-out/gitleaks.json > e2e-out/gitleaks.txt 2>&1; rc=$?
+          tail -n 30 e2e-out/gitleaks.txt
+          exit $rc
+
       - name: API and gateway test suites (own database)
         if: always()
         run: bash .github/scripts/e2e-server-tests.sh
@@ -96,6 +124,9 @@ jobs:
             e2e-out/*.log
             e2e-out/screens/*.png
             e2e-out/screens/*.xml
+            e2e-out/*.md
+            e2e-out/*.html
+            e2e-out/*.json
           if-no-files-found: warn
 
       - name: Push the results to the e2e-results branch
@@ -107,7 +138,7 @@ jobs:
           rm -rf results && git init -q results && cd results
           mkdir -p screens
           cp "$SRC"/screens/*.png "$SRC"/screens/*.xml screens/ 2>/dev/null || true
-          cp "$SRC"/instrument-*.txt "$SRC"/db-checks.txt "$SRC"/revoke.txt "$SRC"/api-tests.txt "$SRC"/gateway-tests.txt . 2>/dev/null || true
+          cp "$SRC"/instrument-*.txt "$SRC"/db-checks.txt "$SRC"/revoke.txt "$SRC"/api-tests.txt "$SRC"/gateway-tests.txt "$SRC"/security-results.md "$SRC"/zap-report.md "$SRC"/zap-report.html "$SRC"/zap-console.txt "$SRC"/dependencies.txt "$SRC"/gitleaks.txt "$SRC"/gitleaks.json . 2>/dev/null || true
           grep -E "MeterReading|Gateway|AUDIT|warn|fail|error" -i "$SRC/api.log" | tail -n 300 > api-log-excerpt.txt 2>/dev/null || true
           tail -n 200 "$SRC/gateway.log" > gateway-log-excerpt.txt 2>/dev/null || true
           git config user.name "github-actions"

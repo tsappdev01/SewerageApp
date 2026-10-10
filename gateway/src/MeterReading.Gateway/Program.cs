@@ -83,6 +83,10 @@ app.Use(async (http, next) =>
         headers.XContentTypeOptions = "nosniff";
         headers.CacheControl = "no-store";
         headers.Pragma = "no-cache";
+        // An API answers JSON only: nothing may frame it, run in it, or learn where it was called from.
+        headers.XFrameOptions = "DENY";
+        headers.ContentSecurityPolicy = "default-src 'none'; frame-ancestors 'none'";
+        headers["Referrer-Policy"] = "no-referrer";
         return Task.CompletedTask;
     });
     await next();
