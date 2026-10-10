@@ -25,6 +25,8 @@ sql() { docker exec mrsql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$
 # call METHOD PATH [curl args...] → prints the status; body in $BODY
 call() { local m=$1 p=$2; shift 2; curl -s -o "$BODY" -w '%{http_code}' -X "$m" "$GW$p" "$@"; }
 code_of() { jq -r '.code // empty' "$BODY" 2>/dev/null; }
+# Refused sign-in: 401, or 403 with a DEVICE_* code as spec Appendix A answers it, and nothing else.
+refused() { { [ "$1" = 401 ] || [ "$1" = 403 ]; } && [[ "$(code_of)" == DEVICE_* || "$1" = 401 ]]; }
 leaks() { grep -qiE 'exception|stack ?trace|   at |SqlClient|System\.|Microsoft\.|select .* from|connection string|password=' "$BODY"; }
 
 new_code() {
@@ -57,22 +59,22 @@ ENDPOINTS=("GET /api/v1/me" "GET /api/v1/sync/meters" "GET /api/v1/properties/se
   "GET /api/v1/inspections/units?period=2026-10&property=597-559&tenant=T-0559" "POST /api/v1/inspections"
   "GET /api/v1/readings/$(uuidgen)/images/$(uuidgen)" "PUT /api/v1/readings/$(uuidgen)/images/$(uuidgen)")
 bad=""
-for e in "${ENDPOINTS[@]}"; do s=$(call ${e% *} "${e#* }" "${J[@]}" -d '{}'); [ "$s" = 401 ] || bad="$bad ${e}=$s"; done
-[ -z "$bad" ] && row 1.1 PASS "Every protected endpoint refuses a request without a phone key" "${#ENDPOINTS[@]} endpoints → 401" \
+for e in "${ENDPOINTS[@]}"; do s=$(call ${e% *} "${e#* }" "${J[@]}" -d '{}'); refused "$s" || bad="$bad ${e}=$s/$(code_of)"; done
+[ -z "$bad" ] && row 1.1 PASS "Every protected endpoint refuses a request without a phone key" "${#ENDPOINTS[@]} endpoints → 403 DEVICE_NOT_REGISTERED" \
               || row 1.1 FAIL "Every protected endpoint refuses a request without a phone key" "$bad"
 s=$(call GET /api/v1/me -H "X-Device-Id: $A_ID" -H "X-Device-Key: wrong$A_KEY" -H "X-Reader: $RASHID")
-[ "$s" = 401 ] && row 1.2 PASS "Wrong key refused" "401 $(code_of)" || row 1.2 FAIL "Wrong key refused" "HTTP $s"
+refused "$s" && row 1.2 PASS "Wrong key refused" "$s $(code_of)" || row 1.2 FAIL "Wrong key refused" "HTTP $s"
 s=$(call GET /api/v1/me -H "X-Device-Id: $(uuidgen)" -H "X-Device-Key: $A_KEY" -H "X-Reader: $RASHID")
-[ "$s" = 401 ] && row 1.3 PASS "Another phone's key with an unknown phone id refused" "401 $(code_of)" || row 1.3 FAIL "Unknown phone id refused" "HTTP $s"
+refused "$s" && row 1.3 PASS "Another phone's key with an unknown phone id refused" "$s $(code_of)" || row 1.3 FAIL "Unknown phone id refused" "HTTP $s"
 s=$(call GET /api/v1/me -H "X-Device-Id: $B_ID" -H "X-Device-Key: $A_KEY" -H "X-Reader: $RASHID")
-[ "$s" = 401 ] && row 1.4 PASS "Phone A's key does not open phone B" "401 $(code_of)" || row 1.4 FAIL "Phone A's key does not open phone B" "HTTP $s"
+refused "$s" && row 1.4 PASS "Phone A's key does not open phone B" "$s $(code_of)" || row 1.4 FAIL "Phone A's key does not open phone B" "HTTP $s"
 s=$(call GET /api/v1/me -H "X-Device-Id: not-a-guid" -H "X-Device-Key: x")
-[ "$s" = 401 ] && row 1.5 PASS "Malformed phone id refused" "401" || row 1.5 FAIL "Malformed phone id refused" "HTTP $s"
+refused "$s" && row 1.5 PASS "Malformed phone id refused" "$s $(code_of)" || row 1.5 FAIL "Malformed phone id refused" "HTTP $s"
 sql "UPDATE mr.Device SET Status='REVOKED', RevokedAtUtc=SYSUTCDATETIME() WHERE DeviceId='$C_ID'" >/dev/null
 s=$(call GET /api/v1/me -H "X-Device-Id: $C_ID" -H "X-Device-Key: $C_KEY" -H "X-Reader: $RASHID")
 [ "$s" = 401 ] || [ "$s" = 403 ] && row 1.6 PASS "Blocked (revoked) phone refused at once" "$s $(code_of)" || row 1.6 FAIL "Blocked phone refused" "HTTP $s"
 s=$(call GET /api/v1/me -H "X-Dev-User: $RASHID")
-[ "$s" = 401 ] && row 1.7 PASS "Development sign-in header is stripped by the gateway" "X-Dev-User → 401" || row 1.7 FAIL "X-Dev-User stripped" "HTTP $s"
+refused "$s" && row 1.7 PASS "Development sign-in header is stripped by the gateway" "X-Dev-User → $s $(code_of)" || row 1.7 FAIL "X-Dev-User stripped" "HTTP $s"
 s=$(call GET /api/v1/me -H "X-Device-Id: $A_ID" -H "X-Device-Key: $A_KEY" -H "X-Reader: nobody@evil.example")
 [ "$s" = 403 ] || [ "$s" = 404 ] || [ "$s" = 401 ] && row 1.8 PASS "A reader who is not in the reader list is refused" "$s $(code_of)" || row 1.8 FAIL "Unknown reader refused" "HTTP $s"
 c=$(new_code 'Security reuse'); call POST /api/v1/devices/register "${J[@]}" -d "{\"code\":\"$c\"}" >/dev/null
@@ -82,8 +84,17 @@ k=$(sql "SELECT COUNT(*) FROM mr.Device WHERE KeyHash = '$A_KEY'"); kh=$(sql "SE
 [ "$k" = 0 ] && [ "$kh" = 64 ] && row 1.10 PASS "Only a hash of the phone key is stored" "KeyHash is 64 hex, never the key" || row 1.10 FAIL "Only key hash stored" "match=$k len=$kh"
 
 echo "== 2. Record-level authorization"
+# Unread meters with a tenant, from the live list: "meter value tenant", value = last + 100.
+call GET /api/v1/sync/meters "${A[@]}" >/dev/null
+mapfile -t FREE < <(jq -r '[.properties[] | {code, t: ((.tenants[0].code) // .tenantCode)}] as $p
+  | .meters[] | select(.state == "PENDING") | . as $m | ([$p[] | select(.code == $m.propertyCode) | .t][0]) as $t
+  | select($t != null) | "\(.id) \(((.previousReading // 0) + 100) | floor) \($t)"' "$BODY")
+echo "unread meters for the tests: ${FREE[*]}"
+[ "${#FREE[@]}" -ge 4 ] || { row 0 FAIL "Enough unread meters in the test data" "${#FREE[@]}"; }
+read -r M1 V1 N1 <<< "${FREE[0]}"; read -r M2 V2 N2 <<< "${FREE[1]}"; read -r M3 V3 N3 <<< "${FREE[2]}"; read -r M4 V4 N4 <<< "${FREE[3]}"
 T1=$(uuidgen)
-s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d "$(reading "$T1" BC0001 50820 T-0101)")
+s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d "$(reading "$T1" "$M1" "$V1" "$N1")")
+[ "$s" = 201 ] || row 2.0 FAIL "Test reading stored" "$M1 → $s $(code_of)"
 printf '\xff\xd8\xff\xe0\x00\x10JFIF\x00security-test\xff\xd9' > "$OUT/sec.jpg"
 SHA=$(sha256sum "$OUT/sec.jpg" | cut -d' ' -f1 | tr a-f A-F); IMG=$(uuidgen)
 s2=$(call PUT "/api/v1/readings/$T1/images/$IMG?role=DISPLAY" "${A[@]}" -H 'Content-Type: image/jpeg' -H "X-Content-SHA256: $SHA" --data-binary @"$OUT/sec.jpg")
@@ -94,21 +105,22 @@ s=$(call PUT "/api/v1/readings/$T1/images/$(uuidgen)?role=DISPLAY" "${B[@]}" -H 
 call GET /api/v1/readings/mine "${B[@]}" >/dev/null
 grep -q "$T1" "$BODY" && row 2.3 FAIL "My readings shows only the reader's own" "Anil sees Rashid's $T1" || row 2.3 PASS "My readings shows only the reader's own" "Rashid's reading not in Anil's list"
 s=$(call GET /api/v1/readings/mine -H "X-Device-Id: $B_ID" -H "X-Device-Key: $B_KEY" -H "X-Reader: $RASHID")
-if [ "$s" = 200 ] && grep -q "$T1" "$BODY"; then
-  row 2.4 FINDING "A registered phone can name any active reader (X-Reader) and see that reader's own readings" "phone B with X-Reader Rashid → 200, Rashid's reading listed. The phone key is checked; the reader is not bound to the phone."
+if [ "$s" = 200 ]; then
+  grep -q "$T1" "$BODY" && seen="Rashid's reading $M1 listed" || seen="list returned"
+  row 2.4 FINDING "A registered phone can name any active reader (X-Reader) and act as that reader" "phone B (Anil's) with X-Reader Rashid → 200, $seen. The phone key is checked; the reader is not bound to the phone."
 else row 2.4 PASS "A phone cannot act as a reader other than its own" "phone B as Rashid → $s"; fi
 dev=$(sql "SELECT CONVERT(varchar(36), DeviceId) FROM mr.ReadingTransaction WHERE TransactionId='$T1'" | tr a-z A-Z)
 [ "$dev" = "$(echo "$A_ID" | tr a-z A-Z)" ] && row 2.5 PASS "A reading is stored with the phone that sent it" "DeviceId = phone A" || row 2.5 FAIL "Reading stored with its phone" "DeviceId=$dev"
 T2=$(uuidgen)
-s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d "$(reading "$T2" BC0002 8450 T-0101 ",\"deviceId\":\"$B_ID\"")")
+s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d "$(reading "$T2" "$M2" "$V2" "$N2" ",\"deviceId\":\"$B_ID\"")")
 dev=$(sql "SELECT CONVERT(varchar(36), DeviceId) FROM mr.ReadingTransaction WHERE TransactionId='$T2'" | tr a-z A-Z)
 [ "$dev" = "$(echo "$A_ID" | tr a-z A-Z)" ] && row 2.6 PASS "A body naming another phone is ignored (server-controlled field)" "body deviceId=B → stored A" || row 2.6 FAIL "Body deviceId ignored" "stored $dev (HTTP $s)"
 
 echo "== 3. Injection and malformed input"
-call GET "/api/v1/properties/search?q=zzzz-none" "${A[@]}" >/dev/null; base=$(jq '[.. | objects | select(has("code"))] | length' "$BODY" 2>/dev/null)
+call GET "/api/v1/properties/search?q=" "${A[@]}" >/dev/null; all=$(jq '[.. | objects | select(has("code"))] | length' "$BODY" 2>/dev/null)
 for q in "%27%20OR%201%3D1%20--" "1101%27%3B%20DROP%20TABLE%20mr.Device%3B--" "%25" "%5B" "1101%27%20UNION%20SELECT%20name%20FROM%20sys.tables--"; do
   s=$(call GET "/api/v1/properties/search?q=$q" "${A[@]}"); n=$(jq '[.. | objects | select(has("code"))] | length' "$BODY" 2>/dev/null)
-  if [ "$s" = 500 ] || leaks; then row 3.1 FAIL "SQL injection in search q=$q" "HTTP $s"; elif [ "$s" = 200 ] && [ "${n:-0}" -gt 3 ] && [ "$q" != "%25" ]; then row 3.1 FAIL "SQL injection in search q=$q" "$n results"; else row 3.1 PASS "SQL injection in search ($q)" "HTTP $s, $n results, no error text"; fi
+  if [ "$s" = 500 ] || leaks; then row 3.1 FAIL "SQL injection in search q=$q" "HTTP $s"; elif [ "$s" = 200 ] && [ "${n:-0}" -gt 3 ] && [ "${n:-0}" != "$all" ]; then row 3.1 FAIL "SQL injection in search q=$q" "$n results"; else row 3.1 PASS "SQL injection in search ($q)" "HTTP $s, $n results (an empty search gives $all: punctuation is ignored and search runs in memory, not in SQL), no error text"; fi
 done
 s=$(call GET "/api/v1/meters/BC0001%27%20OR%20%271%27%3D%271" "${A[@]}"); { [ "$s" = 404 ] || [ "$s" = 400 ]; } && ! leaks && row 3.2 PASS "SQL injection in meter id" "HTTP $s" || row 3.2 FAIL "SQL injection in meter id" "HTTP $s"
 s=$(call GET "/api/v1/sync/meters?zone=597%27%20OR%201%3D1--" "${A[@]}"); n=$(jq '.meters | length' "$BODY" 2>/dev/null)
@@ -122,7 +134,7 @@ s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d '{"transactionId":"'"$(uui
 [ "$s" = 400 ] && ! leaks && row 3.7 PASS "Wrong data type refused" "$s $(code_of)" || row 3.7 FAIL "Wrong type" "HTTP $s"
 s=$(call POST /api/v1/readings "${A[@]}" -H 'Content-Type: text/plain' -d 'hello')
 [ "$s" = 415 ] || [ "$s" = 400 ] && row 3.8 PASS "Unsupported content type refused" "HTTP $s" || row 3.8 FAIL "Content type" "HTTP $s"
-s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d "$(reading "$(uuidgen)" BC0011 40700 T-0201 ',"note":"'"$(printf "<script>alert(1)</script>%.0s" {1..5})"'"')")
+s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d "$(reading "$(uuidgen)" "$M4" "$V4" "$N4" ',"note":"'"$(printf "<script>alert(1)</script>%.0s" {1..5})"'"')")
 row 3.9 INFO "Script text in a note is stored as text (no HTML is rendered by the API)" "HTTP $s $(code_of)"
 s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d '{"transactionId":"'"$(uuidgen)"'","meterId":"BC0005","condition":"NOPE","newReading":1,"readerConfirmedWarning":false,"capturedAtUtc":"'"$(now)"'","tenantCode":"T-0201"}')
 [ "$s" = 400 ] || [ "$s" = 422 ] && row 3.10 PASS "Unknown code values refused (server-side rules)" "$s $(code_of)" || row 3.10 FAIL "LOV check" "HTTP $s"
@@ -143,13 +155,14 @@ s=$(call DELETE /api/v1/readings "${A[@]}"); [ "$s" = 405 ] && row 4.2 PASS "Uns
 s=$(call TRACE /api/v1/me "${A[@]}"); [ "$s" = 405 ] || [ "$s" = 404 ] || [ "$s" = 400 ] && row 4.3 PASS "TRACE not allowed" "HTTP $s" || row 4.3 FAIL "TRACE" "HTTP $s"
 s=$(call POST /api/v1/me "${A[@]}" -H 'X-HTTP-Method-Override: GET'); [ "$s" = 405 ] && row 4.4 PASS "Method override header has no effect" "POST + override → 405" || row 4.4 FAIL "Method override" "HTTP $s"
 hdr=$(curl -s -D - -o /dev/null "$GW/health/live")
-miss=""; for h in Strict-Transport-Security X-Content-Type-Options X-Frame-Options Content-Security-Policy Referrer-Policy Cache-Control; do echo "$hdr" | grep -qi "^$h:" || miss="$miss $h"; done
+miss=""; for h in Strict-Transport-Security X-Content-Type-Options X-Frame-Options Content-Security-Policy Referrer-Policy Cross-Origin-Resource-Policy Cache-Control; do echo "$hdr" | grep -qi "^$h:" || miss="$miss $h"; done
 echo "$hdr" | grep -qiE '^(Server|X-Powered-By):' && miss="$miss (Server/X-Powered-By present)"
 [ -z "$miss" ] && row 4.5 PASS "Security headers set, server not named" "$(echo "$hdr" | grep -iE '^(X-Content-Type-Options|X-Frame-Options|Referrer-Policy)' | tr -d '\r' | paste -sd';')" || row 4.5 FAIL "Security headers" "missing:$miss"
 
 echo "== 5. Abuse, size limits and rate limits"
 head -c 200000 /dev/zero | tr '\0' 'a' > "$OUT/big.txt"
-s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d "{\"note\":\"$(cat "$OUT/big.txt")\"}"); [ "$s" = 413 ] && row 5.1 PASS "Oversized JSON body refused at the gateway" "200 KB → 413" || row 5.1 FAIL "Oversized JSON" "HTTP $s"
+{ printf '{"note":"'; cat "$OUT/big.txt"; printf '"}'; } > "$OUT/big.json"
+s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" --data-binary @"$OUT/big.json"); [ "$s" = 413 ] && row 5.1 PASS "Oversized JSON body refused at the gateway" "200 KB → 413" || row 5.1 FAIL "Oversized JSON" "HTTP $s"
 python3 -c "print('['*5000 + ']'*5000)" > "$OUT/deep.json"
 s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" --data-binary @"$OUT/deep.json"); [ "$s" = 400 ] || [ "$s" = 413 ] && ! leaks && row 5.2 PASS "Deeply nested JSON refused" "HTTP $s" || row 5.2 FAIL "Deep JSON" "HTTP $s"
 head -c 3000000 /dev/urandom > "$OUT/big.jpg"
@@ -171,15 +184,15 @@ echo "$codes" | grep -q ' 429' && row 5.9 PASS "Registration code guessing is ra
 sleep 61 # let the limits reset for the next tests
 
 echo "== 6. Replay and duplicates (billing)"
-T3=$(uuidgen); R=$(reading "$T3" BC0005 62300 T-0201)
+T3=$(uuidgen); R=$(reading "$T3" "$M3" "$V3" "$N3")
 s1=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d "$R"); s2=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d "$R")
 n=$(sql "SELECT COUNT(*) FROM mr.ReadingTransaction WHERE TransactionId='$T3'")
 [ "$s1" = 201 ] && [ "$s2" = 200 ] && [ "$n" = 1 ] && row 6.1 PASS "Replaying the same reading stores it once" "$s1 then $s2, $n row" || row 6.1 FAIL "Replay" "$s1/$s2 rows=$n"
-s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d "$(reading "$T3" BC0005 69999 T-0201)")
+s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d "$(reading "$T3" "$M3" "$((V3 + 500))" "$N3")")
 [ "$s" = 409 ] && row 6.2 PASS "Same id with a changed number is refused (no overwrite)" "$s $(code_of)" || row 6.2 FAIL "Changed replay" "HTTP $s"
-s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d "$(reading "$(uuidgen)" BC0005 62400 T-0201)")
+s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d "$(reading "$(uuidgen)" "$M3" "$((V3 + 10))" "$N3")")
 [ "$s" = 409 ] && row 6.3 PASS "A meter already read cannot be read again by a new request" "$s $(code_of)" || row 6.3 FAIL "Second reading" "HTTP $s"
-s=$(call POST /api/v1/readings "${B[@]}" "${J[@]}" -d "$(reading "$(uuidgen)" BC0005 62500 T-0201)")
+s=$(call POST /api/v1/readings "${B[@]}" "${J[@]}" -d "$(reading "$(uuidgen)" "$M3" "$((V3 + 20))" "$N3")")
 [ "$s" = 409 ] && row 6.4 PASS "Another reader cannot overwrite it either" "$s $(code_of)" || row 6.4 FAIL "Other reader overwrite" "HTTP $s"
 sleep 25
 n=$(sql "SELECT COUNT(*) FROM dbo.MaintainMeterReading m JOIN mr.ReadingTransaction t ON t.PmsRowId = m.RowId WHERE t.TransactionId='$T3'")

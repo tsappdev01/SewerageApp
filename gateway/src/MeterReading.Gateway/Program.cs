@@ -87,6 +87,7 @@ app.Use(async (http, next) =>
         headers.XFrameOptions = "DENY";
         headers.ContentSecurityPolicy = "default-src 'none'; frame-ancestors 'none'";
         headers["Referrer-Policy"] = "no-referrer";
+        headers["Cross-Origin-Resource-Policy"] = "same-origin";
         return Task.CompletedTask;
     });
     await next();
