@@ -30,6 +30,7 @@ The API reads five `vw_MR_*` views in `PropertyManagementSystem` (plus an option
 | `dev/000_create_dev_source_views.sql` | Test stand-ins shaped like the real views (barcode ids, Status 1, every month OPEN, ISNULL zeros), with sample data. | Development only |
 | `dev/010_seed_dev_readings.sql` | Sample readings already received this period. | Development only |
 | `dev/020_create_dev_maintain_meter_reading.sql` | Stand-in `dbo.MaintainMeterReading` for the transfer tests. **Never run where the real table exists.** | Development only |
+| `dev/900_e2e_checks.sql` | Checks what the end-to-end test (`.github/workflows/e2e.yml`) sent from the phone: registration, readings and photos, PMS copy, inspection. Read-only; fails if a check fails. | Development only |
 
 ## Endpoints
 

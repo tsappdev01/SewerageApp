@@ -76,6 +76,16 @@ kotlin {
                 implementation(libs.androidx.compose.ui.test.junit4)
             }
         }
+        // End-to-end: the app on an emulator against SQL Server, the API and the gateway (.github/workflows/e2e.yml).
+        val androidInstrumentedTest by getting {
+            dependencies {
+                implementation(project.dependencies.platform(libs.androidx.compose.bom))
+                implementation(libs.androidx.compose.ui.test.junit4)
+                implementation(libs.androidx.test.ext.junit)
+                implementation(libs.androidx.test.runner)
+                implementation(libs.androidx.test.rules)
+            }
+        }
     }
 }
 
@@ -100,6 +110,7 @@ android {
         // Every upload to Play needs a higher versionCode: CI passes its run number (-PversionCode=...).
         versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 8
         versionName = "1.0.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Override per build: ./gradlew assembleDebug -PapiBaseUrl=https://... -PuseFakeData=true
         buildConfigField("String", "API_BASE_URL", "\"${project.findProperty("apiBaseUrl") ?: "http://10.0.2.2:5080/"}\"")

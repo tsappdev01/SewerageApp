@@ -1,0 +1,113 @@
+# End to end: the Android app on an emulator, through the DMZ gateway and the API, into SQL Server.
+#
+#   phone (emulator) ──http──▶ gateway :5090 ──▶ API :5080 (Device sign-in) ──▶ SQL Server (db/ + db/dev data)
+#
+# The test registers the phone with a one-time code, reads two meters with photos (one without signal),
+# sends a field inspection with a photo, then the database is checked (db/dev/900_e2e_checks.sql), the
+# phone is blocked and must no longer open. Screenshots of every step, the logs and the check results
+# go to the e2e-results branch and the run's artifacts.
+#
+# Runs by hand (Actions → End to end → Run workflow) and when the app, API, gateway or db change.
+name: End to end
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'android/**'
+      - 'api/**'
+      - 'gateway/**'
+      - 'db/**'
+      - '!**/*.md'
+      - '.github/workflows/e2e.yml'
+      - '.github/scripts/e2e-*.sh'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: A password for this run's SQL Server
+        run: |
+          P="E2e-$(openssl rand -hex 12)!"
+          echo "::add-mask::$P"
+          echo "SA_PASSWORD=$P" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Start SQL Server, the API and the gateway
+        run: bash .github/scripts/e2e-stack.sh
+
+      - name: Build the app (debug, server = gateway on the emulator's host) and its end-to-end tests
+        working-directory: android
+        run: ./gradlew --no-daemon --stacktrace assembleDebug assembleDebugAndroidTest -PapiBaseUrl=http://10.0.2.2:5090/ -PdeviceLock=false
+
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+
+      - name: Run the app end to end on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back emulated
+          working-directory: android
+          script: bash ../.github/scripts/e2e-phone.sh
+
+      - name: Server logs
+        if: always()
+        run: |
+          echo "== API (last 60 lines)"; tail -n 60 e2e-out/api.log || true
+          echo "== Gateway (last 40 lines)"; tail -n 40 e2e-out/gateway.log || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-results
+          path: |
+            e2e-out/*.txt
+            e2e-out/*.log
+            e2e-out/screens/*.png
+          if-no-files-found: warn
+
+      - name: Push the results to the e2e-results branch
+        if: always()
+        run: |
+          SRC="$PWD/e2e-out"
+          SHA=$(git rev-parse --short HEAD)
+          cd "$RUNNER_TEMP"
+          rm -rf results && git init -q results && cd results
+          mkdir -p screens
+          cp "$SRC"/screens/*.png screens/ 2>/dev/null || true
+          cp "$SRC"/instrument-*.txt "$SRC"/db-checks.txt "$SRC"/revoke.txt . 2>/dev/null || true
+          grep -E "MeterReading|Gateway|AUDIT|warn|fail|error" -i "$SRC/api.log" | tail -n 300 > api-log-excerpt.txt 2>/dev/null || true
+          tail -n 200 "$SRC/gateway.log" > gateway-log-excerpt.txt 2>/dev/null || true
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout -q -b e2e-results
+          git add -A
+          git commit -q -m "End-to-end results from $SHA (run ${{ github.run_number }})"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" e2e-results
