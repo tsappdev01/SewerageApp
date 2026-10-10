@@ -23,6 +23,7 @@ actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) = BackHandl
 
 @Composable
 actual fun SecureScreen() {
+    if (!com.meterreading.reader.BuildConfig.SECURE_SCREENS) return
     val activity = LocalContext.current.findActivity()
     DisposableEffect(activity) {
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)

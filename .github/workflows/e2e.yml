@@ -58,7 +58,7 @@ jobs:
 
       - name: Build the app (debug, server = gateway on the emulator's host) and its end-to-end tests
         working-directory: android
-        run: ./gradlew --no-daemon --stacktrace assembleDebug assembleDebugAndroidTest -PapiBaseUrl=http://10.0.2.2:5090/ -PdeviceLock=false
+        run: ./gradlew --no-daemon --stacktrace assembleDebug assembleDebugAndroidTest -PapiBaseUrl=http://10.0.2.2:5090/ -PdeviceLock=false -PsecureScreens=false
 
       - name: Enable KVM for the emulator
         run: |
@@ -77,6 +77,10 @@ jobs:
           working-directory: android
           script: bash ../.github/scripts/e2e-phone.sh
 
+      - name: API and gateway test suites (own database)
+        if: always()
+        run: bash .github/scripts/e2e-server-tests.sh
+
       - name: Server logs
         if: always()
         run: |
@@ -91,6 +95,7 @@ jobs:
             e2e-out/*.txt
             e2e-out/*.log
             e2e-out/screens/*.png
+            e2e-out/screens/*.xml
           if-no-files-found: warn
 
       - name: Push the results to the e2e-results branch
@@ -101,8 +106,8 @@ jobs:
           cd "$RUNNER_TEMP"
           rm -rf results && git init -q results && cd results
           mkdir -p screens
-          cp "$SRC"/screens/*.png screens/ 2>/dev/null || true
-          cp "$SRC"/instrument-*.txt "$SRC"/db-checks.txt "$SRC"/revoke.txt . 2>/dev/null || true
+          cp "$SRC"/screens/*.png "$SRC"/screens/*.xml screens/ 2>/dev/null || true
+          cp "$SRC"/instrument-*.txt "$SRC"/db-checks.txt "$SRC"/revoke.txt "$SRC"/api-tests.txt "$SRC"/gateway-tests.txt . 2>/dev/null || true
           grep -E "MeterReading|Gateway|AUDIT|warn|fail|error" -i "$SRC/api.log" | tail -n 300 > api-log-excerpt.txt 2>/dev/null || true
           tail -n 200 "$SRC/gateway.log" > gateway-log-excerpt.txt 2>/dev/null || true
           git config user.name "github-actions"

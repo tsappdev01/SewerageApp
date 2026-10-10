@@ -66,6 +66,8 @@ public static partial class InspectionEndpoints
     {
         var (inspector, problem) = await ReadyAsync(current, repo, ct);
         if (problem is not null) return problem;
+        // FR-002: the visit is kept with the phone that signed in, whatever the body says.
+        if (current.DeviceId is { } device) request = request with { DeviceId = device };
         var outcome = await service.SubmitAsync(inspector!, request, ct);
         if (outcome.Response is not { } response) return Problems.Of(outcome.ErrorStatus!.Value, outcome.ErrorCode!, outcome.ErrorTitle!);
         return outcome.Created ? Results.Created($"/api/v1/inspections/{response.VisitId}", response) : Results.Ok(response);

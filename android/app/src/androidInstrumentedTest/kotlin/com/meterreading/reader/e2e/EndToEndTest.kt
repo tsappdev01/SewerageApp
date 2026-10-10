@@ -110,9 +110,9 @@ class EndToEndTest {
         phone.tap("Empty", optional = true)
         phone.tap("Add photo")
         takePhoto("43")
-        phone.waitText("Save unit", 30_000)
+        phone.waitText("Photos: 1", 30_000)
         phone.shot("44_unit_vacant_with_photo")
-        phone.tap("Save unit")
+        phone.tap("Save unit") // below the photos: scrolls to it
 
         phone.waitText("Check and send")
         phone.shot("45_units_after")

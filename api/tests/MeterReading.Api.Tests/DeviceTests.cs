@@ -153,6 +153,27 @@ public sealed class DeviceTests : IClassFixture<DeviceApiFactory>, IAsyncLifetim
     }
 
     [Fact]
+    public async Task FR002_a_reading_is_kept_with_the_phone_that_signed_in_not_the_one_the_body_names()
+    {
+        var (id, key) = await Registered();
+        var transactionId = Guid.NewGuid();
+        try
+        {
+            var response = await Phone(id, key).PostAsJsonAsync("/api/v1/readings", new
+            {
+                transactionId, meterId = "BC0003", condition = "WORKING", newReading = 30_500m, readerConfirmedWarning = false,
+                capturedAtUtc = DateTime.UtcNow.AddMinutes(-2), tenantCode = "T-0102", deviceId = Guid.NewGuid(), // another phone
+            });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            Assert.Equal(id, (Guid)(await Sql("SELECT DeviceId FROM mr.ReadingTransaction WHERE TransactionId = @t", new() { ["@t"] = transactionId }))!);
+        }
+        finally
+        {
+            await Sql("DELETE FROM mr.ReadingTransaction WHERE TransactionId = @t", new() { ["@t"] = transactionId });
+        }
+    }
+
+    [Fact]
     public async Task A_code_works_only_once()
     {
         var code = await NewCode();

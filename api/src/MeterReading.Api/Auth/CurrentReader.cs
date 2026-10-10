@@ -13,6 +13,13 @@ public sealed class CurrentReader(IHttpContextAccessor http, MeterReadingReposit
     public string? LoginEmail =>
         LoginClaims.Select(c => http.HttpContext?.User.FindFirst(c)?.Value).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 
+    /// <summary>
+    /// The registered phone that signed in (Device mode, FR-002), from its key, never from what the
+    /// request says. Null with other sign-ins.
+    /// </summary>
+    public Guid? DeviceId =>
+        Guid.TryParse(http.HttpContext?.User.FindFirst(DeviceAuthHandler.DeviceIdClaim)?.Value, out var id) ? id : null;
+
     /// <summary>The reader, or the problem to return: not set up, or several readers share the sign-in name.</summary>
     public async Task<(ReaderRow? Reader, IResult? Problem)> ResolveAsync(CancellationToken ct)
     {

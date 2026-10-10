@@ -119,6 +119,9 @@ android {
         //   -PreaderLogin=rashid@dip.ae -PdeviceLock=true -PsettingsPin=1234
         buildConfigField("String", "READER_LOGIN", "\"${project.findProperty("readerLogin") ?: ""}\"")
         buildConfigField("boolean", "DEVICE_LOCK", "${project.findProperty("deviceLock") ?: "true"}")
+        // SEC: screens with readings and photos block screenshots. Only a debug build for the end-to-end
+        // test may turn that off (-PsecureScreens=false), so its screenshots show the screens.
+        buildConfigField("boolean", "SECURE_SCREENS", "${project.findProperty("secureScreens") ?: "true"}")
         buildConfigField("String", "SETTINGS_PIN", "\"${project.findProperty("settingsPin") ?: ""}\"")
     }
 
@@ -143,6 +146,7 @@ android {
         release {
             // Phones reach the system through the DMZ gateway (gateway/README.md).
             buildConfigField("String", "API_BASE_URL", "\"${project.findProperty("apiBaseUrl") ?: "https://zApps.dipark.com/"}\"")
+            buildConfigField("boolean", "SECURE_SCREENS", "true") // never off in a release
             isMinifyEnabled = true
             isShrinkResources = true
             signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")

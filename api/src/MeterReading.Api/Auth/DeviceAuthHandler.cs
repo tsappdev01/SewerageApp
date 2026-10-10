@@ -21,6 +21,7 @@ public sealed class DeviceAuthHandler(
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
     public const string SchemeName = "Device";
+    public const string DeviceIdClaim = "device_id";
     public const string IdHeader = "X-Device-Id";
     public const string KeyHeader = "X-Device-Key";
     public const string ReaderHeader = "X-Reader";
@@ -44,7 +45,7 @@ public sealed class DeviceAuthHandler(
         var reader = Request.Headers[ReaderHeader].ToString().Trim();
         await devices.TouchAsync(deviceId, reader.Length > 0 ? reader : null, Context.RequestAborted);
 
-        var claims = new List<Claim> { new("device_id", deviceId.ToString()), new(ClaimTypes.Role, auth.Value.ReaderRole) };
+        var claims = new List<Claim> { new(DeviceIdClaim, deviceId.ToString()), new(ClaimTypes.Role, auth.Value.ReaderRole) };
         if (reader.Length > 0) claims.Add(new Claim("preferred_username", reader));
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName));
     }
