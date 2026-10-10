@@ -9,7 +9,7 @@ DMZ gateway in front. Results of every run go to the `e2e-results` branch (`secu
 **What this does not replace:** an independent penetration test of the deployed UAT/production
 system, and the checks of DIP's own servers and network (section 12). Those need DIP's sign-off.
 
-Results below are from run 7 (commit 4654eb4, 2026-10-10).
+Results below are from run 10 (commit d00214f, 2026-10-10): every check green.
 
 ## 1. Authentication and authorization
 
