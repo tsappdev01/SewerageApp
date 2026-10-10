@@ -1,0 +1,9 @@
+  Determining projects to restore...
+  Restored /home/runner/work/SewerageApp/SewerageApp/gateway/tests/MeterReading.Gateway.Tests/MeterReading.Gateway.Tests.csproj (in 181 ms).
+  1 of 2 projects are up-to-date for restore.
+  MeterReading.Gateway -> /home/runner/work/SewerageApp/SewerageApp/gateway/src/MeterReading.Gateway/bin/Debug/net10.0/MeterReading.Gateway.dll
+  MeterReading.Gateway.Tests -> /home/runner/work/SewerageApp/SewerageApp/gateway/tests/MeterReading.Gateway.Tests/bin/Debug/net10.0/MeterReading.Gateway.Tests.dll
+Test run for /home/runner/work/SewerageApp/SewerageApp/gateway/tests/MeterReading.Gateway.Tests/bin/Debug/net10.0/MeterReading.Gateway.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:    43, Skipped:     0, Total:    43, Duration: 1 s - MeterReading.Gateway.Tests.dll (net10.0)

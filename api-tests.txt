@@ -1,0 +1,9 @@
+  Determining projects to restore...
+  Restored /home/runner/work/SewerageApp/SewerageApp/api/tests/MeterReading.Api.Tests/MeterReading.Api.Tests.csproj (in 1.38 sec).
+  1 of 2 projects are up-to-date for restore.
+  MeterReading.Api -> /home/runner/work/SewerageApp/SewerageApp/api/src/MeterReading.Api/bin/Debug/net10.0/MeterReading.Api.dll
+  MeterReading.Api.Tests -> /home/runner/work/SewerageApp/SewerageApp/api/tests/MeterReading.Api.Tests/bin/Debug/net10.0/MeterReading.Api.Tests.dll
+Test run for /home/runner/work/SewerageApp/SewerageApp/api/tests/MeterReading.Api.Tests/bin/Debug/net10.0/MeterReading.Api.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:   157, Skipped:     0, Total:   157, Duration: 2 s - MeterReading.Api.Tests.dll (net10.0)

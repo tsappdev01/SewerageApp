@@ -1,0 +1,15 @@
+Seq Result Check Detail
+--- ------ ----- ------
+1 PASS Phone registered with the code (FR-002) model Google sdk_gphone64_x86_64, 14, app 1.0.0, status ACTIVE
+2 PASS Only the key's hash is stored (SEC) NULL
+3 PASS BC0003 reading stored from this phone, by Rashid (E1001) reading 31050.0000, previous 30110.0000, used 940.0000, status ACCEPTED
+4 PASS BC0003 tenant is the one tapped on site, T-0102 (FR-006.12) NULL
+5 PASS BC0003 photos all arrived, bytes match their SHA-256 1 photo(s), 28 KB
+6 PASS BC0004 reading saved without signal arrived later (FR-020) captured 16:39:54, received 16:40:01 UTC, status ACCEPTED
+7 PASS BC0004 photos all arrived 1 photo(s)
+8 PASS Each reading stored once (no duplicates from retries) 2 rows
+9 PASS Accepted readings copied into MaintainMeterReading once 1101-S 99950→99990 tenant T-0102 by E1001; 1101-I 30110→31050 tenant T-0102 by E1001
+10 PASS Inspection visit at 597-559 stored, by E1001 (FR-031) at property 1, location 24.999905,55.170343, 0.000 km from office
+11 PASS Unit 1 as recorded, unit 2 vacant (FR-032/033) 2=VACANT, 1=AS_RECORDED
+12 PASS Vacant unit's photo arrived, bytes match (FR-033) 1 photo(s)
+13 PASS PMS is never written by inspections NULL
