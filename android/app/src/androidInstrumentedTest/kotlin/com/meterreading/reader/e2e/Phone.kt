@@ -69,7 +69,7 @@ class Phone(private val testName: String) {
             fail("\"$text\" is not on the screen to tap")
             return false
         }
-        node.click()
+        runCatching { node.click() }.onFailure { device.findObject(item(text))?.click() ?: throw it }
         settle()
         return true
     }
@@ -130,17 +130,21 @@ class Phone(private val testName: String) {
         Thread.sleep(400)
     }
 
-    /** Finds [selector], scrolling the screen's scrollable area down (then up) when it is not visible. */
+    /**
+     * Finds [selector], scrolling the screen's scrollable area down (then up) when it is not visible. The
+     * scrollable area is looked up again before every scroll: the app redraws while it loads.
+     */
     private fun find(selector: BySelector, timeoutMs: Long): UiObject2? {
         device.wait(Until.findObject(selector), timeoutMs)?.let { return it }
-        val scrollable = device.findObjects(By.scrollable(true)).maxByOrNull { it.visibleBounds.area() } ?: return null
-        repeat(6) {
-            device.findObject(selector)?.let { return it }
-            if (!scrollable.scroll(Direction.DOWN, 0.7f)) return@repeat
-        }
-        repeat(8) {
-            device.findObject(selector)?.let { return it }
-            if (!scrollable.scroll(Direction.UP, 0.7f)) return@repeat
+        for (direction in listOf(Direction.DOWN, Direction.UP)) {
+            repeat(8) {
+                device.findObject(selector)?.let { return it }
+                val moved = runCatching {
+                    device.findObjects(By.scrollable(true)).maxByOrNull { it.visibleBounds.area() }?.scroll(direction, 0.7f)
+                }.getOrNull()
+                if (moved == null) Thread.sleep(500) // nothing to scroll yet, or it was redrawn: look again
+                else if (!moved) return@repeat
+            }
         }
         return device.findObject(selector)
     }
