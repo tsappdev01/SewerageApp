@@ -77,10 +77,10 @@ kotlin {
             }
         }
         // End-to-end: the app on an emulator against SQL Server, the API and the gateway (.github/workflows/e2e.yml).
+        // UI Automator drives the installed app from outside, as a person would, so it runs exactly as on a phone.
         val androidInstrumentedTest by getting {
             dependencies {
-                implementation(project.dependencies.platform(libs.androidx.compose.bom))
-                implementation(libs.androidx.compose.ui.test.junit4)
+                implementation(libs.androidx.test.uiautomator)
                 implementation(libs.androidx.test.ext.junit)
                 implementation(libs.androidx.test.runner)
                 implementation(libs.androidx.test.rules)
