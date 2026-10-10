@@ -13,7 +13,7 @@ failed=0
 sql_file() { # $1 = path under db/, with the label set
   sed "s/N'Phone 01'/N'$LABEL'/" "../db/$1" > "$OUT/run.sql"
   docker cp "$OUT/run.sql" mrsql:/tmp/run.sql
-  docker exec mrsql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SA_PASSWORD" -C -b -d MeterReading -W -s " | " -i /tmp/run.sql
+  docker exec mrsql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SA_PASSWORD" -C -I -b -d MeterReading -W -s " | " -i /tmp/run.sql
 }
 
 adb install -r -g app/build/outputs/apk/debug/app-debug.apk

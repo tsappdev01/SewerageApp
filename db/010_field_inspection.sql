@@ -58,6 +58,8 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_InspectionUnitResult_Visit' AND object_id = OBJECT_ID(N'mr.InspectionUnitResult'))
 CREATE INDEX IX_InspectionUnitResult_Visit ON mr.InspectionUnitResult (VisitId);
 GO
+-- A filtered index needs QUOTED_IDENTIFIER ON; sqlcmd's default is OFF (SSMS's is ON).
+SET QUOTED_IDENTIFIER ON;
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_InspectionUnitResult_Unit' AND object_id = OBJECT_ID(N'mr.InspectionUnitResult'))
 CREATE INDEX IX_InspectionUnitResult_Unit ON mr.InspectionUnitResult (UnitId) INCLUDE (Result) WHERE UnitId IS NOT NULL;
 GO
