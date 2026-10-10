@@ -97,11 +97,11 @@ jobs:
           done | tee e2e-out/dependencies.txt
           ! grep -q "has the following vulnerable packages" e2e-out/dependencies.txt
 
-      - name: Secret scan of the whole git history (gitleaks)
+      - name: Secret scan of the whole history of this branch (gitleaks; not the results branches)
         if: always()
         run: |
           curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar -xz -C "$RUNNER_TEMP" gitleaks
-          "$RUNNER_TEMP/gitleaks" detect --source . --redact -v --report-format json --report-path e2e-out/gitleaks.json > e2e-out/gitleaks.txt 2>&1; rc=$?
+          "$RUNNER_TEMP/gitleaks" detect --source . --log-opts="HEAD" --redact -v --report-format json --report-path e2e-out/gitleaks.json > e2e-out/gitleaks.txt 2>&1; rc=$?
           tail -n 30 e2e-out/gitleaks.txt
           exit $rc
 
