@@ -112,22 +112,19 @@ to read that folder.
 
 Full detail, with the PowerShell for the certificates: `gateway/README.md`.
 
-**B+1. Certificates.** Public certificate for the phones' address on the gateway server; a
-**gateway client certificate** in the gateway server's `LocalMachine\My` (note its thumbprint, give
-`IIS AppPool\MeterReadingGateway` read access to its key); its public part trusted on the API server.
+**B+1. Certificates (https only).** Public certificate for the phones' address (`zApps.dipark.com`) on
+the gateway server; the API's own https certificate on the API server. No client certificates: phones
+are authenticated by their registration (device key + reader).
 
 **B+2. Build:** `dotnet publish gateway\src\MeterReading.Gateway -c Release -o publish-gateway`.
 Copy to the DMZ server, new pool `MeterReadingGateway` (*No Managed Code*), site with https 443.
 
 **B+3. Gateway settings** (Configuration Editor → environmentVariables): `ASPNETCORE_ENVIRONMENT` =
-`Production`, `Gateway__ApiBaseUrl` = the internal API's https address,
-`Gateway__ClientCertificate__Thumbprint` = the client certificate's thumbprint, optionally
-`Gateway__ApiCertificateThumbprint` = the API certificate's thumbprint.
+`Production`, `Gateway__ApiBaseUrl` = the internal API's **https** address, optionally
+`Gateway__ApiCertificateThumbprint` = the API certificate's thumbprint (if self-signed).
 
-**B+4. API settings** (add to B6): `Gateway__KnownProxies__0` = the gateway's IP,
-`Gateway__RequireClientCertificate` = `true`, `Gateway__ClientCertificateThumbprints__0` = the
-client certificate's thumbprint. API site → **SSL Settings** → Client certificates **Accept** (or
-**Require**). Recycle both pools.
+**B+4. API settings** (add to B6): `Gateway__KnownProxies__0` = the gateway's IP. API site →
+**SSL Settings** → *Require SSL*, Client certificates **Ignore**. Recycle both pools.
 
 **B+5. Firewall:** Internet → gateway 443; gateway → API 443 only; API → UATWEB01 1433; nothing
 from the DMZ or internet to SQL Server or the API.

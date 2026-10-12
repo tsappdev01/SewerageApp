@@ -119,7 +119,8 @@ suite 157 of 157, gateway 43 of 43.
 
 1. HTTPS only on zApps, with a trusted certificate; TLS 1.2+; HTTP closed or redirected.
 2. From the internet only the gateway is reachable; the API, SQL Server and UATWEB01 are not (NSG, firewall, WAF).
-3. The gateway reaches the API with its client certificate (`Gateway__RequireClientCertificate=true`).
+3. The gateway reaches the API over https (no client certificate, by DIP's decision of 2026-10-12), and the
+   API server accepts port 443 only from the gateway's IP. Phones are authenticated by their registration.
 4. Production settings: `ASPNETCORE_ENVIRONMENT=Production`, `Auth__Mode=Device`; secrets (the `mr_api`
    password, rotated) in Key Vault or the server's protected settings, not in files.
 5. Run `db/013_device_reader_binding.sql` before this API version.

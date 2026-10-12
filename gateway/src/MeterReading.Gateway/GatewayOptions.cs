@@ -8,7 +8,19 @@ public sealed class GatewayOptions
     /// <summary>The internal Meter Reading API, e.g. https://meterreading-api.internal/. The only place the gateway connects to.</summary>
     public string ApiBaseUrl { get; set; } = "";
 
-    /// <summary>The gateway's client certificate, shown to the internal API (mutual TLS).</summary>
+    /// <summary>
+    /// The connection to the API is always https outside Development: phones' keys and readings cross the
+    /// network between DMZ and API. Plain http is allowed only to an API on this same machine.
+    /// </summary>
+    public static string? ApiAddressProblem(Uri api, bool isDevelopment) =>
+        isDevelopment || api.Scheme == Uri.UriSchemeHttps || api.IsLoopback
+            ? null
+            : $"Gateway:ApiBaseUrl must be https ({api}): the connection to the internal API is encrypted.";
+
+    /// <summary>
+    /// Optional, not used at DIP: a client certificate shown to the internal API (mutual TLS). Phones are
+    /// authenticated by their registration instead (device key + reader, FR-002).
+    /// </summary>
     public ClientCertificateOptions ClientCertificate { get; set; } = new();
 
     /// <summary>

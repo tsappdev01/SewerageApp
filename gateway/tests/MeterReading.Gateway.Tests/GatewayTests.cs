@@ -420,3 +420,17 @@ public sealed class GatewayHardeningTests
         Assert.DoesNotContain(lines, l => l.Contains("phone-key-should-not-appear"));
     }
 }
+
+/// <summary>DIP decision 2026-10-12: https between gateway and API, no client certificate; phones authenticate by registration.</summary>
+public sealed class ApiAddressRuleTests
+{
+    [Theory]
+    [InlineData("https://mApps.dipark.com/", false, true)]
+    [InlineData("http://mApps.dipark.com/", false, false)]   // plain http across the network: refused
+    [InlineData("http://10.0.0.5:8080/", false, false)]
+    [InlineData("http://127.0.0.1:5080/", false, true)]     // API on the same machine
+    [InlineData("http://localhost:5080/", false, true)]
+    [InlineData("http://mApps.dipark.com/", true, true)]     // Development
+    public void The_API_is_reached_over_https_without_needing_a_client_certificate(string address, bool development, bool allowed) =>
+        Assert.Equal(allowed, MeterReading.Gateway.GatewayOptions.ApiAddressProblem(new Uri(address), development) is null);
+}

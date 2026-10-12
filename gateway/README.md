@@ -11,9 +11,9 @@ database, no connection string and stores nothing**.
  ┌──────▼──────────────── DMZ ───┐
  │  MeterReading.Gateway (IIS)   │   public certificate; no database access
  └──────┬────────────────────────┘
-        │ https 443, gateway's client certificate (mutual TLS)
+        │ https 443 (the API's server certificate)
  ┌──────▼─────────── internal ───┐
- │  MeterReading.Api (IIS)       │   accepts only the gateway's certificate
+ │  MeterReading.Api (IIS)       │   reachable only from the gateway's IP (firewall)
  └──────┬────────────────────────┘
         │ 1433
      UATWEB01 / MRDB
@@ -27,9 +27,9 @@ database, no connection string and stores nothing**.
 | Header cleaning | Drops `X-Dev-User` (test sign-in), `Forwarded`, `X-Original-For`; sets its own `X-Forwarded-For`/`-Proto` so the API sees the phone's address. Removes `Server` and `X-Powered-By` from answers. |
 | Size limits | JSON 64 KB, an inspection visit 512 KB, photos 2.1 MB: larger is `413 REQUEST_TOO_LARGE` before it reaches the API. |
 | Rate limits | Per phone (its `X-Device-Id`): 120 requests a minute, and photo uploads apart, 120 a minute. Per internet address 3,000 a minute (phones on one mobile network share an address), 6,000 a minute for everyone together, 10 phone registrations a minute per address. Over a limit: `429 RATE_LIMITED`. |
-| Security headers | Every answer: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`. |
+| Security headers | Every answer: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options`, `Content-Security-Policy`, `Referrer-Policy`, `Cross-Origin-Resource-Policy`, `Cache-Control: no-store`. |
 | Audit log | One line per request under the log category `Audit`: route, status, time, phone id, address, trace id, and a reason code when refused (`NOT_FOUND`, `METHOD_NOT_ALLOWED`, `REQUEST_TOO_LARGE`, `RATE_LIMITED`, `API_UNAVAILABLE`, or `API_REFUSED` when the API said no; the API logs why). Never the device key, bodies or query strings. |
-| Mutual TLS to the API | Shows its client certificate; can pin the API's certificate by thumbprint. Refuses to start without a client certificate when the API address is https (outside Development). |
+| https to the API | Always https outside Development (it refuses to start with a plain-http API address, except an API on the same machine); can pin the API's certificate by thumbprint. **No client certificate** (DIP decision 2026-10-12): phones are authenticated by their registration, device key and reader (FR-002), which the API checks on every call. A client certificate is still supported if wanted later (`Gateway__ClientCertificate__*`). |
 | API down | `502`/`504 API_UNAVAILABLE`; the phone keeps the reading in its encrypted queue and sends later. |
 
 The API still checks everything else as before: the phone's key, the reader, the tenant and the
@@ -46,40 +46,31 @@ dotnet publish gateway/src/MeterReading.Gateway -c Release -o publish-gateway
 
 ### 1. Certificates
 
+Only server certificates, for https. No client certificates: phones prove themselves by their
+registration (one-time code → device key, checked by the API on every call).
+
 | Certificate | Where | Purpose |
 |---|---|---|
 | **Public** (from a public CA) for `zApps.dipark.com` | Gateway server, IIS binding | Phones trust it. Self-signed will not work on phones. |
-| **API server** certificate (internal CA, or self-signed + pinned) | API server, IIS binding | The gateway's https connection to the API. |
-| **Gateway client** certificate (internal CA, or self-signed) | Gateway server, `LocalMachine\My` | Proves to the API it is the gateway. |
+| **API server** certificate for `mApps.dipark.com` (internal CA, or self-signed + pinned) | API server, IIS binding | Encrypts the gateway's connection to the API. |
 
-Self-signed gateway client certificate (on the gateway server, PowerShell as administrator):
-```powershell
-$c = New-SelfSignedCertificate -Subject "CN=meterreading-gateway" -CertStoreLocation Cert:\LocalMachine\My `
-     -KeyExportPolicy NonExportable -KeySpec Signature -KeyLength 2048 -NotAfter (Get-Date).AddYears(2) `
-     -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.2")    # Client Authentication
-$c.Thumbprint                                              # note it: used on both servers
-Export-Certificate -Cert $c -FilePath C:\Temp\meterreading-gateway.cer   # public part only
-```
-Give the app pool read access to its private key: `certlm.msc` → Personal → Certificates → the
-certificate → *All Tasks → Manage Private Keys* → add `IIS AppPool\MeterReadingGateway`, Read.
-
-On the **API server**, IIS must trust it: import `meterreading-gateway.cer` into *Trusted Root
-Certification Authorities* (`certlm.msc`) — or skip this by issuing the certificate from the
-internal CA the API server already trusts.
+If the API certificate is self-signed or from a CA the DMZ server does not trust, either import it
+into the gateway server's *Trusted Root Certification Authorities*, or pin it with
+`Gateway__ApiCertificateThumbprint` (below).
 
 ### 2. Gateway server (DMZ)
 
 1. Install the **ASP.NET Core 10.0 Hosting Bundle**, `iisreset`.
-2. Copy `publish-gateway` to e.g. `D:\Sites\MeterReadingGateway`. App pool `MeterReadingGateway`,
-   *No Managed Code*. Site with an **https binding on 443** and the public certificate; no http.
+2. Copy `publish-gateway` (with `deploy/zApps.web.config` as its `web.config`) to e.g.
+   `D:\Sites\MeterReadingGateway`. App pool `MeterReadingGateway`, *No Managed Code*. Site with an
+   **https binding on 443** and the public certificate; no http.
 3. Configuration Editor → `system.webServer/aspNetCore` → `environmentVariables`:
 
 | Name | Value |
 |---|---|
 | `ASPNETCORE_ENVIRONMENT` | `Production` |
-| `Gateway__ApiBaseUrl` | the internal API: `https://mApps.dipark.com/` (also the default in `appsettings.json`) |
-| `Gateway__ClientCertificate__Thumbprint` | the gateway client certificate's thumbprint (or `__Path` + `__Password` for a `.pfx`) |
-| `Gateway__ApiCertificateThumbprint` | *optional*: the API server certificate's thumbprint. Use it when that certificate is self-signed or from a CA the DMZ server does not trust. Update it when the certificate is renewed. |
+| `Gateway__ApiBaseUrl` | the internal API, **https**: `https://mApps.dipark.com/` (also the default in `appsettings.json`) |
+| `Gateway__ApiCertificateThumbprint` | *optional*: the API server certificate's thumbprint, when that certificate is self-signed or from a CA the DMZ server does not trust. Update it when the certificate is renewed. |
 
 Optional: `Gateway__RequestsPerMinutePerPhone`, `Gateway__UploadsPerMinutePerPhone`, `Gateway__RequestsPerMinute`
 (per address), `Gateway__TotalRequestsPerMinute`, `Gateway__RegistrationsPerMinute`, `Gateway__TimeoutSeconds`.
@@ -90,7 +81,8 @@ To keep the audit lines in a file for the SIEM, turn on `stdoutLogEnabled="true"
 
 4. **Check:** `https://<public address>/gateway/health` → `{"status":"live"}` (the gateway alone);
    `https://<public address>/health/live` → `{"status":"live"}` (through to the API);
-   `https://<public address>/health/ready` → `404` (kept internal).
+   `https://<public address>/health/ready` → `404` (kept internal);
+   `https://<public address>/api/v1/me` → `403 DEVICE_NOT_REGISTERED` (the API refuses an unregistered phone).
 
 ### 3. Internal API server
 
@@ -99,25 +91,20 @@ Add to the API site's environment variables (in addition to `docs/deploy-steps.m
 | Name | Value |
 |---|---|
 | `Gateway__KnownProxies__0` | the gateway server's IP as the API sees it. Only then is its `X-Forwarded-For` used, so rate limits count per phone; from any other address it is ignored. |
-| `Gateway__RequireClientCertificate` | `true` |
-| `Gateway__ClientCertificateThumbprints__0` | the gateway client certificate's thumbprint (add `__1` for the next one before renewing) |
 
-And in IIS Manager → the API site → **SSL Settings**: *Require SSL* ticked, *Client
-certificates* = **Require**.
+Leave `Gateway__RequireClientCertificate` unset (false), and in IIS → the API site → **SSL
+Settings**: *Require SSL* ticked, *Client certificates* = **Ignore**.
 
-**Check** (from the gateway server): `/api/v1/me` through the gateway → `403
-DEVICE_NOT_REGISTERED` (it reached the API). From an office PC straight to the API →
-refused at TLS by IIS. With *Require*, IIS asks every caller for the certificate, `/health` too.
-If internal monitoring must call `/health/ready` on the API directly, set *Client certificates* to
-**Accept** instead: the API then refuses everything except `/health/*` without the gateway's
-certificate (`403 GATEWAY_REQUIRED`).
+Because there is no client certificate, the **firewall** is what keeps everyone but the gateway away
+from the API: allow 443 to the API server **only from the gateway's IP** (section 4). The API still
+refuses any caller without a registered phone's key.
 
 ### 4. Firewall
 
 | From | To | Port | |
 |---|---|---|---|
 | Internet | Gateway | 443 | allow |
-| Gateway | API server | 443 | allow (only this) |
+| Gateway | API server | 443 | allow (only this; and the API server accepts 443 only from the gateway's IP) |
 | API server | UATWEB01 | 1433 | allow |
 | DMZ | SQL Server | any | **block** |
 | Internet | API server | any | **block** |
@@ -133,8 +120,6 @@ phone.
 
 ## Renewing certificates
 
-- **Gateway client certificate:** create the new one, add its thumbprint as
-  `Gateway__ClientCertificateThumbprints__1` on the API, recycle; then switch the gateway's
-  `Gateway__ClientCertificate__Thumbprint`, recycle; then remove the old thumbprint.
-- **API certificate with pinning:** set `Gateway__ApiCertificateThumbprint` to the new thumbprint
-  at the moment the API's binding switches.
+- **Public certificate (zApps):** bind the new one in IIS on the gateway server before the old expires.
+- **API certificate:** bind the new one on the API server; if pinned, set `Gateway__ApiCertificateThumbprint`
+  to the new thumbprint at the moment the API's binding switches.

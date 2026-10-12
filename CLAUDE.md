@@ -50,7 +50,8 @@ never run outside development.
 - The DMZ's only piece: YARP, no database, stores nothing. The routes it passes on are a fixed
   list in `Routes.cs`; a new app endpoint must be added there (and tested) or phones get 404.
 - It strips `X-Dev-User` and forwarding headers and sets its own `X-Forwarded-For`; the API trusts
-  that only from `Gateway:KnownProxies` and can require the gateway's client certificate.
+  that only from `Gateway:KnownProxies`. Gateway → API is https only; no client certificate (DIP decision):
+  phones authenticate by registration, and the firewall lets only the gateway reach the API.
 - `dotnet test gateway/MeterReading.Gateway.slnx` needs no database.
 
 ## Phone app (`android/` and `ios/`)

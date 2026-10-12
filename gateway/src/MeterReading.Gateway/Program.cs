@@ -15,9 +15,11 @@ builder.WebHost.ConfigureKestrel(k => k.AddServerHeader = false);
 var options = builder.Configuration.GetSection(GatewayOptions.Section).Get<GatewayOptions>() ?? new GatewayOptions();
 if (!Uri.TryCreate(options.ApiBaseUrl, UriKind.Absolute, out var apiUri))
     throw new InvalidOperationException("Gateway:ApiBaseUrl is not set (the internal Meter Reading API, e.g. https://meterreading-api.internal/).");
+if (GatewayOptions.ApiAddressProblem(apiUri, builder.Environment.IsDevelopment()) is { } addressProblem)
+    throw new InvalidOperationException(addressProblem);
+// Optional: DIP authenticates phones by their registration (device key + reader), not by certificates, so
+// the gateway normally connects to the API over plain https without a client certificate.
 var clientCertificate = LoadClientCertificate(options.ClientCertificate);
-if (apiUri.Scheme == Uri.UriSchemeHttps && clientCertificate is null && !builder.Environment.IsDevelopment())
-    throw new InvalidOperationException("Gateway:ClientCertificate is not set: the internal API only accepts the gateway with its certificate.");
 
 builder.Services.AddProblemDetails();
 builder.Services.AddRateLimiter(o =>

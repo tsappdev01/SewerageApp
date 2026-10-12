@@ -25,7 +25,7 @@ readings to billing.
   stamped photos, and send the visit (or keep it on the phone without signal). Database `db/010`,
   API with 28 tests, gateway routes, phone screens with JVM tests. Mock: [docs/field-inspection-mock.html](docs/field-inspection-mock.html).
 - **DMZ gateway:** YARP reverse proxy for a DMZ without database access: fixed list of the app's
-  requests, size and rate limits, mutual TLS to the API (which then accepts only the gateway); 30 tests.
+  requests, size and rate limits, https to the API (reachable only from the gateway; phones authenticate by registration); 30 tests.
 - **Android:** all reader screens, connected to the API; opens with the phone's own lock (PIN,
   pattern, finger or face) as the reader set in Settings; each phone registered with its own key;
   Settings (gear) behind a supervisor PIN;

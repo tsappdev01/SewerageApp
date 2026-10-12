@@ -575,8 +575,8 @@ ol.decide li::marker { font-family: var(--f-mono); color: var(--navy); font-weig
         <tr><td>Body limits</td><td>64 KB unless justified</td><td>64 KB JSON, 512 KB visit, 2.1 MB photo</td><td><span class="pill p-ok">Met</span></td></tr>
         <tr><td>Rate limiting</td><td>Per certificate + global</td><td>Per IP 600/min; registration 10/min</td><td><span class="pill p-part">Per IP</span></td></tr>
         <tr><td>No leakage</td><td>No Swagger, no Server header, generic errors</td><td>OpenAPI only in Development; Server and X-Powered-By removed; problem-details errors</td><td><span class="pill p-ok">Met</span></td></tr>
-        <tr><td>DMZ holds nothing</td><td>No database, no secrets</td><td>No database; only its own client certificate</td><td><span class="pill p-ok">Met</span></td></tr>
-        <tr><td>DMZ → internal auth</td><td>Managed-identity token</td><td>Gateway client certificate; still to be created on zApps</td><td><span class="pill p-part">Pending</span></td></tr>
+        <tr><td>DMZ holds nothing</td><td>No database, no secrets</td><td>No database, no secrets</td><td><span class="pill p-ok">Met</span></td></tr>
+        <tr><td>DMZ → internal auth</td><td>Managed-identity token</td><td>https to the API; no client certificate (DIP decision 2026-10-12): the API accepts 443 only from the gateway's IP and checks every phone's registration</td><td><span class="pill p-part">Decided</span></td></tr>
         <tr><td>Revocation</td><td>Registry, ≤ 5 min cache</td><td>Device status checked on every call, so it takes effect at once</td><td><span class="pill p-ok">Met</span></td></tr>
         <tr><td>Fail closed</td><td>503 if registry is down</td><td>502/504 if mApps is down; the phone keeps its work</td><td><span class="pill p-ok">Met</span></td></tr>
         <tr><td>Audit log</td><td>Every request and rejection, with reason codes</td><td>Standard IIS and ASP.NET logs only</td><td><span class="pill p-gap">Gap</span></td></tr>

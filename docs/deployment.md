@@ -170,8 +170,6 @@ settings), not in the file.
 | `ImageStore__Kind` | `Database` (default) |
 | `PmsTransfer__Enabled` | `false` until section 2.6 is done |
 | `Gateway__KnownProxies__0` *(behind the DMZ gateway)* | The gateway's IP. Its `X-Forwarded-For` is used only from this address (2.12). |
-| `Gateway__RequireClientCertificate` | `true` behind the gateway: only the gateway's certificate gets in |
-| `Gateway__ClientCertificateThumbprints__0` | The gateway client certificate's thumbprint |
 
 Other settings (the high-consumption factor, photo limits) have sensible defaults; see
 `api/README.md`.
@@ -308,14 +306,14 @@ guessed quickly.
 
 The DMZ has no route to the database, so the API does not go there. Instead a small gateway
 (`gateway/`) runs in the DMZ on 443: it passes on only the app's own requests, with size and
-rate limits, and connects to the internal API with its own client certificate (mutual TLS). It
-has no database and stores nothing. The API accepts only the gateway's certificate and keeps
-checking the phone's key, the reader and every rule.
+rate limits, and connects to the internal API over https. It has no database and stores nothing.
+There are no client certificates: the API checks the phone's registration (device key and reader)
+and every rule on each call, and the firewall lets only the gateway reach the API.
 
 | From | To | Port | |
 |---|---|---|---|
 | Internet | Gateway | 443 | allow |
-| Gateway | API server | 443 | allow (only this) |
+| Gateway | API server | 443 | allow (only this; the API server accepts 443 only from the gateway's IP) |
 | API server | UATWEB01 | 1433 | allow |
 | DMZ, Internet | SQL Server, API server | any | **block** |
 
