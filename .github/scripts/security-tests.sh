@@ -87,7 +87,7 @@ echo "== 2. Record-level authorization"
 # Unread meters with a tenant, from the live list: "meter value tenant", value = last + 100.
 call GET /api/v1/sync/meters "${A[@]}" >/dev/null
 mapfile -t FREE < <(jq -r '[.properties[] | {code, t: ((.tenants[0].code) // .tenantCode)}] as $p
-  | .meters[] | select(.state == "PENDING") | . as $m | ([$p[] | select(.code == $m.propertyCode) | .t][0]) as $t
+  | .meters[] | select(.state == "PENDING") | select(((.previousReading // 0) + 100) < pow(10; .registerDigits)) | . as $m | ([$p[] | select(.code == $m.propertyCode) | .t][0]) as $t
   | select($t != null) | "\(.id) \(((.previousReading // 0) + 100) | floor) \($t)"' "$BODY")
 echo "unread meters for the tests: ${FREE[*]}"
 [ "${#FREE[@]}" -ge 4 ] || { row 0 FAIL "Enough unread meters in the test data" "${#FREE[@]}"; }

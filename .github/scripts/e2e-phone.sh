@@ -19,6 +19,9 @@ sql_file() { # $1 = path under db/, with the label set
 adb install -r -g app/build/outputs/apk/debug/app-debug.apk
 adb install -r -g app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell cmd location set-location-enabled true || true
+# A slow emulator may show "isn't responding" for its own apps; those dialogs are not the app's.
+adb shell settings put global hide_error_dialogs 1 || true
+adb shell input keyevent KEYCODE_HOME; sleep 5
 # Stand at the DIP office: the emulator's GPS keeps reporting it.
 ( while true; do adb emu geo fix 55.170344 24.999906 >/dev/null 2>&1; sleep 3; done ) &
 GEO=$!

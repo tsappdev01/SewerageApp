@@ -22,8 +22,21 @@ class Phone(private val testName: String) {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val shots = File(context.getExternalFilesDir(null), "e2e").apply { mkdirs() }
 
+    /**
+     * Closes Android's own "isn't responding" dialog if a slow emulator shows one (e.g. for the launcher):
+     * it belongs to the emulator, not to the app, but it covers the screen.
+     */
+    fun dismissSystemDialogs() {
+        repeat(3) {
+            if (!device.hasObject(By.textContains("isn't responding"))) return
+            (device.findObject(By.text("Wait")) ?: device.findObject(By.text("Close app")))?.click()
+            Thread.sleep(1_000)
+        }
+    }
+
     /** Opens the app from the launcher, as a new start. */
     fun openApp() {
+        dismissSystemDialogs()
         val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)!!
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         context.startActivity(intent)
@@ -42,7 +55,10 @@ class Phone(private val testName: String) {
     fun has(text: String) = has(item(text))
 
     fun waitFor(selector: BySelector, what: String, timeoutMs: Long = 20_000): UiObject2 {
-        val found = device.wait(Until.findObject(selector), timeoutMs)
+        val found = device.wait(Until.findObject(selector), timeoutMs) ?: run {
+            dismissSystemDialogs()
+            device.wait(Until.findObject(selector), 10_000)
+        }
         if (found == null) {
             fail("\"$what\" did not appear in ${timeoutMs / 1000} s")
         }
