@@ -35,7 +35,10 @@ public sealed class TransferTests(ApiFactory factory) : IAsyncLifetime
         await cmd.ExecuteNonQueryAsync();
     }
 
-    private static readonly DateTime Captured = new(2026, 10, 4, 5, 15, 30, DateTimeKind.Utc); // 09:15:30 in the UAE
+    // Yesterday at 05:15:30 UTC (09:15:30 in the UAE): recent, because the API refuses readings more than
+    // 7 days old (CAPTURE_TIME_INVALID); a fixed date stopped working once it was a week in the past.
+    private static readonly DateTime Captured = DateTime.UtcNow.Date.AddDays(-1).AddHours(5).AddMinutes(15).AddSeconds(30);
+    private static readonly DateTime CapturedInUae = Captured.AddHours(4);
 
     private async Task<Guid> Send(string meterId, string condition = "WORKING", decimal? reading = null, string? reason = null,
         string? note = null, string? subTenant = null, bool confirmed = false)
@@ -92,7 +95,7 @@ public sealed class TransferTests(ApiFactory factory) : IAsyncLifetime
         Assert.Equal("1101", row["PropertyCode"]);
         Assert.Equal("1101-I", row["MeterNumber"]);
         Assert.Equal("T-0102", row["TenantCode"]);
-        Assert.Equal("2026-10-04 09:15:30", row["ReadingDate"]);   // UAE time, as text
+        Assert.Equal(CapturedInUae.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture), row["ReadingDate"]);   // UAE time, as text
         Assert.Equal("WORKING", row["MeterStatus"]);
         Assert.Equal("30110", row["Previous_Reading"]);
         Assert.Equal("30500", row["Current_Reading"]);
@@ -161,7 +164,7 @@ public sealed class TransferTests(ApiFactory factory) : IAsyncLifetime
         var result = await Transfer(custom, id);
         var row = await PmsRow(result.PmsRowId!.Value);
         Assert.Equal("Working", row["MeterStatus"]);
-        Assert.Equal("04/10/2026 09:15", row["ReadingDate"]);
+        Assert.Equal(CapturedInUae.ToString("dd/MM/yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture), row["ReadingDate"]);
     }
 
     [Fact]
