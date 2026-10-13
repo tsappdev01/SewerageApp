@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -31,6 +32,9 @@ import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.meterreading.reader.resources.*
 import com.meterreading.reader.data.*
 import com.meterreading.reader.ui.components.*
@@ -54,13 +59,27 @@ import com.meterreading.reader.platform.File
  */
 @Composable
 fun CaptureScreen(meterId: String, onNextMeter: (String) -> Unit, onHome: () -> Unit, onExit: () -> Unit) {
-    val vm: CaptureViewModel = viewModel(key = "capture-$meterId") { CaptureViewModel(AppGraph.repository, meterId) }
+    // The property's other meters (Sewerage / Irrigation) are read here too, one at a time. Each keeps
+    // its own capture, so switching back and forth loses nothing that was typed.
+    var activeId by rememberSaveable(meterId) { mutableStateOf(meterId) }
+    val meters by AppGraph.repository.meters.collectAsState()
+    val first: CaptureViewModel = viewModel(key = "capture-$activeId") { CaptureViewModel(AppGraph.repository, activeId) }
+    val options = remember(meters, first.meter) { MeterSwitch.options(meters, first.meter) }
+    val captures = options.associate { m ->
+        m.id to viewModel<CaptureViewModel>(key = "capture-${m.id}") { CaptureViewModel(AppGraph.repository, m.id) }
+    }
+    val vm = first
     SecureScreen()
     PlatformBackHandler { if (!vm.back()) onExit() }
 
+    val switch = MeterSwitchState(options, activeId, { id -> captures[id]?.value(NumberTarget.CURRENT) }) { activeId = it }
+    // "Next meter" at the same property switches here, so the other meter's typed number is kept.
+    val next: (String) -> Unit = { id -> if (id != activeId && options.any { it.id == id }) activeId = id else onNextMeter(id) }
+
     val outcome = vm.outcome
+    CompositionLocalProvider(LocalMeterSwitch provides switch.takeIf { options.size > 1 && !vm.sending }) {
     when {
-        outcome != null -> ResultStep(vm, outcome, onNextMeter, onHome)
+        outcome != null -> ResultStep(vm, outcome, next, onHome)
         vm.stepIndex < 0 -> ConditionStep(vm, onBack = onExit)
         else -> when (val step = vm.currentStep!!) {
             is Step.Reason -> ReasonStep(vm, step.category)
@@ -69,6 +88,62 @@ fun CaptureScreen(meterId: String, onNextMeter: (String) -> Unit, onHome: () -> 
             is Step.Note -> NoteStep(vm, step.required)
             Step.NewMeterNumber -> NewMeterNumberStep(vm)
             Step.Confirm -> ConfirmStep(vm)
+        }
+    }
+    }
+}
+
+/** The meters of the property open on the capture screen, and which one is being read. */
+private class MeterSwitchState(
+    val options: List<Meter>,
+    val activeId: String,
+    val typed: (String) -> Long?,
+    val pick: (String) -> Unit,
+)
+
+private val LocalMeterSwitch = staticCompositionLocalOf<MeterSwitchState?> { null }
+
+/** Sewerage | Irrigation: which meter of this property is being read. Each says whether it has a number yet. */
+@Composable
+private fun MeterTypeSwitch(s: MeterSwitchState) {
+    val sameType = s.options.groupingBy { it.type }.eachCount()
+    Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(stringResource(Res.string.which_meter), style = MaterialTheme.typography.titleMedium, color = AppColors.Ink)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(AppColors.PendingTint)
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            s.options.forEach { m ->
+                val on = m.id == s.activeId
+                val fg = if (on) Color.White else AppColors.Ink
+                val label = stringResource(meterTypeLabel(m.type)) + if ((sameType[m.type] ?: 0) > 1) " ${m.number}" else ""
+                val typed = s.typed(m.id)
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .heightIn(min = 64.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (on) AppColors.Navy else Color.Transparent)
+                        .selectable(selected = on, role = Role.Tab) { s.pick(m.id) }
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(if (on) Icons.Rounded.CheckCircle else meterTypeIcon(m.type), null, tint = fg, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(label, color = fg, fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text(
+                        typed?.let { stringResource(Res.string.meter_typed, formatReading(it)) } ?: stringResource(Res.string.meter_to_read),
+                        color = fg, style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
         }
     }
 }
@@ -94,6 +169,7 @@ private fun StepScaffold(
             current = vm.stepIndex + 1,
             modifier = Modifier.padding(bottom = 8.dp),
         )
+        LocalMeterSwitch.current?.let { MeterTypeSwitch(it) }
         Column(
             Modifier
                 .weight(1f)
@@ -129,6 +205,13 @@ private fun MeterContext(meter: Meter, property: Property) {
                 Text(meter.number, fontFamily = NumberFont, fontWeight = FontWeight.Bold, fontSize = 22.sp)
                 Text(property.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text("${meter.zoneCode} · ${property.code}", color = AppColors.SubInk)
+                meter.previousReading?.let { prev ->
+                    Text(
+                        meter.lastConsumption?.let { stringResource(Res.string.last_reading_used, formatReading(prev), formatReading(it)) }
+                            ?: stringResource(Res.string.last_reading, formatReading(prev)),
+                        color = AppColors.Ink, fontWeight = FontWeight.Bold,
+                    )
+                }
             }
         }
         meter.supervisorNote?.let {
@@ -198,7 +281,7 @@ private fun PhotoStep(vm: CaptureViewModel, role: ImageRole) {
 
 /** Pinch to zoom, so the reader can read small wheels from the photo. */
 @Composable
-private fun ZoomablePhoto(file: File?, height: Dp) {
+private fun ZoomablePhoto(file: File, height: Dp) {
     val photo = rememberPhoto(file)
     var scale by remember(file) { mutableFloatStateOf(1f) }
     var offset by remember(file) { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
@@ -233,6 +316,7 @@ private fun ZoomablePhoto(file: File?, height: Dp) {
 @Composable
 private fun NumberStep(vm: CaptureViewModel, target: NumberTarget, required: Boolean) {
     var warning by remember(target) { mutableStateOf<ReadingRules.Check?>(null) }
+    var keyboard by rememberSaveable { mutableStateOf(false) }
     val digits = vm.digits(target)
     val previous = vm.previousFor(target)
     val size = vm.meter.registerDigits
@@ -257,7 +341,7 @@ private fun NumberStep(vm: CaptureViewModel, target: NumberTarget, required: Boo
                 stringResource(if (shown is ReadingRules.Check.Lower) Res.string.warn_lower else Res.string.warn_high),
                 Icons.Rounded.Warning, AppColors.Warn, AppColors.WarnTint,
             )
-            ZoomablePhoto(vm.photoFor(target), height = 130.dp)
+            vm.photoFor(target)?.let { ZoomablePhoto(it, height = 130.dp) }
             if (previous != null) {
                 Label(stringResource(Res.string.last_time))
                 Odometer(registerDigits(previous, size), size, style = OdometerStyle.Previous)
@@ -271,27 +355,56 @@ private fun NumberStep(vm: CaptureViewModel, target: NumberTarget, required: Boo
     StepScaffold(
         vm, stringResource(Choices.numberTitle(target)), stringResource(Res.string.speak_number), { vm.back() }, showMeter = false, scroll = false,
         bottom = {
+            val done = {
+                val check = vm.checkFor(target)
+                if ((check is ReadingRules.Check.Lower || check is ReadingRules.Check.High) && !vm.readerConfirmedWarning) {
+                    warning = check
+                } else {
+                    vm.next()
+                }
+            }
             if (!required) {
                 BigButton(stringResource(Res.string.cant_read), { vm.skipNumber(target) }, kind = BigButtonKind.Secondary, minHeight = 52.dp)
             }
-            NumberPad(
-                onDigit = { vm.typeDigit(target, it) },
-                onDelete = { vm.deleteDigit(target) },
-                onDone = {
-                    val check = vm.checkFor(target)
-                    if ((check is ReadingRules.Check.Lower || check is ReadingRules.Check.High) && !vm.readerConfirmedWarning) {
-                        warning = check
-                    } else {
-                        vm.next()
-                    }
-                },
-                doneEnabled = vm.isComplete(target),
-            )
+            if (keyboard) {
+                val focus = remember { FocusRequester() }
+                OutlinedTextField(
+                    value = digits,
+                    onValueChange = { vm.setDigits(target, it) },
+                    label = { Text(stringResource(Res.string.reading_now)) },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.headlineMedium.copy(fontFamily = NumberFont),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done, autoCorrectEnabled = false),
+                    keyboardActions = KeyboardActions(onDone = { if (vm.isComplete(target)) done() }),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                )
+                LaunchedEffect(target) { focus.requestFocus() }
+                BigButton(stringResource(Res.string.done), done, icon = Icons.Rounded.Check, enabled = vm.isComplete(target), minHeight = 60.dp)
+                TextButton(onClick = { keyboard = false }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Rounded.Dialpad, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(Res.string.use_keypad), style = MaterialTheme.typography.titleMedium)
+                }
+            } else {
+                NumberPad(
+                    onDigit = { vm.typeDigit(target, it) },
+                    onDelete = { vm.deleteDigit(target) },
+                    onDone = done,
+                    doneEnabled = vm.isComplete(target),
+                    keyHeight = 56.dp,
+                )
+                TextButton(onClick = { keyboard = true }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Rounded.Keyboard, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(Res.string.use_keyboard), style = MaterialTheme.typography.titleMedium)
+                }
+            }
         },
     ) {
-        ZoomablePhoto(vm.photoFor(target), height = 110.dp)
+        vm.photoFor(target)?.let { ZoomablePhoto(it, height = 110.dp) }
         if (previous != null) {
-            Label(stringResource(Res.string.last_time))
+            val used = vm.meter.lastConsumption?.takeIf { target == NumberTarget.CURRENT }
+            Label(used?.let { stringResource(Res.string.last_time_used, formatReading(it)) } ?: stringResource(Res.string.last_time))
             Odometer(registerDigits(previous, size), size, style = OdometerStyle.Previous)
         }
         Label(stringResource(Res.string.now), strong = true)
@@ -371,7 +484,7 @@ private fun NewMeterNumberStep(vm: CaptureViewModel) {
         vm, stringResource(Res.string.new_meter_number_title), stringResource(Res.string.speak_new_meter), { vm.back() },
         bottom = { BigButton(stringResource(Res.string.next), vm::next, icon = Icons.AutoMirrored.Rounded.ArrowForward, enabled = vm.newMeterNumber.isNotBlank()) },
     ) {
-        ZoomablePhoto(vm.photos[ImageRole.NEW_METER], height = 160.dp)
+        vm.photos[ImageRole.NEW_METER]?.let { ZoomablePhoto(it, height = 160.dp) }
         OutlinedTextField(
             value = vm.newMeterNumber,
             onValueChange = { vm.newMeterNumber = it.uppercase().take(30) },
@@ -403,7 +516,7 @@ private fun ConfirmStep(vm: CaptureViewModel) {
         },
     ) {
         val photo = vm.photos[ImageRole.DISPLAY] ?: vm.photos[ImageRole.OLD_METER_FINAL] ?: vm.photos.values.firstOrNull()
-        ZoomablePhoto(photo, height = 170.dp)
+        photo?.let { ZoomablePhoto(it, height = 170.dp) }
         Text(stringResource(Res.string.q_same), style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         if (vm.condition == MeterCondition.METER_REPLACED) {
             BigValue(stringResource(Res.string.old_meter), vm.value(NumberTarget.OLD_FINAL))

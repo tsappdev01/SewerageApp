@@ -296,6 +296,9 @@ FR-007.2 — A `Rejected` submission cannot be retried as-is; the reader re-capt
 
 ## 5. Functional requirements — camera, images and OCR
 
+> **For now (Oct 2026, DIP):** photos are switched off in the app (`StatusRules.PHOTOS_ON`); readings are
+> sent without them and the server accepts that. The rules below apply again when they are switched on.
+
 Every reading carries a live camera photograph as evidence; OCR may suggest the number but the
 reader confirms it and the server decides. OCR is introduced in Phase 3, after manual capture is
 stable (§17).

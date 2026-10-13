@@ -2,7 +2,7 @@
 #
 #   phone (emulator) ──http──▶ gateway :5090 ──▶ API :5080 (Device sign-in) ──▶ SQL Server (db/ + db/dev data)
 #
-# The test registers the phone with a one-time code, reads two meters with photos (one without signal),
+# The test registers the phone with a one-time code, reads two meters (photos are off for now; one without signal),
 # sends a field inspection with a photo, then the database is checked (db/dev/900_e2e_checks.sql), the
 # phone is blocked and must no longer open. Screenshots of every step, the logs and the check results
 # go to the e2e-results branch and the run's artifacts.

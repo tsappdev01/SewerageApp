@@ -26,11 +26,14 @@ INSERT @checks SELECT N'BC0003 reading stored from this phone, by Rashid (E1001)
     (SELECT CONCAT(N'reading ', NewReading, N', previous ', PreviousReading, N', used ', Consumption, N', status ', Status) FROM mr.ReadingTransaction WHERE TransactionId = @r1);
 INSERT @checks SELECT N'BC0003 tenant is the one tapped on site, T-0102 (FR-006.12)',
     IIF(EXISTS (SELECT 1 FROM mr.ReadingTransaction WHERE TransactionId = @r1 AND TenantCode = 'T-0102'), 'PASS', 'FAIL'), NULL;
+-- Photos are switched off in the app for now (StatusRules.PHOTOS_ON), so a reading may carry none:
+-- what matters is that every photo it announced arrived intact.
 INSERT @checks SELECT N'BC0003 photos all arrived, bytes match their SHA-256',
     IIF((SELECT COUNT(*) FROM mr.ReadingImage i JOIN mr.ReadingImageData d ON d.BlobPath = i.BlobPath
-         WHERE i.TransactionId = @r1 AND CONVERT(char(64), HASHBYTES('SHA2_256', d.ImageBytes), 2) = i.Sha256) >= 1
+         WHERE i.TransactionId = @r1 AND CONVERT(char(64), HASHBYTES('SHA2_256', d.ImageBytes), 2) = i.Sha256)
+          = (SELECT COUNT(*) FROM mr.ReadingImage WHERE TransactionId = @r1)
         AND (SELECT COUNT(*) FROM mr.ReadingImage WHERE TransactionId = @r1) = (SELECT ISNULL(ExpectedPhotos, 0) FROM mr.ReadingTransaction WHERE TransactionId = @r1), 'PASS', 'FAIL'),
-    (SELECT CONCAT(COUNT(*), N' photo(s), ', SUM(SizeBytes) / 1024, N' KB') FROM mr.ReadingImage WHERE TransactionId = @r1);
+    (SELECT CONCAT(COUNT(*), N' photo(s), ', ISNULL(SUM(SizeBytes), 0) / 1024, N' KB') FROM mr.ReadingImage WHERE TransactionId = @r1);
 
 -- FR-020: meter BC0004 read without signal, sent later.
 DECLARE @r2 uniqueidentifier = (SELECT TOP (1) TransactionId FROM mr.ReadingTransaction WHERE MeterId = 'BC0004' AND DeviceId = @device ORDER BY ReceivedAtUtc DESC);
@@ -38,8 +41,7 @@ INSERT @checks SELECT N'BC0004 reading saved without signal arrived later (FR-02
     IIF(EXISTS (SELECT 1 FROM mr.ReadingTransaction WHERE TransactionId = @r2 AND NewReading = 99990 AND DATEDIFF(SECOND, CapturedAtUtc, ReceivedAtUtc) >= 5), 'PASS', 'FAIL'),
     (SELECT CONCAT(N'captured ', FORMAT(CapturedAtUtc, 'HH:mm:ss'), N', received ', FORMAT(ReceivedAtUtc, 'HH:mm:ss'), N' UTC, status ', Status) FROM mr.ReadingTransaction WHERE TransactionId = @r2);
 INSERT @checks SELECT N'BC0004 photos all arrived',
-    IIF((SELECT COUNT(*) FROM mr.ReadingImage WHERE TransactionId = @r2) >= 1
-        AND (SELECT COUNT(*) FROM mr.ReadingImage WHERE TransactionId = @r2) = (SELECT ISNULL(ExpectedPhotos, 0) FROM mr.ReadingTransaction WHERE TransactionId = @r2), 'PASS', 'FAIL'),
+    IIF((SELECT COUNT(*) FROM mr.ReadingImage WHERE TransactionId = @r2) = (SELECT ISNULL(ExpectedPhotos, 0) FROM mr.ReadingTransaction WHERE TransactionId = @r2), 'PASS', 'FAIL'),
     (SELECT CONCAT(COUNT(*), N' photo(s)') FROM mr.ReadingImage WHERE TransactionId = @r2);
 INSERT @checks SELECT N'Each reading stored once (no duplicates from retries)',
     IIF((SELECT COUNT(*) FROM mr.ReadingTransaction WHERE DeviceId = @device AND MeterId IN ('BC0003', 'BC0004')) = 2, 'PASS', 'FAIL'),

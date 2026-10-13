@@ -69,6 +69,15 @@
     <string name="type_new_opening">New meter: number when fitted</string>
     <string name="type_new_current">New meter: number now</string>
     <string name="last_time">Last time</string>
+    <string name="last_time_used">Last time · used %1$s</string>
+    <string name="last_reading">Last time %1$s</string>
+    <string name="last_reading_used">Last time %1$s · used %2$s</string>
+    <string name="which_meter">Which meter?</string>
+    <string name="meter_to_read">To read</string>
+    <string name="meter_typed">Typed %1$s</string>
+    <string name="use_keyboard">Type with phone keyboard</string>
+    <string name="use_keypad">Use the big keypad</string>
+    <string name="reading_now">Reading now</string>
     <string name="now">Now</string>
     <string name="delete_digit">Delete</string>
     <string name="done">Done</string>
@@ -247,7 +256,7 @@
     <string name="speak_photo">Hold the phone still. Put the numbers inside the white box. Press the big white button.</string>
     <string name="speak_photo_context">Hold the phone still. Take a photo of the meter. Press the big white button.</string>
     <string name="speak_photo_review">Is the photo clear? If it is good, press the green button.</string>
-    <string name="speak_number">Look at your photo. Press the same numbers, from left to right.</string>
+    <string name="speak_number">Look at the meter. Press the same numbers, from left to right.</string>
     <string name="speak_warning">Please look at the meter again. If the number is correct, press It is correct.</string>
     <string name="speak_reason">Press the picture that matches.</string>
     <string name="speak_note">Press the microphone and say what you see.</string>

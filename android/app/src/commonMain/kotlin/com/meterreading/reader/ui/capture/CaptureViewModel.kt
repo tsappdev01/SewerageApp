@@ -87,6 +87,12 @@ class CaptureViewModel(private val repo: MeterRepository, meterId: String) : Vie
         if (current.length < meter.registerDigits) numbers[target] = current + c
     }
 
+    /** Typed with the phone's keyboard: digits only, at most the register's length. */
+    fun setDigits(target: NumberTarget, text: String) {
+        val d = text.filter { it in '0'..'9' }.take(meter.registerDigits)
+        if (d.isEmpty()) numbers.remove(target) else numbers[target] = d
+    }
+
     fun deleteDigit(target: NumberTarget) {
         numbers[target] = digits(target).dropLast(1)
     }
@@ -100,9 +106,10 @@ class CaptureViewModel(private val repo: MeterRepository, meterId: String) : Vie
         next()
     }
 
-    fun isComplete(target: NumberTarget): Boolean = digits(target).length == meter.registerDigits
+    /** Entered by hand: leading zeros may be left out, so any length up to the register counts. */
+    fun isComplete(target: NumberTarget): Boolean = digits(target).isNotEmpty()
 
-    fun value(target: NumberTarget): Long? = digits(target).takeIf { it.length == meter.registerDigits }?.toLong()
+    fun value(target: NumberTarget): Long? = digits(target).takeIf { it.isNotEmpty() }?.toLong()
 
     /** Reading shown as "last time" above the boxes. */
     fun previousFor(target: NumberTarget): Long? = when (target) {

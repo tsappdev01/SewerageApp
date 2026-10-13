@@ -18,7 +18,16 @@ sealed interface Step {
  * TODO(FR-006.5): replace with the StatusRules the server sends in GET /config.
  */
 object StatusRules {
-    fun stepsFor(condition: MeterCondition): List<Step> = when (condition) {
+    /**
+     * Photos are switched off for now (DIP decision, Oct 2026): the photo steps are left out and a
+     * reading is sent with no photos, which the server accepts. Set to true to bring them back.
+     */
+    const val PHOTOS_ON = false
+
+    fun stepsFor(condition: MeterCondition, photos: Boolean = PHOTOS_ON): List<Step> =
+        allSteps(condition).filter { photos || it !is Step.Photo }
+
+    private fun allSteps(condition: MeterCondition): List<Step> = when (condition) {
         MeterCondition.WORKING -> listOf(
             Step.Photo(ImageRole.DISPLAY),
             Step.Number(NumberTarget.CURRENT, required = true),
