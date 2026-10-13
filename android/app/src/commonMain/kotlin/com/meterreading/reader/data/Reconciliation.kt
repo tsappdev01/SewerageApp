@@ -53,13 +53,13 @@ data class Reconciliation(
  * Home's progress in properties, as readers work: a property is done when every one of its meters is
  * done (read, or sent for checking), and still to visit while any meter on it can be read.
  */
-data class PropertyProgress(val done: Int, val total: Int) {
+data class HomeProgress(val done: Int, val total: Int) {
     val left: Int get() = total - done
 
     companion object {
-        fun of(meters: List<Meter>): PropertyProgress {
+        fun of(meters: List<Meter>): HomeProgress {
             val byProperty = meters.groupBy { it.propertyCode }
-            return PropertyProgress(byProperty.values.count { group -> group.none { it.state.canCapture } }, byProperty.size)
+            return HomeProgress(byProperty.values.count { group -> group.none { it.state.canCapture } }, byProperty.size)
         }
     }
 }
