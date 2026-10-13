@@ -407,8 +407,11 @@ private fun NumberStep(vm: CaptureViewModel, target: NumberTarget, required: Boo
             Label(used?.let { stringResource(Res.string.last_time_used, formatReading(it)) } ?: stringResource(Res.string.last_time))
             Odometer(registerDigits(previous, size), size, style = OdometerStyle.Previous)
         }
-        Label(stringResource(Res.string.now), strong = true)
-        Odometer(digits, size, showCursor = true)
+        // With the phone keyboard open there is no room for the boxes; the field shows the number.
+        if (!keyboard) {
+            Label(stringResource(Res.string.now), strong = true)
+            Odometer(digits, size, showCursor = true)
+        }
         vm.checkFor(target)?.consumption?.takeIf { target != NumberTarget.OLD_FINAL }?.let {
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Pill(stringResource(Res.string.used, formatReading(it)), AppColors.Ok, AppColors.OkTint)
