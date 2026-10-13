@@ -49,8 +49,8 @@ fun HomeScreen(
     val readings by repo.readings.collectAsStateWithLifecycle()
     val readerName by repo.readerName.collectAsStateWithLifecycle()
     val savedListFrom by repo.savedListFrom.collectAsStateWithLifecycle()
-    val total = meters.size
-    val done = meters.count { !it.state.canCapture }
+    // Counted in properties: a reader visits a property once and reads all its meters there.
+    val progress = remember(meters) { PropertyProgress.of(meters) }
     val queued = readings.count { it.state == ReadingState.QUEUED }
     val readAgain = meters.count { it.state == ReadingState.READ_AGAIN }
     val next = remember(meters) { repo.nextMeter(meters) }
@@ -82,7 +82,7 @@ fun HomeScreen(
             savedListFrom?.let {
                 Pill(stringResource(Res.string.saved_list_from, formatDayTime(it)), AppColors.Warn, AppColors.WarnTint, Icons.Rounded.CloudOff)
             }
-            ProgressCard(done, total)
+            ProgressCard(progress.done, progress.total)
             if (next != null) {
                 val property = repo.property(next.propertyCode)
                 BigButton(

@@ -14,11 +14,11 @@
     <string name="hello">Hello, %1$s</string>
     <string name="all_sent">All sent</string>
     <string name="waiting_count">%1$d waiting to send</string>
-    <string name="done_of">done of %1$d meters</string>
+    <string name="done_of">done of %1$d properties</string>
     <string name="left_count">%1$d left</string>
     <string name="start">Start</string>
     <string name="next_at">Next: %1$s · %2$s</string>
-    <string name="all_done_today">All meters are done</string>
+    <string name="all_done_today">All properties are done</string>
     <string name="my_zones">My zones</string>
     <string name="my_readings">My readings</string>
     <string name="send">Send</string>
