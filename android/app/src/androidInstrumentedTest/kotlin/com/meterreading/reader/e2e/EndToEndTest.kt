@@ -207,8 +207,14 @@ class EndToEndTest {
         phone.waitFor(phone.desc("Take photo"), "Take photo")
         Thread.sleep(2_500) // the camera's first frames
         phone.shot("${prefix}_camera")
-        phone.tapDesc("Take photo")
-        phone.device.wait(androidx.test.uiautomator.Until.gone(phone.desc("Take photo")), 30_000)
+        // The shutter is off until the camera is ready (the first start can be slow on the emulator).
+        phone.device.wait(androidx.test.uiautomator.Until.hasObject(phone.desc("Take photo").enabled(true)), 30_000)
+        for (attempt in 1..3) {
+            phone.tapDesc("Take photo")
+            if (phone.device.wait(androidx.test.uiautomator.Until.gone(phone.desc("Take photo")), 30_000) == true) break
+            if (!phone.has("Photo failed. Try again.")) break
+            phone.shot("${prefix}_camera_retry$attempt")
+        }
         if (phone.device.wait(androidx.test.uiautomator.Until.hasObject(phone.item("Is the photo clear?")), 3_000) == true) {
             phone.shot("${prefix}_photo_check")
             phone.tap("Good photo")

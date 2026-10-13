@@ -93,6 +93,9 @@ actual fun CameraCapture(hint: String, speakText: String, showFrame: Boolean, on
     var flashMode by remember { mutableIntStateOf(ImageCapture.FLASH_MODE_AUTO) }
     var busy by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
+    // The shutter works once the camera is bound: the first start after install can take seconds,
+    // and a photo asked for before then fails.
+    var ready by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val future = ProcessCameraProvider.getInstance(context)
@@ -101,6 +104,7 @@ actual fun CameraCapture(hint: String, speakText: String, showFrame: Boolean, on
             val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
             provider.unbindAll()
             provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
+            ready = true
         }, ContextCompat.getMainExecutor(context))
         onDispose { runCatching { future.get().unbindAll() } }
     }
@@ -176,7 +180,7 @@ actual fun CameraCapture(hint: String, speakText: String, showFrame: Boolean, on
             )
             Surface(
                 onClick = {
-                    if (busy) return@Surface
+                    if (busy || !ready) return@Surface
                     busy = true
                     failed = false
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -202,7 +206,8 @@ actual fun CameraCapture(hint: String, speakText: String, showFrame: Boolean, on
                     )
                 },
                 shape = CircleShape,
-                color = if (busy) Color.Gray else Color.White,
+                enabled = ready && !busy,
+                color = if (busy || !ready) Color.Gray else Color.White,
                 modifier = Modifier
                     .size(88.dp)
                     .border(5.dp, AppColors.CameraBackground, CircleShape)
