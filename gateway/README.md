@@ -84,6 +84,19 @@ To keep the audit lines in a file for the SIEM, turn on `stdoutLogEnabled="true"
    `https://<public address>/health/ready` → `404` (kept internal);
    `https://<public address>/api/v1/me` → `403 DEVICE_NOT_REGISTERED` (the API refuses an unregistered phone).
 
+### 2a. On Azure App Service instead (DIP: app `zapps`, resource group DotNetSites)
+
+- **Configuration → General settings:** Platform **64 Bit** (the publish is win-x64; 32 Bit gives
+  *HTTP Error 500.32 ANCM Failed to Load dll*), HTTPS only **On**, minimum TLS **1.2**, FTP state **FTPS
+  only**, Always on **On**, Session affinity **Off**. The *.NET version* there does not matter: the
+  publish is self-contained (.NET 10).
+- Deploy: upload the whole `publish` folder to `/site/wwwroot` with `deploy/zApps.web.config` as
+  `web.config` (stop the app first; on errors, empty `wwwroot` and upload again).
+- At DIP the app is private (public network access off, private endpoint): phones reach it only once the
+  Application Gateway in ApplicationGateway1VN publishes `zapps.dipark.com` (listener on 443 with the
+  *.dipark.com certificate, health probe `/gateway/health`, WAF body limit at least 4 MB) and public DNS
+  points `zapps.dipark.com` at the Application Gateway's public IP.
+
 ### 3. Internal API server
 
 Add to the API site's environment variables (in addition to `docs/deploy-steps.md` B6):
