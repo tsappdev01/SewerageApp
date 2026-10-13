@@ -50,11 +50,21 @@ class EndToEndTest {
         phone.shot("04_home_after_registration")
     }
 
-    @Test fun t2_FR006_meter_is_read_with_a_photo_and_sent() {
+    @Test fun t2_FR006_meter_type_is_switched_and_the_reading_typed_by_hand() {
         home()
         phone.tap("Start")
-        // Meter BC0003 (1101-I): last 30,110, about 1,000 a month. Tenant T-0102 (FR-006.12).
-        readMeter(number = "31050", tenantCode = "T-0102", prefix = "1")
+        // Property 1101 has two meters: BC0003 (1101-I, Irrigation, last 30,110) and BC0004 (1101-S,
+        // Sewerage, last 99,950). The reader can switch between them; each shows its own last reading.
+        phone.waitText("Which meter?")
+        phone.waitContaining("30,110")
+        phone.shot("10_switch_irrigation")
+        phone.tap("Sewerage")
+        phone.waitContaining("99,950")
+        phone.shot("11_switch_sewerage")
+        phone.tap("Irrigation")
+        phone.waitContaining("30,110")
+        // Irrigation is read and sent, typed with the phone's keyboard. Tenant T-0102 (FR-006.12).
+        readMeter(number = "31050", tenantCode = "T-0102", prefix = "1", keyboard = true)
         phone.waitAny(listOf("Sent", "Sent for checking"), 60_000)
         phone.shot("1z_result_sent")
         phone.tap("Home")
@@ -143,7 +153,7 @@ class EndToEndTest {
 
     // ---- a reading, step by step, whatever steps this meter asks for ----
 
-    private fun readMeter(number: String, tenantCode: String, prefix: String) {
+    private fun readMeter(number: String, tenantCode: String, prefix: String, keyboard: Boolean = false) {
         var step = 0
         repeat(40) {
             when {
@@ -167,6 +177,14 @@ class EndToEndTest {
                 phone.has("It is correct") -> {
                     phone.shot("${prefix}${step++}_warning")
                     phone.tap("It is correct")
+                }
+                phone.has("Type the number") && keyboard -> {
+                    phone.tap("Type with phone keyboard", optional = true)
+                    phone.type("Reading now", number, orIndex = 0)
+                    phone.shot("${prefix}${step++}_number_keyboard")
+                    phone.device.pressEnter() // the keyboard's Done key
+                    Thread.sleep(1_000)
+                    if (phone.has("Type the number")) phone.tap("Done", optional = true)
                 }
                 phone.has("Type the number") -> {
                     number.forEach { d ->
