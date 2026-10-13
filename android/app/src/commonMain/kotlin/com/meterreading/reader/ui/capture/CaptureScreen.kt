@@ -207,8 +207,8 @@ private fun MeterContext(meter: Meter, property: Property) {
                 Text("${meter.zoneCode} · ${property.code}", color = AppColors.SubInk)
                 meter.previousReading?.let { prev ->
                     Text(
-                        meter.lastConsumption?.let { stringResource(Res.string.last_reading_used, formatReading(prev), formatReading(it)) }
-                            ?: stringResource(Res.string.last_reading, formatReading(prev)),
+                        meter.lastConsumption?.let { stringResource(Res.string.previous_reading_used, formatReading(prev), formatReading(it)) }
+                            ?: stringResource(Res.string.previous_reading, formatReading(prev)),
                         color = AppColors.Ink, fontWeight = FontWeight.Bold,
                     )
                 }
