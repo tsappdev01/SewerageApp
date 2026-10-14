@@ -66,13 +66,17 @@ builder.Services.AddExceptionHandler<BadRequestHandler>();
 var gateway = config.GetSection(GatewayTrustOptions.Section).Get<GatewayTrustOptions>() ?? new GatewayTrustOptions();
 if (gateway.RequireClientCertificate && gateway.ClientCertificateThumbprints.Length == 0)
     throw new InvalidOperationException("Gateway:RequireClientCertificate is on but Gateway:ClientCertificateThumbprints is empty.");
+// Checked here, at start, so a placeholder left in web.config (e.g. "DMZ_IP") names the setting.
+var knownProxies = gateway.KnownProxies.Select(a => System.Net.IPAddress.TryParse(a.Trim(), out var ip)
+    ? ip
+    : throw new InvalidOperationException($"Gateway:KnownProxies has '{a}', which is not an IP address. Set it to the gateway's IP as this server sees it, or remove it.")).ToList();
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
     o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     o.ForwardLimit = 1;
     o.KnownProxies.Clear();
     o.KnownIPNetworks.Clear(); // only the gateway's own addresses, never a whole network
-    foreach (var address in gateway.KnownProxies) o.KnownProxies.Add(System.Net.IPAddress.Parse(address.Trim()));
+    foreach (var ip in knownProxies) o.KnownProxies.Add(ip);
 });
 
 var auth = config.GetSection(AuthOptions.Section).Get<AuthOptions>() ?? new AuthOptions();

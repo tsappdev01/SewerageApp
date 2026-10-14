@@ -128,4 +128,20 @@ public sealed class GatewayTrustTests
         Assert.Equal(HttpStatusCode.UnprocessableEntity, await Register("203.0.113.2"));
         Assert.Equal(HttpStatusCode.TooManyRequests, await Register("203.0.113.3"));
     }
+
+    [Fact]
+    public async Task A_placeholder_left_in_KnownProxies_stops_the_start_and_names_the_setting()
+    {
+        await using var factory = new Factory(new() { ["Gateway:KnownProxies:0"] = "DMZ_IP" });
+        var e = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+        var all = string.Join(" | ", Flatten(e).Select(x => x.Message));
+        Assert.Contains("Gateway:KnownProxies", all);
+        Assert.Contains("DMZ_IP", all);
+        await Task.CompletedTask;
+
+        static IEnumerable<Exception> Flatten(Exception x)
+        {
+            for (var c = x; c != null; c = c.InnerException) yield return c;
+        }
+    }
 }
