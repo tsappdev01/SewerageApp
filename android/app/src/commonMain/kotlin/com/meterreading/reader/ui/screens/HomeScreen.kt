@@ -61,8 +61,15 @@ fun HomeScreen(
     // Fresh meter states each time Home opens (another reader may have read some).
     LaunchedEffect(Unit) { repo.refresh() }
 
+    var askQuit by remember { mutableStateOf(false) }
+    val quitApp = rememberQuitApp()
+    if (askQuit) QuitDialog(queued, onQuit = { askQuit = false; quitApp() }, onStay = { askQuit = false })
+
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(stringResource(Res.string.hello, readerName), stringResource(Res.string.speak_home), onSettings = onSettings)
+        AppTopBar(
+            stringResource(Res.string.hello, readerName), stringResource(Res.string.speak_home),
+            onSettings = onSettings, onQuit = { askQuit = true },
+        )
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -209,4 +216,28 @@ private fun HomeTile(
             }
         }
     }
+}
+
+/** Quit from Home. Readings waiting are kept on the phone and still sent; the lock is asked again. */
+@Composable
+private fun QuitDialog(waiting: Int, onQuit: () -> Unit, onStay: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onStay,
+        icon = { Icon(Icons.Rounded.PowerSettingsNew, null, tint = AppColors.Navy, modifier = Modifier.size(40.dp)) },
+        title = { Text(stringResource(Res.string.quit_title)) },
+        text = {
+            Text(
+                if (waiting > 0) stringResource(Res.string.quit_text_waiting, waiting) else stringResource(Res.string.quit_text),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        },
+        confirmButton = {
+            Button(onClick = onQuit, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Navy), modifier = Modifier.heightIn(min = 52.dp)) {
+                Icon(Icons.Rounded.PowerSettingsNew, null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(Res.string.quit_yes))
+            }
+        },
+        dismissButton = { TextButton(onClick = onStay, modifier = Modifier.heightIn(min = 52.dp)) { Text(stringResource(Res.string.quit_no)) } },
+    )
 }

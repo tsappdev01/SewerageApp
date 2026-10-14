@@ -102,6 +102,9 @@ private class Locator(private val onResult: (Fix?) -> Unit) {
 }
 
 @Composable
+actual fun rememberQuitApp(): () -> Unit = remember { { com.meterreading.reader.settings.AppServices.lockNow() } }
+
+@Composable
 actual fun rememberDeviceUnlock(): DeviceUnlock = remember { IosDeviceUnlock() }
 
 /** FR-001.1 on iOS: Face ID, Touch ID or the passcode. Nothing is stored by the app; iOS checks it. */

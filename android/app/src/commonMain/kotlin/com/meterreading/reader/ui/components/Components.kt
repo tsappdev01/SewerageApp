@@ -128,7 +128,7 @@ fun SpeakButton(text: String) {
 }
 
 @Composable
-fun AppTopBar(title: String, speakText: String, onBack: (() -> Unit)? = null, onSettings: (() -> Unit)? = null) {
+fun AppTopBar(title: String, speakText: String, onBack: (() -> Unit)? = null, onSettings: (() -> Unit)? = null, onQuit: (() -> Unit)? = null) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -146,6 +146,7 @@ fun AppTopBar(title: String, speakText: String, onBack: (() -> Unit)? = null, on
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+        if (onQuit != null) CircleIconButton(Icons.Rounded.PowerSettingsNew, stringResource(Res.string.quit), onQuit)
         if (onSettings != null) SettingsButton(onSettings)
         SpeakButton(speakText)
     }

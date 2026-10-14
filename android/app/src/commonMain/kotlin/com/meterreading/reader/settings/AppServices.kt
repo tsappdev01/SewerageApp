@@ -130,6 +130,13 @@ object AppServices {
         _locked.value = false
     }
 
+    /** Quit: the next open asks for the phone's lock again (when the lock is on). */
+    fun lockNow() {
+        unlocked = false
+        backgroundSince = null
+        _locked.value = settings.deviceLock
+    }
+
     fun onBackground(nowMillis: Long) {
         if (unlocked) backgroundSince = nowMillis
     }

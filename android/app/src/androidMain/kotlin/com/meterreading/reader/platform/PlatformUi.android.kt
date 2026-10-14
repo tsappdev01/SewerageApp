@@ -22,6 +22,17 @@ import kotlin.coroutines.resume
 actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) = BackHandler(enabled, onBack)
 
 @Composable
+actual fun rememberQuitApp(): () -> Unit {
+    val activity = LocalContext.current.findActivity()
+    return remember(activity) {
+        {
+            com.meterreading.reader.settings.AppServices.lockNow()
+            activity?.finishAndRemoveTask()
+        }
+    }
+}
+
+@Composable
 actual fun SecureScreen() {
     if (!com.meterreading.reader.BuildConfig.SECURE_SCREENS) return
     val activity = LocalContext.current.findActivity()

@@ -220,6 +220,12 @@
     <string name="pin_cancel">Cancel</string>
 
     <string name="settings_title">Settings</string>
+    <string name="quit">Quit</string>
+    <string name="quit_title">Close the app?</string>
+    <string name="quit_text">Next time it opens, it asks for the phone\'s lock again.</string>
+    <string name="quit_text_waiting">%1$d readings are waiting. They are kept on the phone and sent when there is signal.</string>
+    <string name="quit_yes">Close app</string>
+    <string name="quit_no">Stay</string>
     <string name="settings_server">Server</string>
     <string name="settings_url_label">Server address</string>
     <string name="settings_url_hint">Ask IT for this address. It starts with https://</string>

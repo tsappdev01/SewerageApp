@@ -34,6 +34,13 @@ expect fun rememberVoiceInput(prompt: String, onText: (String) -> Unit): () -> B
 @Composable
 expect fun rememberLocationRequest(onResult: (Fix?) -> Unit): () -> Unit
 
+/**
+ * Quit from Home: Android closes the app and removes it from recent apps. iOS does not let an app close
+ * itself, so there it goes back to the lock screen (the reader leaves with the Home gesture).
+ */
+@Composable
+expect fun rememberQuitApp(): () -> Unit
+
 /** FR-001.1: the phone's own lock (PIN, pattern, finger or face). */
 @Composable
 expect fun rememberDeviceUnlock(): DeviceUnlock
