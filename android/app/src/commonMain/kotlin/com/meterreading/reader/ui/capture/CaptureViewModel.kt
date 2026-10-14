@@ -83,13 +83,16 @@ class CaptureViewModel(private val repo: MeterRepository, meterId: String) : Vie
     fun digits(target: NumberTarget): String = numbers[target].orEmpty()
 
     fun typeDigit(target: NumberTarget, c: Char) {
+        // An absolute number: a leading zero is dropped (a single 0 stays, e.g. a new meter at 0).
         val current = digits(target)
-        if (current.length < meter.registerDigits) numbers[target] = current + c
+        if (current == "0") numbers[target] = c.toString()
+        else if (current.length < meter.registerDigits) numbers[target] = current + c
     }
 
     /** Typed with the phone's keyboard: digits only, at most the register's length. */
     fun setDigits(target: NumberTarget, text: String) {
-        val d = text.filter { it in '0'..'9' }.take(meter.registerDigits)
+        val typed = text.filter { it in '0'..'9' }
+        val d = (typed.trimStart('0').ifEmpty { typed.take(1) }).take(meter.registerDigits)
         if (d.isEmpty()) numbers.remove(target) else numbers[target] = d
     }
 

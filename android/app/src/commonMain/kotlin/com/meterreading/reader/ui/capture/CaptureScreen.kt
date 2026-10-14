@@ -49,7 +49,6 @@ import com.meterreading.reader.ui.components.*
 import com.meterreading.reader.ui.theme.AppColors
 import com.meterreading.reader.ui.theme.NumberFont
 import com.meterreading.reader.util.formatReading
-import com.meterreading.reader.util.registerDigits
 import kotlinx.coroutines.delay
 import com.meterreading.reader.platform.File
 
@@ -319,7 +318,6 @@ private fun NumberStep(vm: CaptureViewModel, target: NumberTarget, required: Boo
     var keyboard by rememberSaveable { mutableStateOf(false) }
     val digits = vm.digits(target)
     val previous = vm.previousFor(target)
-    val size = vm.meter.registerDigits
 
     val shown = warning
     if (shown != null) {
@@ -344,10 +342,10 @@ private fun NumberStep(vm: CaptureViewModel, target: NumberTarget, required: Boo
             vm.photoFor(target)?.let { ZoomablePhoto(it, height = 130.dp) }
             if (previous != null) {
                 Label(stringResource(Res.string.last_time))
-                Odometer(registerDigits(previous, size), size, style = OdometerStyle.Previous)
+                ReadingDisplay(previous.toString(), style = ReadingStyle.Previous)
             }
             Label(stringResource(Res.string.you_typed))
-            Odometer(digits, size)
+            ReadingDisplay(digits)
         }
         return
     }
@@ -405,12 +403,12 @@ private fun NumberStep(vm: CaptureViewModel, target: NumberTarget, required: Boo
         if (previous != null) {
             val used = vm.meter.lastConsumption?.takeIf { target == NumberTarget.CURRENT }
             Label(used?.let { stringResource(Res.string.last_time_used, formatReading(it)) } ?: stringResource(Res.string.last_time))
-            Odometer(registerDigits(previous, size), size, style = OdometerStyle.Previous)
+            ReadingDisplay(previous.toString(), style = ReadingStyle.Previous)
         }
         // With the phone keyboard open there is no room for the boxes; the field shows the number.
         if (!keyboard) {
             Label(stringResource(Res.string.now), strong = true)
-            Odometer(digits, size, showCursor = true)
+            ReadingDisplay(digits)
         }
         vm.checkFor(target)?.consumption?.takeIf { target != NumberTarget.OLD_FINAL }?.let {
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
