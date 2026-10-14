@@ -60,7 +60,12 @@ import com.meterreading.reader.platform.File
 fun CaptureScreen(meterId: String, onNextMeter: (String) -> Unit, onHome: () -> Unit, onExit: () -> Unit) {
     // The property's other meters (Sewerage / Irrigation) are read here too, one at a time. Each keeps
     // its own capture, so switching back and forth loses nothing that was typed.
-    var activeId by rememberSaveable(meterId) { mutableStateOf(meterId) }
+    // Sewerage first: whichever meter of the property was asked for, the switch opens on its Sewerage
+    // meter when it has one still to read (MeterSwitch sorts Sewerage first).
+    var activeId by rememberSaveable(meterId) {
+        val all = AppGraph.repository.meters.value
+        mutableStateOf(all.firstOrNull { it.id == meterId }?.let { MeterSwitch.options(all, it).first().id } ?: meterId)
+    }
     val meters by AppGraph.repository.meters.collectAsState()
     val first: CaptureViewModel = viewModel(key = "capture-$activeId") { CaptureViewModel(AppGraph.repository, activeId) }
     val options = remember(meters, first.meter) { MeterSwitch.options(meters, first.meter) }

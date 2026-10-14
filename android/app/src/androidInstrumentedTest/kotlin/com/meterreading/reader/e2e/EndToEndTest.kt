@@ -55,14 +55,13 @@ class EndToEndTest {
         phone.tap("Start")
         // Property 1101 has two meters: BC0003 (1101-I, Irrigation, last 30,110) and BC0004 (1101-S,
         // Sewerage, last 99,950). The reader can switch between them; each shows its own last reading.
+        // Sewerage is the one selected first.
         phone.waitText("Which meter?")
-        phone.waitContaining("30,110")
-        phone.shot("10_switch_irrigation")
-        phone.tap("Sewerage")
         phone.waitContaining("99,950")
-        phone.shot("11_switch_sewerage")
+        phone.shot("10_switch_sewerage_first")
         phone.tap("Irrigation")
         phone.waitContaining("30,110")
+        phone.shot("11_switch_irrigation")
         // Irrigation is read and sent, typed with the phone's keyboard. Tenant T-0102 (FR-006.12).
         readMeter(number = "31050", tenantCode = "T-0102", prefix = "1", keyboard = true)
         // No result screen: the property's other meter (Sewerage) opens straight away.
