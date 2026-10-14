@@ -38,10 +38,10 @@ class CaptureViewModel(private val repo: MeterRepository, meterId: String) : Vie
     var newMeterNumber by mutableStateOf("")
 
     /**
-     * FR-006.12: the tenant the reader checked on the check screen. Starts empty even when there is only
-     * one, so the reader always looks; saving is blocked until it is set.
+     * FR-006.12: the property's tenant, sent with the reading (the server checks it is still current).
+     * One tenant (DIP, Oct 2026): taken as it is, no question. Several: the reader taps the one on site.
      */
-    var tenantCode by mutableStateOf<String?>(null)
+    var tenantCode by mutableStateOf(property.tenants.singleOrNull()?.code)
     val tenantProblem: TenantRules.Problem? get() = TenantRules.problem(property, tenantCode)
 
     /** Optional: typed on the check screen when the premises has a sub-tenant. */

@@ -17,7 +17,8 @@ public sealed record SubmitOutcome(SubmitReadingResponse? Response, bool Created
 /// ACCEPTED, or EXCEPTION when a rule needs a supervisor; the reason codes go in StatusNote.
 /// A repeat with the same TransactionId and payload returns the stored result (BR-013).
 /// </summary>
-public sealed class SubmitService(MeterReadingRepository repo, ReaderService readers, TimeProvider clock, Microsoft.Extensions.Options.IOptions<ImageStoreOptions> images)
+public sealed class SubmitService(MeterReadingRepository repo, ReaderService readers, TimeProvider clock, Microsoft.Extensions.Options.IOptions<ImageStoreOptions> images,
+    Microsoft.Extensions.Options.IOptions<ReadingRulesOptions> rules)
 {
     private int MaxImages => images.Value.MaxImagesPerReading;
 
@@ -80,6 +81,7 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
         // Property and meter as they are now, so the reading keeps them if they change later.
         var source = (await repo.GetMetersAsync(new MeterFilter(MeterIds: [meter.Id]), ct)).Single();
         var (consumption, exceptions) = Evaluate(r, meter);
+        var (status, statusNote) = Decide(exceptions, rules.Value.SupervisorReview);
         var row = new NewTransactionRow
         {
             TransactionId = r.TransactionId,
@@ -101,8 +103,8 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
             Longitude = r.Longitude,
             GpsAccuracyM = r.GpsAccuracyM,
             CapturedAtUtc = captured,
-            Status = exceptions.Count > 0 ? "EXCEPTION" : "ACCEPTED",
-            StatusNote = exceptions.Count > 0 ? string.Join(',', exceptions) : null,
+            Status = status,
+            StatusNote = statusNote,
             PayloadHash = hash,
             ExpectedPhotos = r.PhotoCount,
             PropertyId = source.PropertyId,
@@ -118,6 +120,14 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
         if (!stored) return SubmitOutcome.Reject(409, "ALREADY_READ", "This meter was already read this period.");
         return new SubmitOutcome(ToResponse(await repo.GetTransactionAsync(r.TransactionId, ct) ?? throw new InvalidOperationException("Inserted row not found.")), Created: true);
     }
+
+    /// <summary>
+    /// ACCEPTED, or EXCEPTION for a supervisor when <paramref name="supervisorReview"/> is on and a rule
+    /// was broken. The rule codes are kept in the note either way.
+    /// </summary>
+    public static (string Status, string? Note) Decide(IReadOnlyList<string> exceptions, bool supervisorReview) =>
+        (supervisorReview && exceptions.Count > 0 ? "EXCEPTION" : "ACCEPTED",
+         exceptions.Count > 0 ? string.Join(',', exceptions) : null);
 
     /// <summary>Consumption and exception codes (spec §6, §7.2).</summary>
     public static (decimal? Consumption, List<string> Exceptions) Evaluate(SubmitReadingRequest r, MeterDto meter)

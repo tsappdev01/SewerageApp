@@ -78,7 +78,8 @@ fun CaptureScreen(meterId: String, onNextMeter: (String) -> Unit, onHome: () -> 
     val outcome = vm.outcome
     CompositionLocalProvider(LocalMeterSwitch provides switch.takeIf { options.size > 1 && !vm.sending }) {
     when {
-        outcome != null -> ResultStep(vm, outcome, next, onHome)
+        outcome == SubmitOutcome.REJECTED -> ResultStep(vm, outcome, next, onHome)
+        outcome != null -> AfterSend(vm, outcome, next, onHome)
         vm.stepIndex < 0 -> ConditionStep(vm, onBack = onExit)
         else -> when (val step = vm.currentStep!!) {
             is Step.Reason -> ReasonStep(vm, step.category)
@@ -542,6 +543,7 @@ private fun ConfirmStep(vm: CaptureViewModel) {
 @Composable
 private fun TenantCheck(vm: CaptureViewModel) {
     val tenants = vm.property.tenants
+    if (tenants.size == 1) return // taken as it is (CaptureViewModel.tenantCode)
     Text(stringResource(Res.string.tenant_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.fillMaxWidth())
     if (tenants.isEmpty()) {
         Row(
@@ -625,6 +627,28 @@ private fun BigValue(label: String?, value: Long?) {
             color = if (value != null) AppColors.Ink else AppColors.SubInk,
         )
     }
+}
+
+/**
+ * Sent or saved: no result screen (DIP, Oct 2026). A short message says what happened and the next meter
+ * opens: the property's other meter first, else the next on the route, else Home. Only a refusal
+ * stops on a screen of its own (ResultStep), since the reader has to act on it.
+ */
+@Composable
+private fun AfterSend(vm: CaptureViewModel, outcome: SubmitOutcome, onNextMeter: (String) -> Unit, onHome: () -> Unit) {
+    val haptics = LocalHapticFeedback.current
+    val text = when (outcome) {
+        SubmitOutcome.QUEUED -> stringResource(Res.string.result_saved_short)
+        SubmitOutcome.CHECKING -> stringResource(Res.string.result_checking)
+        else -> stringResource(Res.string.result_sent_sub, vm.meter.number)
+    }
+    LaunchedEffect(outcome) {
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        playResultTone(sent = outcome != SubmitOutcome.QUEUED)
+        Messages.show(text)
+        vm.nextMeter?.let { onNextMeter(it.id) } ?: onHome()
+    }
+    Box(Modifier.fillMaxSize())
 }
 
 @Composable

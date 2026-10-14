@@ -65,9 +65,11 @@ class EndToEndTest {
         phone.waitContaining("30,110")
         // Irrigation is read and sent, typed with the phone's keyboard. Tenant T-0102 (FR-006.12).
         readMeter(number = "31050", tenantCode = "T-0102", prefix = "1", keyboard = true)
-        phone.waitAny(listOf("Sent", "Sent for checking"), 60_000)
-        phone.shot("1z_result_sent")
-        phone.tap("Home")
+        // No result screen: the property's other meter (Sewerage) opens straight away.
+        phone.waitText("How is the meter?", 60_000)
+        phone.waitContaining("1101-S")
+        phone.shot("1z_next_meter_opened")
+        phone.device.pressBack()
         phone.waitText("Hello, Rashid")
     }
 
@@ -78,10 +80,12 @@ class EndToEndTest {
             phone.tap("Start")
             // Meter BC0004 (1101-S): last 99,950.
             readMeter(number = "99990", tenantCode = "T-0102", prefix = "2")
-            phone.waitText("Saved", 30_000)
+            // Saved on the phone; the next meter opens. Back to Home, where it waits to be pushed.
+            phone.waitText("How is the meter?", 60_000)
             phone.shot("2z_saved_no_signal")
-            phone.tap("Home")
+            phone.device.pressBack()
             phone.waitContaining("waiting to send")
+            phone.waitContaining("Push readings (1)")
             phone.shot("30_home_waiting")
         } finally {
             phone.network(on = true)
@@ -159,8 +163,8 @@ class EndToEndTest {
             when {
                 phone.has("Yes, send") -> {
                     phone.shot("${prefix}${step++}_check")
-                    phone.tap(tenantCode)
-                    phone.shot("${prefix}${step++}_tenant_checked")
+                    // One tenant is taken as it is; with several the reader taps the one on site.
+                    if (phone.tap(tenantCode, optional = true)) phone.shot("${prefix}${step++}_tenant_checked")
                     phone.tap("Yes, send")
                     return
                 }

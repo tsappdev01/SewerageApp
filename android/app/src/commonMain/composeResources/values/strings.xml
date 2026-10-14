@@ -133,6 +133,12 @@
     <string name="result_sent">Sent</string>
     <string name="result_sent_sub">Meter %1$s is done</string>
     <string name="result_saved">Saved</string>
+    <string name="result_saved_short">No signal. Saved on the phone; press Push readings when there is signal.</string>
+    <string name="push_readings">Push readings</string>
+    <string name="push_readings_count">Push readings (%1$d)</string>
+    <string name="push_nothing">Nothing waiting to send</string>
+    <string name="push_done">All sent</string>
+    <string name="push_no_signal">No signal. The readings stay on the phone.</string>
     <string name="result_saved_sub">No signal here. It is saved on the phone. When signal comes back, the phone will ask you to send it.</string>
     <string name="result_checking">Sent for checking</string>
     <string name="result_checking_sub">Your supervisor will look at this reading.</string>

@@ -203,7 +203,7 @@ device so a weak signal does not stop navigation or capture (§9).
 | FR-001.5 | After 15 minutes in the background the app shall lock again and require the phone's lock. Unlock is local and works offline. Shorter breaks shall not lock it. |
 | FR-001.6 | The app shall allow offline work for up to `OfflineGraceHours` (default 24) since the last successful online token acquisition. After that it shall require an online sign-in before new captures; queued readings remain queued. |
 | FR-001.7 | Logout shall clear tokens and cached assignment data. Unsynchronised readings stay encrypted until sent (see FR-020.8 for user switching). |
-| FR-001.8 | A Settings screen (gear icon on the start and Home screens) shall open only with a supervisor PIN (4–8 digits, kept as a salted hash; five wrong tries block entry for a minute). It shall let the supervisor set the API server address and test it, the reader the phone belongs to, the phone lock on/off, and change the PIN. Changing the server or reader shall be refused while readings wait on the phone. If the server does not accept the reader, the app returns to the start screen and keeps waiting readings. Added 2026-10-04. |
+| FR-001.8 | A Settings screen (gear icon on the start and Home screens) shall open only with a supervisor PIN (4–8 digits, kept as a salted hash; five wrong tries block entry for a minute). It shall let the supervisor set the API server address and test it, the reader the phone belongs to, the phone lock on/off, and change the PIN. Changing the server or reader shall be refused while readings wait on the phone. If the server does not accept the reader, the app returns to the start screen and keeps waiting readings. Added 2026-10-04. **Changed 2026-10-14 (DIP):** a property with one tenant takes it as it is, with no question; the reader taps a tenant only when the property has several. The server check is unchanged. |
 
 ### 4.2 Device registration (FR-002)
 
@@ -510,6 +510,11 @@ DRAFT → QUEUED → SENDING → DELIVERED          (server returned Accepted / 
 | Completed | Reading posted/acknowledged by billing, or average posted at close | Billing ack / period close |
 
 ### 7.2 Validation order and outcomes (BR-012)
+
+> **Changed 2026-10-14 (DIP):** no supervisor hold. With `ReadingRules:SupervisorReview` false (the default) every
+> valid reading is `ACCEPTED` at once and goes on to PMS; the exception codes below are still worked out and kept in
+> `StatusNote` for reports. Set it to true to hold them as `EXCEPTION` for a supervisor again. The phone shows no result
+> screen: a short message, then the next meter. Home has **Push readings** to send what waits on the phone at once.
 
 The server shall evaluate a submission in this order and stop at the first **rejection**.
 Rejections return HTTP 4xx with a problem-details `code` (Appendix A); nothing is stored except an

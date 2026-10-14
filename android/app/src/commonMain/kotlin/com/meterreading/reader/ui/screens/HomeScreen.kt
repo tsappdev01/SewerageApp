@@ -90,6 +90,7 @@ fun HomeScreen(
                 Pill(stringResource(Res.string.saved_list_from, formatDayTime(it)), AppColors.Warn, AppColors.WarnTint, Icons.Rounded.CloudOff)
             }
             ProgressCard(progress.done, progress.total)
+            PushReadings(queued)
             if (next != null) {
                 val property = repo.property(next.propertyCode)
                 BigButton(
@@ -239,5 +240,39 @@ private fun QuitDialog(waiting: Int, onQuit: () -> Unit, onStay: () -> Unit) {
             }
         },
         dismissButton = { TextButton(onClick = onStay, modifier = Modifier.heightIn(min = 52.dp)) { Text(stringResource(Res.string.quit_no)) } },
+    )
+}
+
+/**
+ * Sends everything waiting on the phone (readings, their photos and inspections) now, instead of waiting
+ * for the automatic send. Says how it went. Plain (not navy): Start stays the one primary button.
+ */
+@Composable
+private fun PushReadings(queued: Int) {
+    val scope = rememberCoroutineScope()
+    var pushing by remember { mutableStateOf(false) }
+    val photos by AppGraph.repository.photosWaiting.collectAsStateWithLifecycle()
+    val waiting = queued > 0 || photos > 0
+    val done = stringResource(Res.string.push_done)
+    val noSignal = stringResource(Res.string.push_no_signal)
+    BigButton(
+        text = when {
+            pushing -> stringResource(Res.string.sending)
+            queued > 0 -> stringResource(Res.string.push_readings_count, queued)
+            waiting -> stringResource(Res.string.push_readings)
+            else -> stringResource(Res.string.push_nothing)
+        },
+        onClick = {
+            pushing = true
+            scope.launch {
+                runCatching { AppGraph.sendAll() }
+                Messages.show(if (AppGraph.hasWaiting()) noSignal else done)
+                pushing = false
+            }
+        },
+        icon = Icons.Rounded.CloudUpload,
+        kind = BigButtonKind.Secondary,
+        enabled = waiting && !pushing,
+        minHeight = 56.dp,
     )
 }

@@ -23,6 +23,13 @@ public sealed class ReadingRulesOptions
     public decimal HighConsumptionFloorSewerage { get; set; } = 100m;
     public decimal? DefaultAverageIrrigation { get; set; }
     public decimal? DefaultAverageSewerage { get; set; }
+
+    /// <summary>
+    /// True: a reading that breaks a rule (high, lower than before, damaged, replaced, removed) is held
+    /// as EXCEPTION for a supervisor. False (DIP, Oct 2026): every reading is ACCEPTED at once and goes
+    /// on to PMS; the rule codes are still kept in StatusNote for reports.
+    /// </summary>
+    public bool SupervisorReview { get; set; }
 }
 
 /// <summary>How callers are identified.</summary>

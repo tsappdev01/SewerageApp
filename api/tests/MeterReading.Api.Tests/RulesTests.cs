@@ -109,4 +109,12 @@ public class RulesTests
         ]);
         Assert.Equal(["BC3"], rows.Select(r => r.MeterId));
     }
+
+    [Fact]
+    public void Without_supervisor_review_every_reading_is_accepted_and_keeps_its_rule_codes()
+    {
+        Assert.Equal(("ACCEPTED", "HIGH_CONSUMPTION,DAMAGED_METER"), SubmitService.Decide(["HIGH_CONSUMPTION", "DAMAGED_METER"], supervisorReview: false));
+        Assert.Equal(("EXCEPTION", "HIGH_CONSUMPTION"), SubmitService.Decide(["HIGH_CONSUMPTION"], supervisorReview: true));
+        Assert.Equal(("ACCEPTED", (string?)null), SubmitService.Decide([], supervisorReview: true));
+    }
 }
