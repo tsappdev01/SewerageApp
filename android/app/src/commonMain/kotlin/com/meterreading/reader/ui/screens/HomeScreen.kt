@@ -62,6 +62,23 @@ fun HomeScreen(
     // Fresh meter states each time Home opens (another reader may have read some).
     LaunchedEffect(Unit) { repo.refresh() }
 
+    // The download icon: the latest meter list (and inspection plan) from the server, now.
+    val scope = rememberCoroutineScope()
+    var downloading by remember { mutableStateOf(false) }
+    val downloadFailed = stringResource(Res.string.list_download_failed)
+    val download: () -> Unit = {
+        downloading = true
+        scope.launch {
+            val ok = repo.refresh()
+            AppGraph.inspections?.refreshPlan()
+            downloading = false
+            Messages.show(
+                if (ok) org.jetbrains.compose.resources.getString(Res.string.list_downloaded, repo.allProperties(repo.meters.value).size)
+                else downloadFailed,
+            )
+        }
+    }
+
     var askQuit by remember { mutableStateOf(false) }
     val quitApp = rememberQuitApp()
     if (askQuit) QuitDialog(queued, onQuit = { askQuit = false; quitApp() }, onStay = { askQuit = false })
@@ -70,6 +87,7 @@ fun HomeScreen(
         AppTopBar(
             stringResource(Res.string.hello, readerName), stringResource(Res.string.speak_home),
             onSettings = onSettings, onQuit = { askQuit = true },
+            onDownload = download, downloading = downloading,
         )
         Column(
             modifier = Modifier

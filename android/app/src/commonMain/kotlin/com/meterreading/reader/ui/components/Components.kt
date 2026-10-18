@@ -128,7 +128,15 @@ fun SpeakButton(text: String) {
 }
 
 @Composable
-fun AppTopBar(title: String, speakText: String, onBack: (() -> Unit)? = null, onSettings: (() -> Unit)? = null, onQuit: (() -> Unit)? = null) {
+fun AppTopBar(
+    title: String,
+    speakText: String,
+    onBack: (() -> Unit)? = null,
+    onSettings: (() -> Unit)? = null,
+    onQuit: (() -> Unit)? = null,
+    onDownload: (() -> Unit)? = null,
+    downloading: Boolean = false,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -146,6 +154,15 @@ fun AppTopBar(title: String, speakText: String, onBack: (() -> Unit)? = null, on
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+        if (onDownload != null) {
+            if (downloading) {
+                Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.size(30.dp), color = AppColors.Navy, strokeWidth = 3.dp)
+                }
+            } else {
+                CircleIconButton(Icons.Rounded.CloudDownload, stringResource(Res.string.download_list), onDownload)
+            }
+        }
         if (onQuit != null) CircleIconButton(Icons.Rounded.PowerSettingsNew, stringResource(Res.string.quit), onQuit)
         if (onSettings != null) SettingsButton(onSettings)
         SpeakButton(speakText)

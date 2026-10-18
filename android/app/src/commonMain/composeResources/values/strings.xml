@@ -134,6 +134,9 @@
     <string name="result_sent_sub">Meter %1$s is done</string>
     <string name="result_saved">Saved</string>
     <string name="result_saved_short">No signal. Saved on the phone; press Push readings when there is signal.</string>
+    <string name="download_list">Download the latest list</string>
+    <string name="list_downloaded">List updated: %1$d properties</string>
+    <string name="list_download_failed">Could not get the list. Check the signal and try again.</string>
     <string name="period_closed">This month is closed. New readings stay on the phone until the office opens it again.</string>
     <string name="finalize_property">Finalize property</string>
     <string name="finalize_left">%1$d meters still to read or send</string>
@@ -278,7 +281,7 @@
     <string name="settings_server_bad">Server not found</string>
     <string name="settings_version">App version %1$s</string>
     <string name="settings_save">Save</string>
-    <string name="speak_home">Press the big blue Start button to read the next meter.</string>
+    <string name="speak_home">Press the big blue Start button to read the next meter. The cloud button at the top gets the latest list.</string>
     <string name="speak_zones">Pick a zone. Green means it is finished.</string>
     <string name="speak_properties">Pick a building. Each small picture is one meter. A green border means it is read.</string>
     <string name="speak_meters">Pick the meter with the blue border. When all meters are read, press Finalize property.</string>
