@@ -35,19 +35,26 @@ pipeline never deploys or changes it.
 
 ### 3. Agent for zApps (inside the VNet)
 `zapps` has public access off, so the deploy must come from a machine that reaches its private endpoint
-(and `zapps.scm.azurewebsites.net` through the privatelink DNS).
+(and its SCM site, `zAppsScmHost`, through the privatelink DNS).
 1. Project settings → **Agent pools** → **Add pool** → Self-hosted → name `DIP-VNet`.
 2. Pool → **New agent** → Windows → follow the steps on a VM in `ApplicationGateway1VN` (or any server
    that resolves and reaches zapps' private endpoint). Run it as a service.
-3. That machine needs outbound HTTPS to `dev.azure.com`, `management.azure.com`,
-   `login.microsoftonline.com` and the zapps SCM site.
+3. That machine needs outbound HTTPS to `dev.azure.com` and the zapps SCM site. Check from it:
+   `Test-NetConnection zapps-g4c5d5arhxehajau.scm.uaenorth-01.azurewebsites.net -Port 443` should
+   show a private (10.x) address and `TcpTestSucceeded : True`.
 
-### 4. Service connection to Azure
-Project settings → **Service connections** → **New** → **Azure Resource Manager** → **Workload identity
-federation (automatic)** → the subscription → name **`zapps-arm`** → tick *Grant access permission to all
-pipelines* (or allow it on the first run). Picking the resource group of `zapps` instead of "All resource
-groups" limits what the pipeline can touch and is better; either works, because the deploy finds the app by
-its name. Someone with Owner or User Access Administrator on the subscription (or that group) has to do this.
+### 4. zApps deploy credentials (publish profile)
+No Azure service connection is used (creating one needs Owner or User Access Administrator on the
+subscription). The pipeline zip-deploys to the zapps SCM site with the publish profile's credentials.
+1. Azure portal → App Service `zapps` → **Configuration** → **General settings** → *SCM Basic Auth
+   Publishing Credentials* **On** → Save.
+2. `zapps` → **Overview** → **Download publish profile**. Open the file in Notepad and find the
+   `ZipDeploy` (or `MSDeploy`) profile: `publishUrl`, `userName` (starts with `$`), `userPWD`.
+3. Pipelines → `DIPFieldServiceApps` → **Edit** → **Variables** → add `zAppsDeployUser` = `userName` and
+   `zAppsDeployPassword` = `userPWD` with **Keep this value secret** ticked → Save. Delete the downloaded
+   file afterwards; never commit it or paste it anywhere.
+4. Check `zAppsScmHost` in `azure-pipelines.yml` equals `publishUrl` without `:443`.
+5. If the password ever leaks, `zapps` → Overview → **Reset publish profile**, then update the variable.
 
 ### 5. The pipeline
 1. Pipelines → **New pipeline** → **Azure Repos Git** → `DIPFieldServiceApps` → **Existing Azure
@@ -58,11 +65,12 @@ its name. Someone with Owner or User Access Administrator on the subscription (o
 |---|---|
 | `zAppsName` | `zapps` |
 | `zAppsAgentPool` | `DIP-VNet` |
-| `azureServiceConnection` | `zapps-arm` |
+| `zAppsScmHost` | `publishUrl` from the publish profile, without `:443` |
+| `zAppsDeployUser` / `zAppsDeployPassword` | Pipeline variables (password secret), step 4 |
 | `mAppsSitePath` / `mAppsAppPool` | `C:\Websites\mApps` / the IIS app pool's name |
 | `mAppsHealthUrl` / `zAppsHealthUrl` | `https://mApps.dipark.com/health/ready` / `https://zApps.dipark.com/gateway/health` |
 
-3. **Run**. The first run asks to allow the environment, the pool and the service connection.
+3. **Run**. The first run asks to allow the environment and the pool.
 
 ## Each release
 1. Push to `main` (or merge a pull request). Build and Test run.

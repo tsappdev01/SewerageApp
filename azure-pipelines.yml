@@ -27,8 +27,9 @@ variables:
   mAppsAppPool: 'mApps'
   mAppsHealthUrl: 'https://mApps.dipark.com/health/ready'
   # zApps (Azure App Service)
-  azureServiceConnection: 'zapps-arm'          # Project settings → Service connections (Azure Resource Manager)
-  zAppsName: 'zapps'
+  # Deployed with the publish profile's user and password, set as pipeline variables zAppsDeployUser and
+  # zAppsDeployPassword (secret) under Pipelines → Edit → Variables. No Azure service connection is used.
+  zAppsScmHost: 'zapps-g4c5d5arhxehajau.scm.uaenorth-01.azurewebsites.net'   # publishUrl in the profile, without :443
   zAppsAgentPool: 'DIP-VNet'                    # self-hosted agent that reaches zapps' private endpoint
   zAppsHealthUrl: 'https://zApps.dipark.com/gateway/health'
 
@@ -138,13 +139,33 @@ stages:
           steps:
           - download: current
             artifact: zApps
-          - task: AzureWebApp@1
-            inputs:
-              azureSubscription: $(azureServiceConnection)
-              appType: webApp
-              appName: $(zAppsName)
-              package: $(Pipeline.Workspace)/zApps/zApps.zip
-              deploymentMethod: zipDeploy
+          - powershell: |
+              [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+              if (-not $env:DEPLOY_USER -or -not $env:DEPLOY_PASSWORD -or $env:DEPLOY_USER -like '$(*' -or $env:DEPLOY_PASSWORD -like '$(*') {
+                Write-Error "Set the pipeline variables zAppsDeployUser and zAppsDeployPassword (from the zapps publish profile)."; exit 1
+              }
+              $pair = [Text.Encoding]::ASCII.GetBytes("$($env:DEPLOY_USER):$($env:DEPLOY_PASSWORD)")
+              $auth = @{ Authorization = "Basic " + [Convert]::ToBase64String($pair) }
+              $scm = "https://$(zAppsScmHost)"
+              $zip = "$(Pipeline.Workspace)/zApps/zApps.zip"
+              $r = Invoke-WebRequest -Uri "$scm/api/zipdeploy?isAsync=true" -Method Post -InFile $zip `
+                     -ContentType 'application/zip' -Headers $auth -UseBasicParsing -TimeoutSec 600
+              $status = $r.Headers['Location']
+              if (-not $status) { $status = "$scm/api/deployments/latest" }
+              foreach ($i in 1..60) {
+                Start-Sleep -Seconds 5
+                $d = Invoke-RestMethod -Uri $status -Headers $auth -UseBasicParsing -TimeoutSec 60
+                Write-Host "Deployment status $($d.status): $($d.status_text)"
+                if ($d.complete) {
+                  if ($d.status -eq 4) { Write-Host "zApps deployed."; exit 0 }
+                  Write-Error "zApps deployment failed: $($d.log_url)"; exit 1
+                }
+              }
+              Write-Error "zApps deployment did not finish in 5 minutes."; exit 1
+            displayName: Zip deploy zApps (publish profile)
+            env:
+              DEPLOY_USER: $(zAppsDeployUser)
+              DEPLOY_PASSWORD: $(zAppsDeployPassword)
           - powershell: |
               $ok = $false
               foreach ($i in 1..12) {
