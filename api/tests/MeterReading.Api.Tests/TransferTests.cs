@@ -96,7 +96,7 @@ public sealed class TransferTests(ApiFactory factory) : IAsyncLifetime
         Assert.Equal("1101-I", row["MeterNumber"]);
         Assert.Equal("T-0102", row["TenantCode"]);
         Assert.Equal(CapturedInUae.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture), row["ReadingDate"]);   // UAE time, as text
-        Assert.Equal("WORKING", row["MeterStatus"]);
+        Assert.Equal("O.K", row["MeterStatus"]); // PMS's own StatusCode (vw_MR_MeterStatus, FR-006.2)
         Assert.Equal("30110", row["Previous_Reading"]);
         Assert.Equal("30500", row["Current_Reading"]);
         Assert.Equal("E1001", row["MeterReader"]);
@@ -157,7 +157,7 @@ public sealed class TransferTests(ApiFactory factory) : IAsyncLifetime
     {
         using var custom = factory.WithWebHostBuilder(b =>
         {
-            b.UseSetting("PmsTransfer:MeterStatusMap:WORKING", "Working");
+            b.UseSetting("PmsTransfer:MeterStatusMap:O.K", "Working");
             b.UseSetting("PmsTransfer:ReadingDateFormat", "dd/MM/yyyy HH:mm");
         });
         var id = await Send("BC0003", reading: 30_500);

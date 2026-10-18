@@ -295,6 +295,7 @@ public sealed class DeviceTests : IClassFixture<DeviceApiFactory>, IAsyncLifetim
         while (!File.Exists(Path.Combine(dir.FullName, "db", "ops", "approve_device.sql"))) dir = dir.Parent!;
         var script = (await File.ReadAllTextAsync(Path.Combine(dir.FullName, "db", "ops", "approve_device.sql")))
             // Own parameter names: SQL variable names ignore case, so @androidId would clash with the script's @AndroidId.
+            .Replace("@Label", "@ApproveLabel") // Sql() always passes @label (any case clashes)
             .Replace("'PHONE_ID'", "@p_phone").Replace("'CHECK1'", "@p_check").Replace("N'reader@dipark.com'", "@p_reader").Replace("N'Phone 01'", "@label");
         return (string?)await Sql(script, new() { ["@p_phone"] = androidId, ["@p_check"] = check, ["@p_reader"] = reader });
     }

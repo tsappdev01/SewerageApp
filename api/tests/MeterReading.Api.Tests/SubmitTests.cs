@@ -268,7 +268,7 @@ public sealed class SubmitTests(ApiFactory factory) : IAsyncLifetime
         Assert.Equal("E1001", r.GetString(9));
         Assert.False(r.GetBoolean(10));
         Assert.False(r.GetBoolean(11));
-        Assert.Equal("WORKING", r.GetString(12));
+        Assert.Equal("O.K", r.GetString(12));                 // PMS's StatusCode (FR-006.2)
     }
 
     [Fact]
