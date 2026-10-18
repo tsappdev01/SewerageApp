@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using MeterReading.Api.Data;
 using MeterReading.Api.Domain;
 using Microsoft.Data.SqlClient;
 
@@ -53,6 +54,26 @@ public class FinalizePairingTests
             (row.SewerageAmount, row.SewerageVat, row.IrrigationAmount, row.IrrigationVat, row.TotalAmount));
     }
 
+    [Theory]
+    [InlineData("2025-02-28", null, false)]   // DIP: 597-905, ReadingDate > 28 Feb 2025
+    [InlineData("2025-03-01", null, true)]
+    [InlineData("2026-10-04", null, true)]
+    [InlineData("2026-10-04", "2026-09-30", false)]
+    public void FR037_7_irrigation_is_not_charged_after_the_date(string reading, string? to, bool noCharge) =>
+        Assert.Equal(noCharge, FinalizeService.IsNoCharge(DateOnly.Parse(reading),
+            new IrrigationNoChargeRow { NoChargeAfter = new DateOnly(2025, 2, 28), ToDate = to is null ? null : DateOnly.Parse(to) }));
+
+    [Fact]
+    public void FR037_7_a_not_charged_irrigation_meter_has_no_amount_and_no_vat_but_keeps_its_consumption()
+    {
+        var row = FinalizeService.Pair([
+            new("S1", "001", "SEWERAGE", 0, 157, 157, null, 220, 1.5m),
+            new("I1", "001", "IRRIGATION", 0, 31, 31, null, 220, 1.5m, NoCharge: true),
+        ]).Single();
+        Assert.Equal((31m, 0m, 0m, 652.81m, true),
+            (row.Irrigation!.Consumption, row.IrrigationAmount, row.IrrigationVat, row.TotalAmount, row.IrrigationNoCharge));
+    }
+
     [Fact]
     public void FR037_5_no_float_value_or_rate_factor_means_no_amount()
     {
@@ -83,7 +104,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
     {
         await using var c = new SqlConnection(ApiFactory.ConnectionString);
         await c.OpenAsync();
-        await using var cmd = new SqlCommand("DELETE FROM mr.MaintainFinalizedMeter WHERE PropertyCode IN ('1497', '3010', '1101')", c);
+        await using var cmd = new SqlCommand("DELETE FROM mr.MaintainFinalizedMeter WHERE PropertyCode IN ('1497', '3010', '1101'); DELETE FROM mr.IrrigationNoCharge WHERE PropertyCode = '3010'", c);
         await cmd.ExecuteNonQueryAsync();
     }
 
@@ -164,6 +185,22 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         Assert.Equal(
             [("0", 0m, 0m, 0m, "3010-I", 15600m, 16610m, 1010m, true), ("3010-S", 4480m, 0m, 0m, "0", 0m, 0m, 0m, true)],
             await Rows("3010"));
+    }
+
+    [Fact]
+    public async Task FR037_7_irrigation_of_a_listed_property_is_not_charged_after_its_date()
+    {
+        await using (var c = new SqlConnection(ApiFactory.ConnectionString))
+        {
+            await c.OpenAsync();
+            await using var cmd = new SqlCommand("INSERT mr.IrrigationNoCharge (PropertyCode, NoChargeAfter) VALUES ('3010', '2025-02-28')", c);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // 3010-I was read on 4 Oct 2026 (db/dev/010): 1010 used, no charge. 3010-S was not accessible.
+        Assert.Equal(HttpStatusCode.OK, (await FinalizeProperty("3010")).Status);
+        Assert.Equal([(0m, 0m, 0m), (0m, 0m, 0m)], await Amounts("3010"));
+        Assert.Equal(1010m, (await Rows("3010"))[0].UsedI);
     }
 
     [Fact]

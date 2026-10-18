@@ -6,10 +6,10 @@ namespace MeterReading.Api.Domain;
 /// <summary>One meter of the property as it goes into mr.MaintainFinalizedMeter.</summary>
 public sealed record FinalizeMeter(
     string MeterId, string Number, string Type, decimal Previous, decimal Current, decimal Consumption, Guid? TransactionId,
-    decimal? FloatValue = null, decimal? RateFactor = null)
+    decimal? FloatValue = null, decimal? RateFactor = null, bool NoCharge = false)
 {
-    /// <summary>FR-037.5: what the consumption costs.</summary>
-    public decimal Amount => FinalizeService.Amount(Consumption, FloatValue, RateFactor);
+    /// <summary>FR-037.5: what the consumption costs; 0 when not charged (FR-037.7).</summary>
+    public decimal Amount => NoCharge ? 0m : FinalizeService.Amount(Consumption, FloatValue, RateFactor);
 }
 
 /// <summary>A sewerage meter and an irrigation meter side by side; an empty side is meter number "0" and 0s.</summary>
@@ -21,6 +21,8 @@ public sealed record FinalizedPair(FinalizeMeter? Sewerage, FinalizeMeter? Irrig
     public decimal IrrigationVat => FinalizeService.Vat(IrrigationAmount);
     /// <summary>FR-037.6: both amounts and both VATs.</summary>
     public decimal TotalAmount => SewerageAmount + IrrigationAmount + SewerageVat + IrrigationVat;
+    /// <summary>FR-037.7: the irrigation side is not charged.</summary>
+    public bool IrrigationNoCharge => Irrigation?.NoCharge ?? false;
 }
 
 /// <summary>
@@ -47,6 +49,13 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
     public const decimal VatRate = 0.05m;
 
     public static decimal Vat(decimal amount) => Math.Round(amount * VatRate, 2, MidpointRounding.AwayFromZero);
+
+    /// <summary>
+    /// FR-037.7: an irrigation reading of a property in mr.IrrigationNoCharge, taken (UAE date) after its
+    /// NoChargeAfter and up to its ToDate, is not charged.
+    /// </summary>
+    public static bool IsNoCharge(DateOnly? readingDate, IrrigationNoChargeRow? rule) =>
+        rule is not null && readingDate is { } d && d > rule.NoChargeAfter && (rule.ToDate is null || d <= rule.ToDate);
 
     /// <summary>FR-037.2: a meter counts as read once its reading is stored (sent, or "visit again").</summary>
     public static bool IsRead(AssignmentState s) => s is AssignmentState.SENT or AssignmentState.REVISIT;
@@ -87,6 +96,7 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
         var ids = meters.Select(m => m.Id).ToArray();
         var readings = await repo.GetFinalizeReadingsAsync(period.PeriodCode, ids, ct);
         var source = await readers.SourceRowsAsync(ids, ct);
+        var noCharge = await repo.GetIrrigationNoChargeAsync(meters[0].PropertyCode, ct);
         var rows = Pair(meters.Select(m =>
         {
             readings.TryGetValue(m.Id, out var t);
@@ -96,7 +106,8 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
                 t?.CurrentReading ?? 0m,
                 t?.Consumption ?? 0m,
                 t?.TransactionId,
-                s?.FloatValue, s?.RateFactor);
+                s?.FloatValue, s?.RateFactor,
+                NoCharge: m.Type == "IRRIGATION" && IsNoCharge(t?.ReadingDate is { } d ? (DateOnly?)DateOnly.FromDateTime(d) : null, noCharge));
         }));
         var code = meters[0].PropertyCode;
         var propertyId = readings.Values.Select(r => r.PropertyId).FirstOrDefault(id => id is not null);
@@ -109,5 +120,5 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
     private static FinalizedMeterDto ToDto(FinalizedPair p) => new(
         p.Sewerage?.Number ?? "0", p.Sewerage?.Previous ?? 0m, p.Sewerage?.Current ?? 0m, p.Sewerage?.Consumption ?? 0m,
         p.Irrigation?.Number ?? "0", p.Irrigation?.Previous ?? 0m, p.Irrigation?.Current ?? 0m, p.Irrigation?.Consumption ?? 0m,
-        p.SewerageAmount, p.IrrigationAmount, p.SewerageVat, p.IrrigationVat, p.TotalAmount);
+        p.SewerageAmount, p.IrrigationAmount, p.SewerageVat, p.IrrigationVat, p.TotalAmount, p.IrrigationNoCharge);
 }

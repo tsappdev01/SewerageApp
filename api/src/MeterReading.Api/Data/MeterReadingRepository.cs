@@ -213,10 +213,11 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     {
         if (meterIds.Count == 0) return new Dictionary<string, FinalizeReadingRow>();
         var sql = $"""
-            SELECT MeterId, TransactionId, PropertyId, PreviousReading, CurrentReading, Consumption
+            SELECT MeterId, TransactionId, PropertyId, PreviousReading, CurrentReading, Consumption, ReadingDate
             FROM (
                 SELECT t.MeterId, t.TransactionId, t.PropertyId, t.PreviousReading,
                        COALESCE(t.NewReading, t.NewCurrentReading) AS CurrentReading, t.Consumption,
+                       CAST(CAST(t.CapturedAtUtc AT TIME ZONE 'UTC' AT TIME ZONE 'Arabian Standard Time' AS date) AS datetime2) AS ReadingDate,
                        ROW_NUMBER() OVER (PARTITION BY t.MeterId ORDER BY t.ReceivedAtUtc DESC, t.CapturedAtUtc DESC) AS rn
                 FROM mr.ReadingTransaction t
                 WHERE t.PeriodCode = @periodCode AND t.Status NOT IN ('SUPERSEDED', 'REJECTED_BY_SUPERVISOR')
@@ -227,6 +228,28 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         await using var c = await db.OpenMeterReadingAsync(ct);
         var rows = await c.QueryAsync<FinalizeReadingRow>(Cmd(sql, new { periodCode, ids = SqlList.Of(meterIds) }, ct));
         return rows.ToDictionary(r => r.MeterId, StringComparer.Ordinal);
+    }
+
+    /// <summary>FR-037.7: the property's row of mr.IrrigationNoCharge (db/020), or null when its irrigation is charged.</summary>
+    public async Task<IrrigationNoChargeRow?> GetIrrigationNoChargeAsync(string propertyCode, CancellationToken ct)
+    {
+        const string sql = """
+            SELECT CAST(NoChargeAfter AS datetime2) AS NoChargeAfter, CAST(ToDate AS datetime2) AS ToDate
+            FROM mr.IrrigationNoCharge WHERE PropertyCode = @propertyCode
+            """;
+        await using var c = await db.OpenMeterReadingAsync(ct);
+        var row = await c.QuerySingleOrDefaultAsync<NoChargeDates>(Cmd(sql, new { propertyCode }, ct));
+        return row is null ? null : new IrrigationNoChargeRow
+        {
+            NoChargeAfter = DateOnly.FromDateTime(row.NoChargeAfter),
+            ToDate = row.ToDate is { } d ? DateOnly.FromDateTime(d) : null,
+        };
+    }
+
+    private sealed class NoChargeDates
+    {
+        public DateTime NoChargeAfter { get; init; }
+        public DateTime? ToDate { get; init; }
     }
 
     /// <summary>
@@ -249,13 +272,13 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                 MeterNumberIrrigation, PrevReadingIrrigation, CurrentReadingIrrigation, ConsumptionIrrigation,
                 SewerageTransactionId, IrrigationTransactionId, FinalizedByReaderId, DeviceId, FinalizedAtUtc, IsCurrent,
                 SewerageAmount, IrrigationAmount, FloatValueSewerage, RateFactorSewerage, FloatValueIrrigation, RateFactorIrrigation,
-                SewerageVat, IrrigationVat, TotalAmount)
+                SewerageVat, IrrigationVat, TotalAmount, IrrigationNoCharge)
             VALUES (@PeriodCode, @PropertyId, @PropertyCode,
                 @MeterNumberSewerage, @PrevReadingSewerage, @CurrentReadingSewerage, @ConsumptionSewerage,
                 @MeterNumberIrrigation, @PrevReadingIrrigation, @CurrentReadingIrrigation, @ConsumptionIrrigation,
                 @SewerageTransactionId, @IrrigationTransactionId, @ReaderId, @DeviceId, @At, 1,
                 @SewerageAmount, @IrrigationAmount, @FloatValueSewerage, @RateFactorSewerage, @FloatValueIrrigation, @RateFactorIrrigation,
-                @SewerageVat, @IrrigationVat, @TotalAmount);
+                @SewerageVat, @IrrigationVat, @TotalAmount, @IrrigationNoCharge);
             """;
         await using var c = await db.OpenMeterReadingAsync(ct);
         await using var tx = await c.BeginTransactionAsync(ct);
@@ -270,7 +293,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             CurrentReadingIrrigation = r.Irrigation?.Current ?? 0m, ConsumptionIrrigation = r.Irrigation?.Consumption ?? 0m,
             SewerageTransactionId = r.Sewerage?.TransactionId, IrrigationTransactionId = r.Irrigation?.TransactionId,
             ReaderId = readerId, DeviceId = deviceId, At = at,
-            r.SewerageAmount, r.IrrigationAmount, r.SewerageVat, r.IrrigationVat, r.TotalAmount,
+            r.SewerageAmount, r.IrrigationAmount, r.SewerageVat, r.IrrigationVat, r.TotalAmount, r.IrrigationNoCharge,
             FloatValueSewerage = r.Sewerage?.FloatValue, RateFactorSewerage = r.Sewerage?.RateFactor,
             FloatValueIrrigation = r.Irrigation?.FloatValue, RateFactorIrrigation = r.Irrigation?.RateFactor,
         }).ToList(), tx, CommandTimeoutSeconds, cancellationToken: ct));

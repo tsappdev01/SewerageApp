@@ -30,7 +30,7 @@ public static class ReadingEndpoints
         }
         catch (Microsoft.Data.SqlClient.SqlException e) when (e.Number == 208) // invalid object name: db/017 not run
         {
-            return Problems.Of(StatusCodes.Status503ServiceUnavailable, "FINALIZE_OFF", "Finalizing is not set up on the server yet (db/017). Tell IT.");
+            return Problems.Of(StatusCodes.Status503ServiceUnavailable, "FINALIZE_OFF", "Finalizing is not set up on the server yet (db/017 to db/020). Tell IT.");
         }
     }
 

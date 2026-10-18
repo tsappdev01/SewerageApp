@@ -101,6 +101,15 @@ public sealed class FinalizeReadingRow
     /// <summary>NewReading, or the new meter's reading after a replacement (NewCurrentReading).</summary>
     public decimal? CurrentReading { get; init; }
     public decimal? Consumption { get; init; }
+    /// <summary>The day the reading was taken, in the UAE.</summary>
+    public DateTime? ReadingDate { get; init; }
+}
+
+/// <summary>A row of mr.IrrigationNoCharge (db/020, FR-037.7).</summary>
+public sealed class IrrigationNoChargeRow
+{
+    public DateOnly NoChargeAfter { get; init; }
+    public DateOnly? ToDate { get; init; }
 }
 
 public sealed class HistoryRow
