@@ -232,6 +232,10 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         string periodCode, IReadOnlyCollection<string> meterIds, CancellationToken ct)
     {
         if (meterIds.Count == 0) return new Dictionary<string, LatestTransactionRow>();
+        // A long list of ids as one XML parameter makes SQL Server slow (UAT 2026-10-18, 2,358 meters): for
+        // more than a few hundred, the period's latest readings are read whole and matched here.
+        var many = meterIds.Count > 200;
+        var idClause = many ? "" : $"AND t.MeterId IN ({SqlList.Select("@ids", "varchar(50)")})";
         var sql = $"""
             SELECT MeterId, TransactionId, Status, StatusNote, MeterCondition, ConditionKind, ReceivedAtUtc
             FROM (
@@ -239,13 +243,14 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                        ROW_NUMBER() OVER (PARTITION BY t.MeterId ORDER BY t.ReceivedAtUtc DESC, t.CapturedAtUtc DESC) AS rn
                 FROM mr.ReadingTransaction t
                 WHERE t.PeriodCode = @periodCode AND t.Status <> 'SUPERSEDED'
-                  AND t.MeterId IN ({SqlList.Select("@ids", "varchar(50)")})
+                  {idClause}
             ) x
             WHERE x.rn = 1
             """;
         await using var c = await db.OpenMeterReadingAsync(ct);
-        var rows = await c.QueryAsync<LatestTransactionRow>(Cmd(sql, new { periodCode, ids = SqlList.Of(meterIds) }, ct));
-        return rows.ToDictionary(r => r.MeterId, StringComparer.Ordinal);
+        var rows = await c.QueryAsync<LatestTransactionRow>(Cmd(sql, new { periodCode, ids = many ? "" : SqlList.Of(meterIds) }, ct));
+        var wanted = many ? meterIds.ToHashSet(StringComparer.Ordinal) : null;
+        return rows.Where(r => wanted is null || wanted.Contains(r.MeterId)).ToDictionary(r => r.MeterId, StringComparer.Ordinal);
     }
 
     /// <summary>

@@ -20,7 +20,10 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
         var rows = await repo.GetMetersAsync(filter, ct);
         var needAverage = rows.Where(r => r.AverageConsumption is null).Select(r => r.MeterId).ToArray();
         // Different databases are allowed, so these run on their own connections, side by side.
-        var tenantsTask = repo.GetTenantsAsync(rows.Select(r => r.PropertyCode).Distinct().ToArray(), ct);
+        // The full list reads every tenant: a list of 1,288 property codes against the view was the slow part
+        // (UAT 2026-10-18), the whole view takes 1 s.
+        var full = filter.ZoneCodes is not { Count: > 0 } && filter.MeterIds is not { Count: > 0 };
+        var tenantsTask = repo.GetTenantsAsync(full ? null : rows.Select(r => r.PropertyCode).Distinct().ToArray(), ct);
         var averagesTask = repo.GetHistoryAveragesAsync(needAverage, rules.Value.AveragePeriods, ct);
         return new SourcePart(rows, (await tenantsTask).ToLookup(t => t.PropertyCode), await averagesTask);
     }
