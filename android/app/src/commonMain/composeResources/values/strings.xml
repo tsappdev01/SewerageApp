@@ -280,6 +280,9 @@
     <string name="settings_server_ok">Server found</string>
     <string name="settings_server_bad">Server not found</string>
     <string name="settings_version">App version %1$s</string>
+    <string name="settings_build">Build %1$s</string>
+    <string name="settings_built_at">Built: %1$s</string>
+    <string name="settings_updated_at">Last updated on this phone: %1$s</string>
     <string name="settings_save">Save</string>
     <string name="speak_home">Press the big blue Start button to read the next meter. The cloud button at the top gets the latest list.</string>
     <string name="speak_zones">Pick a zone. Green means it is finished.</string>

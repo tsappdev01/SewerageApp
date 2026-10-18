@@ -54,6 +54,11 @@ object AppServices {
     /** The app's version, shown at the bottom of Settings. */
     val versionName: String get() = platform.build.versionName
 
+    /** Build number, build time and last install/update on this phone, shown under the version. */
+    val buildNumber: String get() = platform.build.buildNumber
+    val builtAtUtc: String get() = platform.build.builtAtUtc
+    val updatedAtMillis: Long? get() = platform.build.updatedAtMillis
+
     /** Where photos are written as they are taken (inside the app's private, not backed-up storage). */
     val capturesDir: File get() = File(platform.dataDir, "captures")
 

@@ -37,6 +37,12 @@ data class BuildValues(
     val osVersion: String,
     /** FR-002.8: ANDROID_ID (Android) or identifierForVendor (iOS). Shown to IT; not a secret. */
     val phoneId: String = "",
+    /** The build number (Android versionCode = the CI run, e.g. 71; iOS CFBundleVersion). */
+    val buildNumber: String = "",
+    /** When this build was made, ISO-8601 UTC; empty when unknown. */
+    val builtAtUtc: String = "",
+    /** When the app was last installed or updated on this phone (epoch ms); null when unknown. */
+    val updatedAtMillis: Long? = null,
 )
 
 /** Small values kept by the platform (SharedPreferences on Android, NSUserDefaults on iOS). */

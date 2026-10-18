@@ -62,3 +62,9 @@ fun String.fill(vararg args: Any?): String {
         args.getOrNull(index)?.toString() ?: m.value
     }
 }
+
+/** Date and time in the phone's zone, e.g. "18 Oct 2026 19:30", for the build and update times in Settings. */
+fun formatDateTime(instant: Instant): String {
+    val t = instant.toLocalDateTime(localZone)
+    return "${t.dayOfMonth} ${MONTHS[t.monthNumber - 1]} ${t.year} ${formatTime(t)}"
+}

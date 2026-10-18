@@ -121,6 +121,7 @@ private class IosServices : PlatformServices {
         deviceModel = "Apple ${UIDevice.currentDevice.model}",
         phoneId = UIDevice.currentDevice.identifierForVendor?.UUIDString.orEmpty(),
         osVersion = "${UIDevice.currentDevice.systemName} ${UIDevice.currentDevice.systemVersion}",
+        buildNumber = info("CFBundleVersion").orEmpty(),
     )
 
     override fun startConnectivity() {

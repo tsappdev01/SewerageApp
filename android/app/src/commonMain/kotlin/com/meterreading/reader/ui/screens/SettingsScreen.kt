@@ -17,6 +17,7 @@ import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.meterreading.reader.util.formatDateTime
 import com.meterreading.reader.resources.*
 import com.meterreading.reader.api.ApiClient
 import com.meterreading.reader.api.ApiException
@@ -166,9 +167,21 @@ fun SettingsScreen(onSaved: () -> Unit, onBack: () -> Unit) {
 
             problems.forEach { Banner(it, Icons.Rounded.Warning, AppColors.Bad, AppColors.BadTint) }
             Text(
-                stringResource(Res.string.settings_version, AppServices.versionName),
+                listOfNotNull(
+                    stringResource(Res.string.settings_version, AppServices.versionName),
+                    AppServices.buildNumber.takeIf { it.isNotBlank() }?.let { stringResource(Res.string.settings_build, it) },
+                ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall, color = AppColors.SubInk,
             )
+            AppServices.builtAtUtc.takeIf { it.isNotBlank() }
+                ?.let { runCatching { kotlinx.datetime.Instant.parse(it) }.getOrNull() }
+                ?.let { Text(stringResource(Res.string.settings_built_at, formatDateTime(it)), style = MaterialTheme.typography.bodySmall, color = AppColors.SubInk) }
+            AppServices.updatedAtMillis?.let {
+                Text(
+                    stringResource(Res.string.settings_updated_at, formatDateTime(kotlinx.datetime.Instant.fromEpochMilliseconds(it))),
+                    style = MaterialTheme.typography.bodySmall, color = AppColors.SubInk,
+                )
+            }
         }
         Box(Modifier.padding(16.dp)) {
             BigButton(text = stringResource(Res.string.settings_save), onClick = ::save, icon = Icons.Rounded.Save)

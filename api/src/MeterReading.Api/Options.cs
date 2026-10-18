@@ -16,6 +16,12 @@ public sealed class SourceViewsOptions
     /// time. Reading states are always live. Default 5 minutes.
     /// </summary>
     public int CacheSeconds { get; set; } = 300;
+
+    /// <summary>
+    /// SQL timeout for reading the full meter list from the views (in the background, for the cache). PMS's
+    /// views can take over a minute (UAT 2026-10-18); a load that times out keeps nothing. Default 5 minutes.
+    /// </summary>
+    public int CommandTimeoutSeconds { get; set; } = 300;
 }
 
 /// <summary>Thresholds from spec BR-007 and BR-008. Settings, not constants.</summary>

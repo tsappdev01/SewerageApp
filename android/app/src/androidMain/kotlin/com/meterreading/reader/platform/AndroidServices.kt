@@ -46,6 +46,9 @@ private class AndroidServices(private val context: Context) : PlatformServices {
         // Same for this app on this phone across reinstalls; a factory reset makes a new one.
         phoneId = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ANDROID_ID).orEmpty(),
         osVersion = Build.VERSION.RELEASE,
+        buildNumber = BuildConfig.VERSION_CODE.toString(),
+        builtAtUtc = BuildConfig.BUILD_TIME_UTC,
+        updatedAtMillis = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime }.getOrNull(),
     )
 
     override fun startConnectivity() = AndroidConnectivity.start(context)

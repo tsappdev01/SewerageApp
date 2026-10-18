@@ -110,6 +110,8 @@ android {
         // Every upload to Play needs a higher versionCode: CI passes its run number (-PversionCode=...).
         versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 8
         versionName = "1.0.0"
+        // Shown in Settings next to the version: when this APK was built (UTC). CI may pass -PbuildTime=...
+        buildConfigField("String", "BUILD_TIME_UTC", "\"${project.findProperty("buildTime") ?: java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES)}\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Override per build: ./gradlew assembleDebug -PapiBaseUrl=https://... -PuseFakeData=true

@@ -169,7 +169,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             ids = SqlList.Of(filter.MeterIds ?? []),
         };
         await using var c = await db.OpenSourceAsync(ct);
-        return OnePerBarcode(await c.QueryAsync<MeterRow>(Cmd(sql, args, ct)));
+        return OnePerBarcode(await c.QueryAsync<MeterRow>(ViewCmd(sql, args, ct)));
     }
 
     /// <summary>
@@ -208,7 +208,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             GROUP BY x.MeterId
             """;
         await using var c = await db.OpenSourceAsync(ct);
-        var rows = await c.QueryAsync<AverageRow>(Cmd(sql, new { ids = SqlList.Of(meterIds), periods }, ct));
+        var rows = await c.QueryAsync<AverageRow>(ViewCmd(sql, new { ids = SqlList.Of(meterIds), periods }, ct));
         return rows.ToDictionary(r => r.MeterId, r => r.Average, StringComparer.Ordinal);
     }
 
@@ -503,7 +503,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             {codeClause}
             """;
         await using var c = await db.OpenSourceAsync(ct);
-        var rows = await c.QueryAsync<TenantRow>(Cmd(sql, new { codes = SqlList.Of(propertyCodes ?? []) }, ct));
+        var rows = await c.QueryAsync<TenantRow>(ViewCmd(sql, new { codes = SqlList.Of(propertyCodes ?? []) }, ct));
         return rows.Where(r => r.TenantCode.Length > 0).DistinctBy(r => (r.PropertyCode, r.TenantCode)).ToList();
     }
 
@@ -536,4 +536,11 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
 
     private static CommandDefinition Cmd(string sql, object? args, CancellationToken ct) =>
         new(sql, args, commandTimeout: CommandTimeoutSeconds, cancellationToken: ct);
+
+    /// <summary>
+    /// The full-list reads of PMS's views (meters, tenants, averages): run in the background for SourceCache,
+    /// so they may take longer than a phone waits (SourceViews:CommandTimeoutSeconds, default 300).
+    /// </summary>
+    private CommandDefinition ViewCmd(string sql, object? args, CancellationToken ct) =>
+        new(sql, args, commandTimeout: Math.Max(CommandTimeoutSeconds, _options.CommandTimeoutSeconds), cancellationToken: ct);
 }
