@@ -35,6 +35,8 @@ approve_waiting_phone() {
       -Q "SET NOCOUNT ON; SELECT TOP (1) AndroidId + ' ' + CheckCode FROM mr.Device WHERE Status = 'PENDING' ORDER BY RegisteredAtUtc DESC" | tr -d '\r' | grep -v '^$' | head -n 1)
     if [ -n "$row" ]; then
       set -- $row
+      # As IT would: some time after the phone asked, so the test sees "Waiting for IT" first.
+      sleep 25
       echo "Waiting phone $1, check code $2: approving for rashid@dip.example"
       sed -e "s/'PHONE_ID'/'$1'/" -e "s/'CHECK1'/'$2'/" -e "s/N'reader@dipark.com'/N'rashid@dip.example'/" -e "s/N'Phone 01'/N'$LABEL'/" \
         ../db/ops/approve_device.sql > "$OUT/approve.sql"

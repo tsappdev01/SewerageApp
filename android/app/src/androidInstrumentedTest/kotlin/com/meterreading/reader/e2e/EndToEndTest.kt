@@ -23,10 +23,9 @@ class EndToEndTest {
     @Test fun t1_FR002_8_the_phone_waits_for_IT_and_opens_once_registered() {
         phone.openApp()
         // First start: the phone asks to be registered and shows what IT needs.
-        phone.waitText("Waiting for IT", 60_000)
+        phone.waitText("Waiting for IT", 90_000)
         phone.waitText("Phone ID")
         phone.waitText("Check code")
-        Thread.sleep(2_000)
         phone.shot("01_waiting_for_it")
 
         // The workflow approves it in SQL meanwhile, as IT would (db/ops/approve_device.sql).

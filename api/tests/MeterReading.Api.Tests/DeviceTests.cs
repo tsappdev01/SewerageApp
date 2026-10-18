@@ -275,33 +275,6 @@ public sealed class DeviceTests : IClassFixture<DeviceApiFactory>, IAsyncLifetim
         var ready = await _factory.CreateClient().GetAsync("/health/ready");
         Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
     }
-}
-
-/// <summary>Registration codes cannot be guessed quickly: the endpoint is rate limited per address.</summary>
-public sealed class DeviceRateLimitTests
-{
-    private sealed class TightFactory : WebApplicationFactory<Program>
-    {
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Development");
-            builder.UseSetting("ConnectionStrings:MeterReading", ApiFactory.ConnectionString);
-        builder.UseSetting("SourceViews:HasReadingHistory", "true"); // db/dev has the optional history view
-            builder.UseSetting("Auth:Mode", "Device");
-            builder.UseSetting("Devices:RegisterPerMinute", "2");
-        }
-    }
-
-    [Fact]
-    public async Task Too_many_tries_in_a_minute_are_refused()
-    {
-        await using var factory = new TightFactory();
-        var client = factory.CreateClient();
-        var codes = new List<HttpStatusCode>();
-        for (var i = 0; i < 3; i++)
-            codes.Add((await client.PostAsJsonAsync("/api/v1/devices/register", new { code = "ZZZZ-ZZZZ-ZZZZ" })).StatusCode);
-        Assert.Equal([HttpStatusCode.UnprocessableEntity, HttpStatusCode.UnprocessableEntity, HttpStatusCode.TooManyRequests], codes);
-    }
 
     // ---- FR-002.8: registration by the phone's ANDROID_ID, approved by IT in SQL ----
 
@@ -396,5 +369,33 @@ public sealed class DeviceRateLimitTests
         var response = await _factory.CreateClient().PostAsJsonAsync("/api/v1/devices/enrol", new { androidId });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.Equal("VALIDATION_FAILED", await Code(response));
+    }
+
+}
+
+/// <summary>Registration codes cannot be guessed quickly: the endpoint is rate limited per address.</summary>
+public sealed class DeviceRateLimitTests
+{
+    private sealed class TightFactory : WebApplicationFactory<Program>
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.UseEnvironment("Development");
+            builder.UseSetting("ConnectionStrings:MeterReading", ApiFactory.ConnectionString);
+        builder.UseSetting("SourceViews:HasReadingHistory", "true"); // db/dev has the optional history view
+            builder.UseSetting("Auth:Mode", "Device");
+            builder.UseSetting("Devices:RegisterPerMinute", "2");
+        }
+    }
+
+    [Fact]
+    public async Task Too_many_tries_in_a_minute_are_refused()
+    {
+        await using var factory = new TightFactory();
+        var client = factory.CreateClient();
+        var codes = new List<HttpStatusCode>();
+        for (var i = 0; i < 3; i++)
+            codes.Add((await client.PostAsJsonAsync("/api/v1/devices/register", new { code = "ZZZZ-ZZZZ-ZZZZ" })).StatusCode);
+        Assert.Equal([HttpStatusCode.UnprocessableEntity, HttpStatusCode.UnprocessableEntity, HttpStatusCode.TooManyRequests], codes);
     }
 }
