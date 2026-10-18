@@ -1,4 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -111,7 +113,7 @@ android {
         versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 8
         versionName = "1.0.0"
         // Shown in Settings next to the version: when this APK was built (UTC). CI may pass -PbuildTime=...
-        buildConfigField("String", "BUILD_TIME_UTC", "\"${project.findProperty("buildTime") ?: java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES)}\"")
+        buildConfigField("String", "BUILD_TIME_UTC", "\"${project.findProperty("buildTime") ?: Instant.now().truncatedTo(ChronoUnit.MINUTES)}\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Override per build: ./gradlew assembleDebug -PapiBaseUrl=https://... -PuseFakeData=true
