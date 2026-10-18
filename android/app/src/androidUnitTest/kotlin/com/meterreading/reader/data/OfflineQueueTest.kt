@@ -140,6 +140,7 @@ class OfflineQueueTest {
         server.enqueue(MockResponse().setResponseCode(201).setBody("""{"transactionId":"${d.transactionId}","meterId":"BC0006","status":"ACCEPTED","state":"SENT","exceptions":[]}"""))
         server.enqueue(MockResponse().setResponseCode(503)) // photo upload fails for now
         assertEquals(SubmitOutcome.SENT, runBlocking { repo.submit(d) }.outcome)
+        runBlocking { repo.awaitBackground() }
         assertTrue(sealer.isSealed(File(d.photos.single().path).readBytes()))
         assertEquals(1, app().photosWaiting.value) // still waiting after a restart
     }

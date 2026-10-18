@@ -100,7 +100,8 @@ data class MeterStatusOption(val code: String, val name: String, val kind: Meter
 /** A photo taken for a reading. [imageId] is made once, so a retried upload is recognised (FR-009). */
 data class DraftPhoto(val imageId: String, val role: ImageRole, val path: String)
 
-enum class SubmitOutcome { SENT, QUEUED, CHECKING, REJECTED }
+/** SENDING: kept on the phone and on its way; the server had not answered within a second. */
+enum class SubmitOutcome { SENT, SENDING, QUEUED, CHECKING, REJECTED }
 
 /** What happened to a reading; [message] explains a rejection in the server's words. */
 data class SubmitResult(val outcome: SubmitOutcome, val message: String? = null)

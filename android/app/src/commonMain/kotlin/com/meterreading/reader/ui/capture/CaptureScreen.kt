@@ -652,6 +652,7 @@ private fun AfterSend(vm: CaptureViewModel, outcome: SubmitOutcome, onNextMeter:
     val haptics = LocalHapticFeedback.current
     val text = when (outcome) {
         SubmitOutcome.QUEUED -> stringResource(Res.string.result_saved_short)
+        SubmitOutcome.SENDING -> stringResource(Res.string.result_sending_short)
         SubmitOutcome.CHECKING -> stringResource(Res.string.result_checking)
         else -> stringResource(Res.string.result_sent_sub, vm.meter.number)
     }
@@ -676,13 +677,13 @@ private fun ResultStep(vm: CaptureViewModel, outcome: SubmitOutcome, onNextMeter
     data class Look(val icon: androidx.compose.ui.graphics.vector.ImageVector, val fg: Color, val bg: Color, val title: StringResource, val speak: StringResource)
     val look = when (outcome) {
         SubmitOutcome.SENT -> Look(Icons.Rounded.Check, AppColors.Ok, AppColors.OkTint, Res.string.result_sent, Res.string.speak_result_sent)
-        SubmitOutcome.QUEUED -> Look(Icons.Rounded.CloudUpload, AppColors.Queued, AppColors.QueuedTint, Res.string.result_saved, Res.string.speak_result_saved)
+        SubmitOutcome.QUEUED, SubmitOutcome.SENDING -> Look(Icons.Rounded.CloudUpload, AppColors.Queued, AppColors.QueuedTint, Res.string.result_saved, Res.string.speak_result_saved)
         SubmitOutcome.CHECKING -> Look(Icons.Rounded.Warning, AppColors.Warn, AppColors.WarnTint, Res.string.result_checking, Res.string.speak_result_checking)
         SubmitOutcome.REJECTED -> Look(Icons.Rounded.Close, AppColors.Bad, AppColors.BadTint, Res.string.result_rejected, Res.string.speak_result_rejected)
     }
     val subtitle = when (outcome) {
         SubmitOutcome.SENT -> stringResource(Res.string.result_sent_sub, vm.meter.number)
-        SubmitOutcome.QUEUED -> stringResource(Res.string.result_saved_sub)
+        SubmitOutcome.QUEUED, SubmitOutcome.SENDING -> stringResource(Res.string.result_saved_sub)
         SubmitOutcome.CHECKING -> stringResource(Res.string.result_checking_sub)
         SubmitOutcome.REJECTED -> vm.refusal ?: stringResource(Res.string.result_rejected_sub)
     }

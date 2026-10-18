@@ -15,8 +15,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.job
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import com.meterreading.reader.platform.File
 import okio.IOException
 import kotlinx.datetime.Instant
@@ -44,7 +52,12 @@ class ApiMeterRepository(
     private val onWaiting: (() -> Unit)? = null,
     private val listCache: MeterListCache? = null,
     private val clock: () -> Instant = { Clock.System.now() },
+    /** How long [submit] waits for the server's answer before the reader moves on (DIP: within 1 second). */
+    private val quickAnswerMillis: Long = 1_000,
 ) : MeterRepository() {
+    /** Sends that outlive the screen that started them: a slow answer, and photos after their reading. */
+    private val background = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     private val _readerName = MutableStateFlow("")
     override val readerName: StateFlow<String> = _readerName.asStateFlow()
 
@@ -178,30 +191,57 @@ class ApiMeterRepository(
         }
     } }
 
-    override suspend fun submit(draft: ReadingDraft): SubmitResult = lock.withLock {
-        tenantRefusal(draft)?.let { return@withLock SubmitResult(SubmitOutcome.REJECTED, it) } // never saved or queued
+    /**
+     * The reading is kept on the phone first (queued), then sent. The reader waits at most
+     * [quickAnswerMillis] for the server: an answer in that time (sent, checking, refused) is shown at
+     * once; a slower one arrives in the background and the meter shows it (sent, or read again with the
+     * server's reason). Photos always go up in the background after their reading is stored.
+     */
+    override suspend fun submit(draft: ReadingDraft): SubmitResult {
+        tenantRefusal(draft)?.let { return SubmitResult(SubmitOutcome.REJECTED, it) } // never saved or queued
         draft.photos.forEach { vault.seal(it.path) }
-        try {
+        lock.withLock { enqueue(draft) } // nothing is lost if the answer is slow or the app is closed
+        val answer = background.async {
+            val result = lock.withLock { sendOne(draft) }
+            if (result.outcome == SubmitOutcome.SENT || result.outcome == SubmitOutcome.CHECKING) lock.withLock { uploadPhotos() }
+            result
+        }
+        return withTimeoutOrNull(quickAnswerMillis) { answer.await() } ?: SubmitResult(SubmitOutcome.SENDING)
+    }
+
+    /** Sends one queued reading now. Under [lock]. */
+    private suspend fun sendOne(draft: ReadingDraft): SubmitResult {
+        // Sent meanwhile by sendQueued (the background send): its answer is already on the meter.
+        if (queue.none { it.transactionId == draft.transactionId }) return SubmitResult(SubmitOutcome.SENT)
+        return try {
             val response = api.submit(draft.toRequest())
             online.value = true
-            applyStored(draft, response)
-            uploadPhotos()
+            queue.removeAll { it.transactionId == draft.transactionId }
+            applyStored(draft, response) // saves the queue
             SubmitResult(if (response.status == "EXCEPTION") SubmitOutcome.CHECKING else SubmitOutcome.SENT)
         } catch (e: IOException) {
             online.value = false
-            enqueue(draft)
             SubmitResult(SubmitOutcome.QUEUED)
         } catch (e: ApiException) {
             if (e.isRetryable || e.needsSignIn) {
                 // Not accepted as this reader: keep the reading on the phone; it goes up after signing in again.
                 if (e.needsSignIn) { signInReason = e.title; signInNeeded.value = true }
-                enqueue(draft)
                 SubmitResult(SubmitOutcome.QUEUED)
             } else {
-                deletePhotos(draft) // the reading was not stored; the reader takes new photos
+                // Not stored: the reader reads the meter again (new photos), with the server's reason on it.
+                queue.removeAll { it.transactionId == draft.transactionId }
+                persist()
+                deletePhotos(draft)
+                _readings.update { list -> list.filterNot { it.transactionId == draft.transactionId } }
+                updateMeter(draft.meterId) { it.copy(state = ReadingState.READ_AGAIN, supervisorNote = e.title) }
                 SubmitResult(SubmitOutcome.REJECTED, e.title)
             }
         }
+    }
+
+    /** Waits for sends still going in the background (tests). */
+    internal suspend fun awaitBackground() {
+        background.coroutineContext.job.children.toList().joinAll()
     }
 
     override suspend fun finalizeProperty(propertyCode: String): FinalizeResult = try {

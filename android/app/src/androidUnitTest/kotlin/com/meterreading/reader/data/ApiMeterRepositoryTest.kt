@@ -193,6 +193,7 @@ class ApiMeterRepositoryTest {
         assertEquals("DISPLAY", upload.requestUrl!!.queryParameter("role"))
         assertEquals("2026-10-04T07:15:00Z", upload.requestUrl!!.queryParameter("capturedAtUtc"))
         val bytes = upload.body.readByteArray()
+        runBlocking { repo.awaitBackground() } // photos go up after the reader has moved on
         assertEquals(sha256(bytes), upload.getHeader("X-Content-SHA256"))
         assertEquals("image/jpeg", upload.getHeader("Content-Type"))
         assertEquals(false, File(p.path).exists())
@@ -206,6 +207,7 @@ class ApiMeterRepositoryTest {
         val d = draft(photos = listOf(p))
         enqueue(201, stored(d)); enqueue(503, "")
         assertEquals(SubmitOutcome.SENT, runBlocking { repo.submit(d) }.outcome) // the reading is not held up
+        runBlocking { repo.awaitBackground() }
         takeRequests(2)
         assertEquals(1, repo.photosWaiting.value)
         assertTrue(repo.hasWaiting())
@@ -295,5 +297,33 @@ class ApiMeterRepositoryTest {
         assertEquals(0, runBlocking { repo.sendQueued() })
         assertEquals(ReadingState.READ_AGAIN, repo.meter("BC0006").state)
         assertEquals("The tenant of this property has changed. Refresh and check the tenant again.", repo.meter("BC0006").supervisorNote)
+    }
+
+    @Test
+    fun `a slow answer does not hold the reader up, and the meter shows it when it comes`() {
+        signIn(); takeRequests(3)
+        val d = draft()
+        server.enqueue(MockResponse().setResponseCode(201).setBody(stored(d)).setHeadersDelay(2, java.util.concurrent.TimeUnit.SECONDS))
+        val started = System.currentTimeMillis()
+        assertEquals(SubmitOutcome.SENDING, runBlocking { repo.submit(d) }.outcome)
+        assertTrue(System.currentTimeMillis() - started < 1_800)
+        assertEquals(ReadingState.QUEUED, repo.meter("BC0006").state) // kept on the phone meanwhile
+        runBlocking { repo.awaitBackground() }
+        assertEquals(ReadingState.SENT, repo.meter("BC0006").state)
+        assertEquals(false, repo.hasWaiting())
+    }
+
+    @Test
+    fun `a slow refusal comes back as read again with the server's reason`() {
+        signIn(); takeRequests(3)
+        server.enqueue(
+            MockResponse().setResponseCode(409).setHeadersDelay(2, java.util.concurrent.TimeUnit.SECONDS)
+                .setBody("""{"title":"This meter was already read this period.","status":409,"code":"ALREADY_READ"}"""),
+        )
+        assertEquals(SubmitOutcome.SENDING, runBlocking { repo.submit(draft()) }.outcome)
+        runBlocking { repo.awaitBackground() }
+        assertEquals(ReadingState.READ_AGAIN, repo.meter("BC0006").state)
+        assertEquals("This meter was already read this period.", repo.meter("BC0006").supervisorNote)
+        assertEquals(false, repo.hasWaiting())
     }
 }

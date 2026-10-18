@@ -134,6 +134,7 @@
     <string name="result_sent_sub">Meter %1$s is done</string>
     <string name="result_saved">Saved</string>
     <string name="result_saved_short">No signal. Saved on the phone; press Push readings when there is signal.</string>
+    <string name="result_sending_short">Sending in the background. The next meter is open.</string>
     <string name="download_list">Download the latest list</string>
     <string name="list_downloaded">List updated: %1$d properties</string>
     <string name="list_download_failed">Could not get the list. Check the signal and try again.</string>

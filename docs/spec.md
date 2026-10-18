@@ -922,6 +922,7 @@ Volume figures are `[ASSUMPTION — OD-03]` design targets until the business su
 | NFR-002 | API p95 latency < 500 ms for reads, < 2 s for a submission excluding upload transfer time. |
 | NFR-003 | A submission with 2 images shall complete in < 10 s on a 3G-class connection (1 Mbps up). |
 | NFR-004 | App cold start < 3 s; meter screen opens < 1 s from cached data; works fully offline (§9). |
+| NFR-004.1 | After a reading is done the next meter opens within 1 s (DIP, Oct 2026). The reading is kept on the phone first; an answer from the server within 1 s (sent, checking, refused) is shown at once, a slower one arrives in the background and shows on the meter (sent, or read again with the server's reason). Photos go up in the background. |
 | NFR-005 | Availability 99.5% monthly for API and portal; planned maintenance outside 06:00–18:00 local time. |
 | NFR-006 | RPO ≤ 15 min, RTO ≤ 4 h. Azure SQL point-in-time restore ≥ 35 days; Blob soft delete 30 days. |
 | NFR-007 | Image retention `ImageRetentionYears` (default 7) via Blob lifecycle (cool tier after 90 days, archive after 1 year). Storage estimate: 150k × 2 × 400 KB ≈ 120 GB/month. |

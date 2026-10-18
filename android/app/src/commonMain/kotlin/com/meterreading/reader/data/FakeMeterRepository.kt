@@ -100,7 +100,7 @@ class FakeMeterRepository : MeterRepository() {
 
     private fun SubmitOutcome.toState(): ReadingState = when (this) {
         SubmitOutcome.SENT -> ReadingState.SENT
-        SubmitOutcome.QUEUED -> ReadingState.QUEUED
+        SubmitOutcome.QUEUED, SubmitOutcome.SENDING -> ReadingState.QUEUED
         SubmitOutcome.CHECKING -> ReadingState.CHECKING
         SubmitOutcome.REJECTED -> ReadingState.READ_AGAIN
     }
