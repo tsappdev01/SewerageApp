@@ -176,6 +176,10 @@ data class FinalizedMeterDto(
     val tranCode: String? = null,
     val baanCode: String? = null,
     val tenantCode: String? = null,
+    val companyName: String? = null,
+    val vatCode: String? = null,
+    val chargeType1: String? = null,
+    val chargeType2: String? = null,
 )
 
 /** What "Finalize property" wrote (FR-037). */

@@ -6,7 +6,7 @@ namespace MeterReading.Api.Domain;
 /// <summary>One meter of the property as it goes into mr.MaintainFinalizedMeter.</summary>
 public sealed record FinalizeMeter(
     string MeterId, string Number, string Type, decimal Previous, decimal Current, decimal Consumption, Guid? TransactionId,
-    decimal? FloatValue = null, decimal? RateFactor = null, bool NoCharge = false, string? TranCode = null, string? BaanCode = null, string? TenantCode = null)
+    decimal? FloatValue = null, decimal? RateFactor = null, bool NoCharge = false, string? TranCode = null, string? BaanCode = null, string? TenantCode = null, string? CompanyName = null)
 {
     /// <summary>FR-037.5: what the consumption costs; 0 when not charged (FR-037.7).</summary>
     public decimal Amount => NoCharge ? 0m : FinalizeService.Amount(Consumption, FloatValue, RateFactor);
@@ -32,6 +32,8 @@ public sealed record FinalizedPair(FinalizeMeter? Sewerage, FinalizeMeter? Irrig
     public string? BaanCode => Sewerage?.BaanCode ?? Irrigation?.BaanCode;
     /// <summary>FR-037.10: the tenant the row's readings were taken for (sewerage first).</summary>
     public string? TenantCode => Sewerage?.TenantCode ?? Irrigation?.TenantCode;
+    /// <summary>FR-037.12: the tenant's company in vw_MR_Tenant when finalizing.</summary>
+    public string? CompanyName => Sewerage?.CompanyName ?? Irrigation?.CompanyName;
     /// <summary>FR-037.7: the irrigation side is not charged.</summary>
     public bool IrrigationNoCharge => Irrigation?.NoCharge ?? false;
 }
@@ -59,6 +61,9 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
         floatValue is { } f && rateFactor is { } r
             ? Math.Round(consumption * f * AmountMultiplier * (r / 100m), 2, MidpointRounding.AwayFromZero)
             : 0m;
+
+    /// <summary>FR-037.12: fixed values on every finalized row (DIP 2026-10-18).</summary>
+    public const string VatCode = "SSD", ChargeTypeSewerage = "sew", ChargeTypeIrrigation = "Irri";
 
     /// <summary>FR-037.11: posting is complete when every property of the period has been finalized.</summary>
     public static bool PostingComplete(int properties, int finalized) => properties > 0 && finalized >= properties;
@@ -164,6 +169,7 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
                 s?.FloatValue, s?.RateFactor,
                 TranCode: tenantCode is null ? null : tranCodes.GetValueOrDefault(tenantCode),
                 BaanCode: tenant?.BaanCode,
+                CompanyName: tenant?.CompanyName,
                 TenantCode: tenantCode,
                 NoCharge: m.Type == "IRRIGATION" && IsNoCharge(t?.ReadingDate is { } d ? (DateOnly?)DateOnly.FromDateTime(d) : null, noCharge));
         }));
@@ -188,5 +194,5 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
     private static FinalizedMeterDto ToDto(FinalizedPair p) => new(
         p.Sewerage?.Number ?? "0", p.Sewerage?.Previous ?? 0m, p.Sewerage?.Current ?? 0m, p.Sewerage?.Consumption ?? 0m,
         p.Irrigation?.Number ?? "0", p.Irrigation?.Previous ?? 0m, p.Irrigation?.Current ?? 0m, p.Irrigation?.Consumption ?? 0m,
-        p.SewerageAmount, p.IrrigationAmount, p.SewerageVat, p.IrrigationVat, p.TotalAmount, p.IrrigationNoCharge, p.TenPercentAmount, p.IrrigationAmountCalculated, p.TranCode, p.BaanCode, p.TenantCode);
+        p.SewerageAmount, p.IrrigationAmount, p.SewerageVat, p.IrrigationVat, p.TotalAmount, p.IrrigationNoCharge, p.TenPercentAmount, p.IrrigationAmountCalculated, p.TranCode, p.BaanCode, p.TenantCode, p.CompanyName, VatCode, ChargeTypeSewerage, ChargeTypeIrrigation);
 }

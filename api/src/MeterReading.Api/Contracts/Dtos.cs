@@ -152,7 +152,8 @@ public sealed record ImageUploadResponse(Guid ImageId, Guid TransactionId, strin
 public sealed record FinalizedMeterDto(
     string SewerageMeterNumber, decimal SeweragePrevious, decimal SewerageCurrent, decimal SewerageConsumption,
     string IrrigationMeterNumber, decimal IrrigationPrevious, decimal IrrigationCurrent, decimal IrrigationConsumption,
-    decimal SewerageAmount = 0, decimal IrrigationAmount = 0, decimal SewerageVat = 0, decimal IrrigationVat = 0, decimal TotalAmount = 0, bool IrrigationNoCharge = false, decimal TenPercentAmount = 0, decimal IrrigationAmountCalculated = 0, string? TranCode = null, string? BaanCode = null, string? TenantCode = null);
+    decimal SewerageAmount = 0, decimal IrrigationAmount = 0, decimal SewerageVat = 0, decimal IrrigationVat = 0, decimal TotalAmount = 0, bool IrrigationNoCharge = false, decimal TenPercentAmount = 0, decimal IrrigationAmountCalculated = 0, string? TranCode = null, string? BaanCode = null, string? TenantCode = null,
+    string? CompanyName = null, string VatCode = "", string ChargeType1 = "", string ChargeType2 = "");
 
 /// <summary>What "Finalize property" wrote (FR-037).</summary>
 public sealed record FinalizedPropertyDto(

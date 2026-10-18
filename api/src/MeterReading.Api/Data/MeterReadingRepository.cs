@@ -317,14 +317,14 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                 SewerageTransactionId, IrrigationTransactionId, FinalizedByReaderId, DeviceId, FinalizedAtUtc, IsCurrent,
                 SewerageAmount, IrrigationAmount, FloatValueSewerage, RateFactorSewerage, FloatValueIrrigation, RateFactorIrrigation,
                 SewerageVat, IrrigationVat, TotalAmount, IrrigationNoCharge, TenPercentAmount, IrrigationAmountCalculated,
-                TranCode, BaanCode, TenantCode, FromDate, EndDate)
+                TranCode, BaanCode, TenantCode, FromDate, EndDate, CompanyName, VATCode, ChargeType1, ChargeType2)
             VALUES (@PeriodCode, @PropertyId, @PropertyCode,
                 @MeterNumberSewerage, @PrevReadingSewerage, @CurrentReadingSewerage, @ConsumptionSewerage,
                 @MeterNumberIrrigation, @PrevReadingIrrigation, @CurrentReadingIrrigation, @ConsumptionIrrigation,
                 @SewerageTransactionId, @IrrigationTransactionId, @ReaderId, @DeviceId, @At, 1,
                 @SewerageAmount, @IrrigationAmount, @FloatValueSewerage, @RateFactorSewerage, @FloatValueIrrigation, @RateFactorIrrigation,
                 @SewerageVat, @IrrigationVat, @TotalAmount, @IrrigationNoCharge, @TenPercentAmount, @IrrigationAmountCalculated,
-                @TranCode, @BaanCode, @TenantCode, @FromDate, @EndDate);
+                @TranCode, @BaanCode, @TenantCode, @FromDate, @EndDate, @CompanyName, @VatCode, @ChargeType1, @ChargeType2);
             """;
         await using var c = await db.OpenMeterReadingAsync(ct);
         await using var tx = await c.BeginTransactionAsync(ct);
@@ -339,7 +339,9 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             CurrentReadingIrrigation = r.Irrigation?.Current ?? 0m, ConsumptionIrrigation = r.Irrigation?.Consumption ?? 0m,
             SewerageTransactionId = r.Sewerage?.TransactionId, IrrigationTransactionId = r.Irrigation?.TransactionId,
             ReaderId = readerId, DeviceId = deviceId, At = at,
-            r.SewerageAmount, r.IrrigationAmount, r.SewerageVat, r.IrrigationVat, r.TotalAmount, r.IrrigationNoCharge, r.TenPercentAmount, r.IrrigationAmountCalculated, r.TranCode, r.BaanCode, r.TenantCode,
+            r.SewerageAmount, r.IrrigationAmount, r.SewerageVat, r.IrrigationVat, r.TotalAmount, r.IrrigationNoCharge, r.TenPercentAmount, r.IrrigationAmountCalculated, r.TranCode, r.BaanCode, r.TenantCode, r.CompanyName,
+            VatCode = Domain.FinalizeService.VatCode, ChargeType1 = Domain.FinalizeService.ChargeTypeSewerage,
+            ChargeType2 = Domain.FinalizeService.ChargeTypeIrrigation,
             FromDate = fromDate.ToDateTime(TimeOnly.MinValue),
             EndDate = endDate.ToDateTime(TimeOnly.MinValue),
             FloatValueSewerage = r.Sewerage?.FloatValue, RateFactorSewerage = r.Sewerage?.RateFactor,

@@ -212,6 +212,16 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         var first = body.GetProperty("rows")[0];
         Assert.Equal(("T-0203", "BT-0203", "TR"),
             (first.GetProperty("tenantCode").GetString(), first.GetProperty("baanCode").GetString(), first.GetProperty("tranCode").GetString()));
+        // FR-037.12: the company from vw_MR_Tenant and the fixed codes, stored on the row.
+        await using (var c = new SqlConnection(ApiFactory.ConnectionString))
+        {
+            await c.OpenAsync();
+            await using var cmd = new SqlCommand(
+                "SELECT TOP (1) CompanyName, VATCode, ChargeType1, ChargeType2 FROM mr.MaintainFinalizedMeter WHERE PropertyCode = '1497' AND IsCurrent = 1", c);
+            await using var r = await cmd.ExecuteReaderAsync();
+            Assert.True(await r.ReadAsync());
+            Assert.Equal(("Oasis Cold Store", "SSD", "sew", "Irri"), (r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3)));
+        }
         Assert.Equal(2, body.GetProperty("rows").GetArrayLength());
         Assert.Equal(
             [("0", 0m, 0m, 0m, "1497-I", 7450m, 8440m, 990m, true), ("1497-S", 2010m, 2300m, 290m, "0", 0m, 0m, 0m, true)],
