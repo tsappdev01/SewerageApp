@@ -151,7 +151,8 @@ public sealed record ImageUploadResponse(Guid ImageId, Guid TransactionId, strin
 /// <summary>A row of mr.MaintainFinalizedMeter (FR-037.3): an empty side is meter number "0" and 0s.</summary>
 public sealed record FinalizedMeterDto(
     string SewerageMeterNumber, decimal SeweragePrevious, decimal SewerageCurrent, decimal SewerageConsumption,
-    string IrrigationMeterNumber, decimal IrrigationPrevious, decimal IrrigationCurrent, decimal IrrigationConsumption);
+    string IrrigationMeterNumber, decimal IrrigationPrevious, decimal IrrigationCurrent, decimal IrrigationConsumption,
+    decimal SewerageAmount = 0, decimal IrrigationAmount = 0);
 
 /// <summary>What "Finalize property" wrote (FR-037).</summary>
 public sealed record FinalizedPropertyDto(string PeriodCode, string PropertyCode, long? PropertyId, DateTime FinalizedAtUtc, IReadOnlyList<FinalizedMeterDto> Rows);

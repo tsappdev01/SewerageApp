@@ -70,6 +70,8 @@ One row per meter.
 | SerialNumber | text | |
 | RouteSequence | int | Order of meters inside the property. |
 | Status | flag | `1`, `Y`, `True` or `ACTIVE` is active; anything else is left out. |
+| FloatValue | number | Pricing (spec FR-037.5): amount = consumption × FloatValue × 1.2 × (RateFactor / 100). UAT: 220. Added 2026-10-18 (db/018). |
+| RateFactor | number | Percent, see FloatValue. UAT: 1.50. |
 
 ## 5. `vw_MR_ReadingPeriod`
 

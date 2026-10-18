@@ -52,6 +52,9 @@ public sealed class MeterRow
     public decimal? LastReading { get; init; }
     public decimal? LastConsumption { get; init; }
     public decimal? AverageConsumption { get; init; }
+    /// <summary>Pricing of the meter's consumption (FR-037.5): Amount = Consumption * FloatValue * 1.2 * (RateFactor / 100).</summary>
+    public decimal? FloatValue { get; init; }
+    public decimal? RateFactor { get; init; }
 }
 
 public sealed class LatestTransactionRow

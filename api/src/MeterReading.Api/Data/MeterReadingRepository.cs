@@ -109,7 +109,8 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                    CAST(m.RegisterDigits AS int) AS RegisterDigits, CAST(ISNULL(m.DecimalDigits, 0) AS int) AS DecimalDigits,
                    TRY_CAST(m.OpeningReading AS decimal(18,4)) AS LastReading,
                    TRY_CAST(m.LastConsumption AS decimal(18,4)) AS LastConsumption,
-                   TRY_CAST(m.AvgConsumption AS decimal(18,4)) AS AverageConsumption
+                   TRY_CAST(m.AvgConsumption AS decimal(18,4)) AS AverageConsumption,
+                   TRY_CAST(m.FloatValue AS decimal(18,6)) AS FloatValue, TRY_CAST(m.RateFactor AS decimal(18,6)) AS RateFactor
             FROM {_v.Meter} m
             JOIN {_v.Property} p ON p.PropertyCode = m.PropertyCode
             LEFT JOIN {_v.Zone} z ON z.ZoneCode = p.ZoneCode
@@ -229,7 +230,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     }
 
     /// <summary>
-    /// FR-037.4: writes the property's rows to mr.MaintainFinalizedMeter in one transaction; an earlier set
+    /// FR-037.4: writes the property's rows (with their FR-037.5 amounts) to mr.MaintainFinalizedMeter in one transaction; an earlier set
     /// for the same period and property is kept with IsCurrent = 0. Returns the time written (UTC).
     /// </summary>
     public async Task<DateTime> InsertFinalizedAsync(
@@ -246,11 +247,13 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             INSERT mr.MaintainFinalizedMeter (PeriodCode, PropertyId, PropertyCode,
                 MeterNumberSewerage, PrevReadingSewerage, CurrentReadingSewerage, ConsumptionSewerage,
                 MeterNumberIrrigation, PrevReadingIrrigation, CurrentReadingIrrigation, ConsumptionIrrigation,
-                SewerageTransactionId, IrrigationTransactionId, FinalizedByReaderId, DeviceId, FinalizedAtUtc, IsCurrent)
+                SewerageTransactionId, IrrigationTransactionId, FinalizedByReaderId, DeviceId, FinalizedAtUtc, IsCurrent,
+                SewerageAmount, IrrigationAmount, FloatValueSewerage, RateFactorSewerage, FloatValueIrrigation, RateFactorIrrigation)
             VALUES (@PeriodCode, @PropertyId, @PropertyCode,
                 @MeterNumberSewerage, @PrevReadingSewerage, @CurrentReadingSewerage, @ConsumptionSewerage,
                 @MeterNumberIrrigation, @PrevReadingIrrigation, @CurrentReadingIrrigation, @ConsumptionIrrigation,
-                @SewerageTransactionId, @IrrigationTransactionId, @ReaderId, @DeviceId, @At, 1);
+                @SewerageTransactionId, @IrrigationTransactionId, @ReaderId, @DeviceId, @At, 1,
+                @SewerageAmount, @IrrigationAmount, @FloatValueSewerage, @RateFactorSewerage, @FloatValueIrrigation, @RateFactorIrrigation);
             """;
         await using var c = await db.OpenMeterReadingAsync(ct);
         await using var tx = await c.BeginTransactionAsync(ct);
@@ -265,6 +268,9 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             CurrentReadingIrrigation = r.Irrigation?.Current ?? 0m, ConsumptionIrrigation = r.Irrigation?.Consumption ?? 0m,
             SewerageTransactionId = r.Sewerage?.TransactionId, IrrigationTransactionId = r.Irrigation?.TransactionId,
             ReaderId = readerId, DeviceId = deviceId, At = at,
+            SewerageAmount = r.Sewerage?.Amount ?? 0m, IrrigationAmount = r.Irrigation?.Amount ?? 0m,
+            FloatValueSewerage = r.Sewerage?.FloatValue, RateFactorSewerage = r.Sewerage?.RateFactor,
+            FloatValueIrrigation = r.Irrigation?.FloatValue, RateFactorIrrigation = r.Irrigation?.RateFactor,
         }).ToList(), tx, CommandTimeoutSeconds, cancellationToken: ct));
         await tx.CommitAsync(ct);
         return at;

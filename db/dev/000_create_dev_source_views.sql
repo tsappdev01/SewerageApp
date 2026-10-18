@@ -183,7 +183,9 @@ SELECT 'BC' + RIGHT('0000' + CAST(m.MeterId AS varchar(10)), 4) AS MeterId,
        ISNULL(avgRead.AvgConsumption, 0) AS AvgConsumption,
        m.InstallDate, 'BC' + RIGHT('0000' + CAST(m.MeterId AS varchar(10)), 4) AS SerialNumber,
        m.RouteSequence,
-       CASE m.Status WHEN 'ACTIVE' THEN 1 ELSE 0 END AS Status
+       CASE m.Status WHEN 'ACTIVE' THEN 1 ELSE 0 END AS Status,
+       -- Pricing (db/018, FR-037.5), as in UAT: 220 and 1.50 on every meter, so 3.96 per unit consumed.
+       CAST(220 AS decimal(18, 2)) AS FloatValue, CAST(1.5 AS decimal(18, 2)) AS RateFactor
 FROM devsrc.Meter m
 OUTER APPLY (SELECT TOP (1) r.ReadingValue FROM devsrc.ReadingHistory r
              WHERE r.MeterId = m.MeterId AND r.ConsumptionBasis = 'ACTUAL' ORDER BY r.PeriodCode DESC) lastActual

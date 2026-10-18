@@ -32,6 +32,7 @@ INSERT @Expected (ViewName, ColumnName, Family, ViewRequired) VALUES
  (N'vw_MR_Meter', N'AvgConsumption', 'decimal', 1), (N'vw_MR_Meter', N'InstallDate', 'date', 1),
  (N'vw_MR_Meter', N'RouteSequence', 'int', 1), (N'vw_MR_Meter', N'SerialNumber', 'text', 1),
  (N'vw_MR_Meter', N'Status', 'flag', 1),
+ (N'vw_MR_Meter', N'FloatValue', 'decimal', 1), (N'vw_MR_Meter', N'RateFactor', 'decimal', 1),
  (N'vw_MR_ReadingPeriod', N'StartDate', 'date', 1), (N'vw_MR_ReadingPeriod', N'EndDate', 'date', 1),
  (N'vw_MR_ReadingPeriod', N'Status', 'text', 1),
  (N'vw_MR_Tenant', N'PropertyCode', 'text', 1), (N'vw_MR_Tenant', N'TenantCode', 'text', 1),

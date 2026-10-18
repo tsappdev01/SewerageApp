@@ -25,6 +25,14 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
         return new SourcePart(rows, (await tenantsTask).ToLookup(t => t.PropertyCode), await averagesTask);
     }
 
+    /// <summary>The views' rows for these meters, from the kept copy of the full list (FR-037.5 pricing).</summary>
+    public async Task<IReadOnlyDictionary<string, MeterRow>> SourceRowsAsync(IReadOnlyCollection<string> meterIds, CancellationToken ct)
+    {
+        var all = await cache.GetAsync(Key(new MeterFilter()), c => ReadSourceAsync(new MeterFilter(), c), ct);
+        var wanted = meterIds.ToHashSet(StringComparer.Ordinal);
+        return all.Rows.Where(r => wanted.Contains(r.MeterId)).ToDictionary(r => r.MeterId, StringComparer.Ordinal);
+    }
+
     /// <summary>Reads the full list from the views into the cache (SourceCacheWarmer).</summary>
     public Task WarmAsync(CancellationToken ct) =>
         cache.RefreshAsync(Key(new MeterFilter()), c => ReadSourceAsync(new MeterFilter(), c), ct);
