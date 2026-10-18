@@ -38,10 +38,10 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
         string statusCode;
         if (!string.IsNullOrWhiteSpace(r.StatusCode))
         {
-            var status = (await statuses.GetAsync(ct)).FirstOrDefault(s => string.Equals(s.Code, r.StatusCode.Trim(), StringComparison.OrdinalIgnoreCase));
-            if (status is null) return SubmitOutcome.Reject(422, "INVALID_LOV_CODE", $"Unknown meter status '{r.StatusCode}'.");
-            statusCode = status.Code;
-            r = r with { Condition = status.Kind };
+            var picked = (await statuses.GetAsync(ct)).FirstOrDefault(s => string.Equals(s.Code, r.StatusCode.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (picked is null) return SubmitOutcome.Reject(422, "INVALID_LOV_CODE", $"Unknown meter status '{r.StatusCode}'.");
+            statusCode = picked.Code;
+            r = r with { Condition = picked.Kind };
         }
         else
         {
