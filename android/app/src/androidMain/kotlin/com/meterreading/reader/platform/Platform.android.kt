@@ -28,7 +28,8 @@ actual fun createHttpClient(): HttpClient = HttpClient(OkHttp) {
     engine {
         config {
             connectTimeout(15, TimeUnit.SECONDS)
-            readTimeout(30, TimeUnit.SECONDS)
+            // The first meter list after the server starts can take ~30 s to read from PMS's views.
+            readTimeout(90, TimeUnit.SECONDS)
             writeTimeout(30, TimeUnit.SECONDS)
         }
     }

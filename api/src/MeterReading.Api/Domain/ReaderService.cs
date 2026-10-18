@@ -7,25 +7,43 @@ namespace MeterReading.Api.Domain;
 /// <summary>Meters for one period with their state, joined from the source views and the mr tables.</summary>
 public sealed record MeterSet(IReadOnlyList<MeterDto> Meters, IReadOnlyList<PropertyDto> Properties, IReadOnlyList<ZoneDto> Zones);
 
-public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingRulesOptions> rules)
+public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingRulesOptions> rules, SourceCache cache)
 {
+    /// <summary>What the meter list needs from the views; kept by <see cref="SourceCache"/>.</summary>
+    private sealed record SourcePart(IReadOnlyList<MeterRow> Rows, ILookup<string, TenantRow> Tenants, IReadOnlyDictionary<string, decimal> Averages);
+
+    private static string Key(MeterFilter filter) =>
+        "meters:" + string.Join(",", (filter.ZoneCodes ?? []).Order(StringComparer.Ordinal)) + "|" + string.Join(",", (filter.MeterIds ?? []).Order(StringComparer.Ordinal));
+
+    private async Task<SourcePart> ReadSourceAsync(MeterFilter filter, CancellationToken ct)
+    {
+        var rows = await repo.GetMetersAsync(filter, ct);
+        var needAverage = rows.Where(r => r.AverageConsumption is null).Select(r => r.MeterId).ToArray();
+        // Different databases are allowed, so these run on their own connections, side by side.
+        var tenantsTask = repo.GetTenantsAsync(rows.Select(r => r.PropertyCode).Distinct().ToArray(), ct);
+        var averagesTask = repo.GetHistoryAveragesAsync(needAverage, rules.Value.AveragePeriods, ct);
+        return new SourcePart(rows, (await tenantsTask).ToLookup(t => t.PropertyCode), await averagesTask);
+    }
+
+    /// <summary>Reads the full list from the views into the cache (SourceCacheWarmer).</summary>
+    public Task WarmAsync(CancellationToken ct) =>
+        cache.RefreshAsync(Key(new MeterFilter()), c => ReadSourceAsync(new MeterFilter(), c), ct);
+
     /// <summary>
     /// Meters matching <paramref name="filter"/> for the period. A meter's state comes from the latest
     /// reading by anyone, so a meter read by one reader shows as done for all.
     /// </summary>
     public async Task<MeterSet> LoadAsync(string periodCode, MeterFilter filter, CancellationToken ct)
     {
-        var rows = await repo.GetMetersAsync(filter, ct);
-        var ids = rows.Select(r => r.MeterId).ToArray();
-        var needAverage = rows.Where(r => r.AverageConsumption is null).Select(r => r.MeterId).ToArray();
-
-        // Different databases are allowed, so these run on their own connections, side by side.
-        var latestTask = repo.GetLatestTransactionsAsync(periodCode, ids, ct);
-        var tenantsTask = repo.GetTenantsAsync(rows.Select(r => r.PropertyCode).Distinct().ToArray(), ct);
-        var averagesTask = repo.GetHistoryAveragesAsync(needAverage, rules.Value.AveragePeriods, ct);
-        var latest = await latestTask;
-        var averages = await averagesTask;
-        var tenants = (await tenantsTask).ToLookup(t => t.PropertyCode);
+        // A single meter (submit, meter detail) is read fresh; lists come from the kept copy of the views.
+        var source = filter.MeterIds is { Count: > 0 }
+            ? await ReadSourceAsync(filter, ct)
+            : await cache.GetAsync(Key(filter), c => ReadSourceAsync(filter, c), ct);
+        var rows = source.Rows;
+        var tenants = source.Tenants;
+        var averages = source.Averages;
+        // Reading states are always live (mr.ReadingTransaction).
+        var latest = await repo.GetLatestTransactionsAsync(periodCode, rows.Select(r => r.MeterId).ToArray(), ct);
 
         var ordered = rows
             .OrderBy(r => r.ZoneCode, StringComparer.Ordinal)

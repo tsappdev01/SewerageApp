@@ -10,6 +10,12 @@ public sealed class SourceViewsOptions
 
     /// <summary>True only when the optional vw_MR_ReadingHistory view is provided.</summary>
     public bool HasReadingHistory { get; set; }
+
+    /// <summary>
+    /// How long the meter list read from the views is kept in memory (Domain/SourceCache); 0 reads them every
+    /// time. Reading states are always live. Default 5 minutes.
+    /// </summary>
+    public int CacheSeconds { get; set; } = 300;
 }
 
 /// <summary>Thresholds from spec BR-007 and BR-008. Settings, not constants.</summary>

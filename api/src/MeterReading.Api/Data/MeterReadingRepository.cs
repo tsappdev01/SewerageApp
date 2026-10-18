@@ -18,7 +18,8 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     private readonly SourceViewNames _v = db.Views;
     private readonly SourceViewsOptions _options = options.Value;
 
-    private const int CommandTimeoutSeconds = 30;
+    // PMS's views can take 15-30 s for the full list; the list is kept in memory (SourceCache) after.
+    private const int CommandTimeoutSeconds = 90;
 
     /// <summary>The period code is built from StartDate (yyyy-MM), whatever format the view's PeriodCode uses.</summary>
     private const string PeriodColumns = """

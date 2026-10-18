@@ -54,7 +54,7 @@ actual fun pbkdf2HmacSha256(password: String, salt: ByteArray, iterations: Int, 
 actual fun createHttpClient(): HttpClient = HttpClient(Darwin) {
     engine {
         configureRequest {
-            setTimeoutInterval(30.0)
+            setTimeoutInterval(90.0) // as Android: the first meter list can be slow
         }
     }
 }

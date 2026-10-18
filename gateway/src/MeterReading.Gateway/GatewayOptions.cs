@@ -57,7 +57,7 @@ public sealed class GatewayOptions
     public int RegistrationsPerMinute { get; set; } = 10;
 
     /// <summary>How long the gateway waits for the internal API.</summary>
-    public int TimeoutSeconds { get; set; } = 60;
+    public int TimeoutSeconds { get; set; } = 100;
 }
 
 public sealed class ClientCertificateOptions

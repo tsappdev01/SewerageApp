@@ -46,6 +46,9 @@ builder.Services.AddRateLimiter(o =>
         _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = registerPerMinute, Window = TimeSpan.FromMinutes(1) }));
 });
 builder.Services.AddScoped<ReaderService>();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<SourceCache>();
+builder.Services.AddHostedService<SourceCacheWarmer>();
 builder.Services.AddScoped<SubmitService>();
 builder.Services.AddScoped<MeterReading.Api.Domain.MeterStatusService>();
 builder.Services.AddSingleton(TimeProvider.System);
