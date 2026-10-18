@@ -1,0 +1,158 @@
+# Azure DevOps: build and test the API (mApps) and the gateway (zApps), then deploy both to UAT after an
+# approval on the "UAT" environment. Setup, once: docs/devops-pipeline.md. Values to set are the
+# variables below (or a variable group of the same names).
+#
+#   Build   (Microsoft-hosted Windows)  publish both self-contained for win-x64, run the gateway tests
+#   Test    (Microsoft-hosted Ubuntu)   API tests against SQL Server in a container, with db/ scripts
+#   UAT     (after approval)            mApps on UATWEB01 (agent there), then zApps (agent in the VNet)
+#
+# Database scripts are not run here: a DBA runs any new db/0xx_*.sql before approving (docs/devops-pipeline.md).
+
+trigger:
+  branches:
+    include: [main]
+  paths:
+    include: [api, gateway, db, deploy, azure-pipelines.yml]
+
+pr:
+  branches:
+    include: [main]
+  paths:
+    include: [api, gateway, db, deploy, azure-pipelines.yml]
+
+variables:
+  dotnetVersion: '10.0.x'
+  # mApps (IIS on UATWEB01)
+  mAppsSitePath: 'C:\Websites\mApps'
+  mAppsAppPool: 'mApps'
+  mAppsHealthUrl: 'https://mApps.dipark.com/health/ready'
+  # zApps (Azure App Service)
+  azureServiceConnection: 'zapps-arm'          # Project settings → Service connections (Azure Resource Manager)
+  zAppsName: 'zapps'
+  zAppsResourceGroup: 'SET-RESOURCE-GROUP'
+  zAppsAgentPool: 'DIP-VNet'                    # self-hosted agent that reaches zapps' private endpoint
+  zAppsHealthUrl: 'https://zApps.dipark.com/gateway/health'
+
+stages:
+- stage: Build
+  jobs:
+  - job: Publish
+    pool:
+      vmImage: windows-latest
+    steps:
+    - task: UseDotNet@2
+      inputs:
+        version: $(dotnetVersion)
+    - pwsh: |
+        dotnet publish api/src/MeterReading.Api/MeterReading.Api.csproj -c Release -r win-x64 --self-contained true -o "$(Build.ArtifactStagingDirectory)/mApps"
+        dotnet publish gateway/src/MeterReading.Gateway/MeterReading.Gateway.csproj -c Release -r win-x64 --self-contained true -o "$(Build.ArtifactStagingDirectory)/zApps"
+        # The gateway's web.config holds no secret: it goes with the files (deploy/zApps.web.config).
+        Copy-Item deploy/zApps.web.config "$(Build.ArtifactStagingDirectory)/zApps/web.config" -Force
+        # mApps' web.config holds the database password: it stays on the server and is never deployed.
+        Remove-Item "$(Build.ArtifactStagingDirectory)/mApps/web.config" -ErrorAction SilentlyContinue
+        Copy-Item deploy/pipelines/deploy-mapps.ps1 "$(Build.ArtifactStagingDirectory)/mApps-deploy.ps1"
+      displayName: Publish mApps and zApps (self-contained, win-x64)
+    - pwsh: dotnet test gateway/MeterReading.Gateway.slnx --logger trx --results-directory "$(Agent.TempDirectory)/tests"
+      displayName: Gateway tests
+    - task: PublishTestResults@2
+      condition: always()
+      inputs:
+        testResultsFormat: VSTest
+        testResultsFiles: '$(Agent.TempDirectory)/tests/*.trx'
+        testRunTitle: Gateway
+    - task: ArchiveFiles@2
+      inputs:
+        rootFolderOrFile: $(Build.ArtifactStagingDirectory)/zApps
+        includeRootFolder: false
+        archiveFile: $(Build.ArtifactStagingDirectory)/zApps.zip
+    - publish: $(Build.ArtifactStagingDirectory)/mApps
+      artifact: mApps
+    - publish: $(Build.ArtifactStagingDirectory)/mApps-deploy.ps1
+      artifact: mAppsDeploy
+    - publish: $(Build.ArtifactStagingDirectory)/zApps.zip
+      artifact: zApps
+
+- stage: Test
+  dependsOn: []
+  jobs:
+  - job: ApiTests
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - task: UseDotNet@2
+      inputs:
+        version: $(dotnetVersion)
+    - bash: |
+        set -euo pipefail
+        SA_PASSWORD="Ci_$(openssl rand -hex 12)!"
+        echo "##vso[task.setvariable variable=SA_PASSWORD;issecret=true]$SA_PASSWORD"
+        docker run -d --name mrsql -p 1433:1433 -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD="$SA_PASSWORD" mcr.microsoft.com/mssql/server:2022-latest >/dev/null
+        docker cp db mrsql:/db
+        for i in $(seq 1 60); do
+          docker exec mrsql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SA_PASSWORD" -C -Q "SELECT 1" >/dev/null 2>&1 && break
+          sleep 2
+        done
+      displayName: SQL Server in a container, with db/
+    # The same script the GitHub end-to-end workflow uses: db/ scripts into MeterReadingTest, then both suites.
+    - bash: bash .github/scripts/e2e-server-tests.sh
+      displayName: API and gateway tests
+      env:
+        SA_PASSWORD: $(SA_PASSWORD)
+
+- stage: UAT
+  dependsOn: [Build, Test]
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  # 1. The API first: the gateway may pass on routes only the new API has.
+  - deployment: mApps
+    displayName: mApps (UATWEB01)
+    environment:
+      name: UAT
+      resourceType: VirtualMachine
+      tags: mapps
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: mApps
+          - download: current
+            artifact: mAppsDeploy
+          - powershell: >
+              & "$(Pipeline.Workspace)/mAppsDeploy/mApps-deploy.ps1"
+              -Source "$(Pipeline.Workspace)/mApps"
+              -SitePath "$(mAppsSitePath)"
+              -AppPool "$(mAppsAppPool)"
+              -HealthUrl "$(mAppsHealthUrl)"
+            displayName: Deploy mApps (keeps web.config)
+
+  # 2. Then the gateway.
+  - deployment: zApps
+    displayName: zApps (Azure App Service)
+    dependsOn: mApps
+    environment: UAT
+    pool:
+      name: $(zAppsAgentPool)
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: zApps
+          - task: AzureWebApp@1
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              appType: webApp
+              appName: $(zAppsName)
+              resourceGroupName: $(zAppsResourceGroup)
+              package: $(Pipeline.Workspace)/zApps/zApps.zip
+              deploymentMethod: zipDeploy
+          - powershell: |
+              $ok = $false
+              foreach ($i in 1..12) {
+                try { if ((Invoke-WebRequest -Uri "$(zAppsHealthUrl)" -UseBasicParsing -TimeoutSec 20).StatusCode -eq 200) { $ok = $true; break } } catch { }
+                Start-Sleep -Seconds 10
+              }
+              if (-not $ok) { Write-Error "zApps did not answer $(zAppsHealthUrl)"; exit 1 }
+              Write-Host "zApps is up."
+            displayName: zApps health check
