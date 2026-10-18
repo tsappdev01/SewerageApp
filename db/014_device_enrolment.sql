@@ -25,6 +25,9 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Device_Status' AND parent_object_id = OBJECT_ID(N'mr.Device'))
     ALTER TABLE mr.Device ADD CONSTRAINT CK_Device_Status CHECK (Status IN ('ACTIVE', 'PENDING', 'REGISTERED', 'REVOKED'));
 GO
+-- A filtered index needs these on (sqlcmd has QUOTED_IDENTIFIER off unless -I).
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Device_AndroidId' AND object_id = OBJECT_ID(N'mr.Device'))
     CREATE INDEX IX_Device_AndroidId ON mr.Device (AndroidId) WHERE AndroidId IS NOT NULL;
 GO
