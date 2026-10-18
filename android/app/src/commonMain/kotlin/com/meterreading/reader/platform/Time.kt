@@ -8,6 +8,7 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
+import kotlinx.datetime.toDeprecatedInstant
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.todayIn
@@ -53,7 +54,7 @@ fun LocalDateTime.isBefore(other: LocalDateTime): Boolean = this < other
 fun LocalDateTime.isAfter(other: LocalDateTime): Boolean = this > other
 fun LocalDateTime.toLocalDate(): LocalDate = date
 /** The instant this wall-clock time names in [zone] (java.time's atZone(zone).toInstant()). */
-fun LocalDateTime.atZoneInstant(zone: TimeZone): Instant = toInstant(zone)
+fun LocalDateTime.atZoneInstant(zone: TimeZone): Instant = toInstant(zone).toDeprecatedInstant()
 
 fun Duration.Companion.between(start: Instant, end: Instant): Duration = end - start
 fun Duration.Companion.ofDays(days: Long): Duration = days.days
