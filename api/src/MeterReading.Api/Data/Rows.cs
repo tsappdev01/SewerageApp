@@ -88,6 +88,18 @@ public sealed class TransactionRow
     public string? StatusNote { get; init; }
 }
 
+/// <summary>The reading a meter goes into mr.MaintainFinalizedMeter with (FR-037).</summary>
+public sealed class FinalizeReadingRow
+{
+    public string MeterId { get; init; } = "";
+    public Guid TransactionId { get; init; }
+    public long? PropertyId { get; init; }
+    public decimal? PreviousReading { get; init; }
+    /// <summary>NewReading, or the new meter's reading after a replacement (NewCurrentReading).</summary>
+    public decimal? CurrentReading { get; init; }
+    public decimal? Consumption { get; init; }
+}
+
 public sealed class HistoryRow
 {
     public string PeriodCode { get; init; } = "";

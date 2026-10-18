@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import com.meterreading.reader.resources.*
 import com.meterreading.reader.data.*
 import com.meterreading.reader.ui.components.*
@@ -170,11 +172,62 @@ fun MetersScreen(propertyCode: String, onMeter: (String) -> Unit, onBack: () -> 
     Column(Modifier.fillMaxSize()) {
         AppTopBar(propertyCode, stringResource(Res.string.speak_meters), onBack)
         LazyColumn(
+            modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             items(list, key = { it.id }) { m -> MeterCard(m, query = "", highlighted = m == next, onClick = { onMeter(m.id) }) }
         }
+        if (list.isNotEmpty()) FinalizeBar(propertyCode, list)
+    }
+}
+
+/** FR-037: "Finalize property", once every meter here is read and sent. The screen's one primary button. */
+@Composable
+private fun FinalizeBar(propertyCode: String, meters: List<Meter>) {
+    val scope = rememberCoroutineScope()
+    var asking by remember { mutableStateOf(false) }
+    var sending by remember { mutableStateOf(false) }
+    val left = FinalizeRules.left(meters)
+    val noSignal = stringResource(Res.string.finalize_no_signal)
+    if (asking) {
+        AlertDialog(
+            onDismissRequest = { asking = false },
+            icon = { Icon(Icons.Rounded.TaskAlt, null, tint = AppColors.Navy, modifier = Modifier.size(40.dp)) },
+            title = { Text(stringResource(Res.string.finalize_title, propertyCode)) },
+            text = { Text(stringResource(Res.string.finalize_text), style = MaterialTheme.typography.bodyLarge) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        asking = false
+                        sending = true
+                        scope.launch {
+                            val result = AppGraph.repository.finalizeProperty(propertyCode)
+                            sending = false
+                            Messages.show(
+                                when (result) {
+                                    is FinalizeResult.Done -> getString(Res.string.finalize_done, result.rows)
+                                    FinalizeResult.NoSignal -> noSignal
+                                    is FinalizeResult.Refused -> result.message
+                                },
+                            )
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Navy),
+                    modifier = Modifier.heightIn(min = 52.dp),
+                ) { Text(stringResource(Res.string.finalize_yes)) }
+            },
+            dismissButton = { TextButton(onClick = { asking = false }, modifier = Modifier.heightIn(min = 52.dp)) { Text(stringResource(Res.string.finalize_no)) } },
+        )
+    }
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+        BigButton(
+            text = if (sending) stringResource(Res.string.sending) else stringResource(Res.string.finalize_property),
+            subtitle = if (left > 0) stringResource(Res.string.finalize_left, left) else null,
+            onClick = { asking = true },
+            icon = Icons.Rounded.TaskAlt,
+            enabled = left == 0 && !sending,
+        )
     }
 }
 

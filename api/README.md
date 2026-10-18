@@ -26,6 +26,7 @@ The API reads five `vw_MR_*` views in `PropertyManagementSystem` (plus an option
 | `014_device_enrolment.sql` | Registration by the phone's ANDROID_ID (spec FR-002.8): `mr.Device.AndroidId`, `CheckCode`, statuses `PENDING` and `REGISTERED`. IT approves with `ops/approve_device.sql`. Re-runnable. | Any environment |
 | `015_meter_status_from_pms.sql` | Meter statuses from PMS's `vw_MR_MeterStatus` (spec FR-006.2): `MeterCondition` holds the StatusCode, new `ConditionKind` holds what it means. Re-runnable. | Any environment |
 | `016_grant_meter_status_view.sql` | `SELECT` on `vw_MR_MeterStatus` for the API's login, in MRDB and PropertyManagementSystem (db/008 predates the view). Re-runnable. | Any environment, by a DBA |
+| `017_finalized_meter.sql` | `mr.MaintainFinalizedMeter`: what "Finalize property" writes (spec FR-037), one row per meter number with the sewerage and irrigation sides; earlier sets kept with `IsCurrent = 0`. Re-runnable. | Any environment |
 | `012_inspection_location.sql` | Adds `AtProperty` and `DistanceFromOfficeKm` to `mr.InspectionVisit` (spec FR-031.2). Re-runnable. | Any environment |
 | `011_inspection_wrapper_views.sql` | The MRDB wrappers `vw_MR_InspectionPlan` / `vw_MR_InspectionUnit` over PMS (no `TOP (1000)`; `TenantCode` on units passed through only if PMS has it). Then run `008` again. | UAT and production (dev has stand-ins) |
 | `ops/approve_device.sql`, `ops/new_device_code.sql`, `ops/list_devices.sql`, `ops/revoke_device.sql`, `ops/rebind_device.sql` | IT's tasks: register a phone waiting with its Phone ID and Check code (FR-002.8), make a one-time registration code, list phones, block a lost phone, give a phone to another reader (`docs/deployment.md` 2.11). | Any environment, as needed |
@@ -49,6 +50,7 @@ Errors are RFC 9457 problem details with a `code` (e.g. `READER_NOT_FOUND`, `NO_
 | `GET /me` | Reader name and the open reading period |
 | `GET /sync/meters?zone=` | Zones, properties and meters to read, with last reading, expected range and state (`PENDING`, `SENT`, `CHECKING`, `READ_AGAIN`, `REVISIT`) |
 | `GET /properties/search?q=&zone=&done=&type=` | Find a Property: matches code, name or meter number, ignoring case, spaces and dashes |
+| `POST /properties/{code}/finalize` | Spec FR-037: once every meter of the property is read and stored, writes its readings for the open period to `mr.MaintainFinalizedMeter`, one row per meter number (sewerage and irrigation side by side, `0` on an empty side). Again: a new set, the earlier one kept with `IsCurrent = 0`. Codes: `PROPERTY_NOT_COMPLETE`, `PROPERTY_NOT_FOUND`, `FINALIZE_OFF` (db/017 not run) |
 | `GET /readings/mine?period=` | The reader's submissions |
 | `GET /summary?period=&zone=` | Reconciliation: meters, read, accepted, being checked, read again, visit again, not read, read by you, per zone |
 | `GET /meters/{id}` | One active meter (id = barcode) with history when the history view exists |
@@ -153,7 +155,7 @@ docker run -d --name mrsql -p 1433:1433 -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='D
 # create database MeterReading, then run in order:
 #   ../db/dev/000_create_dev_source_views.sql, ../db/002_create_mr_schema.sql, ../db/003_meter_id_as_text.sql,
 #   ../db/004_add_expected_photos.sql, ../db/005_reading_tenant_and_export.sql, ../db/006_pms_transfer.sql, ../db/007_reading_image_data.sql,
-#   ../db/009_device_keys.sql, ../db/010_field_inspection.sql, ../db/012_inspection_location.sql, ../db/013_device_reader_binding.sql, ../db/014_device_enrolment.sql, ../db/015_meter_status_from_pms.sql,
+#   ../db/009_device_keys.sql, ../db/010_field_inspection.sql, ../db/012_inspection_location.sql, ../db/013_device_reader_binding.sql, ../db/014_device_enrolment.sql, ../db/015_meter_status_from_pms.sql, ../db/017_finalized_meter.sql,
 #   ../db/dev/010_seed_dev_readings.sql, ../db/dev/020_create_dev_maintain_meter_reading.sql
 dotnet run --project src/MeterReading.Api            # Development: http://localhost:5080
 curl -H "X-Dev-User: rashid@dip.example" "http://localhost:5080/api/v1/sync/meters?zone=598"

@@ -196,6 +196,18 @@ class ApiMeterRepository(
         }
     }
 
+    override suspend fun finalizeProperty(propertyCode: String): FinalizeResult = try {
+        val result = api.finalizeProperty(propertyCode)
+        online.value = true
+        FinalizeResult.Done(result.rows.size)
+    } catch (e: IOException) {
+        online.value = false
+        FinalizeResult.NoSignal
+    } catch (e: ApiException) {
+        if (e.needsSignIn) { signInReason = e.title; signInNeeded.value = true }
+        FinalizeResult.Refused(e.title)
+    }
+
     override suspend fun sendQueued(): Int {
         var sent = 0
         lock.withLock {

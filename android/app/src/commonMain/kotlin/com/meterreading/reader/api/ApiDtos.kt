@@ -153,3 +153,26 @@ data class ProblemDto(val title: String? = null, val status: Int? = null, val co
 
 @Serializable
 data class ImageUploadResponse(val imageId: String, val transactionId: String, val role: String, val sizeBytes: Int, val sha256: String)
+
+/** A row of mr.MaintainFinalizedMeter (FR-037.3): an empty side is meter number "0" and 0s. */
+@Serializable
+data class FinalizedMeterDto(
+    val sewerageMeterNumber: String,
+    val seweragePrevious: Double,
+    val sewerageCurrent: Double,
+    val sewerageConsumption: Double,
+    val irrigationMeterNumber: String,
+    val irrigationPrevious: Double,
+    val irrigationCurrent: Double,
+    val irrigationConsumption: Double,
+)
+
+/** What "Finalize property" wrote (FR-037). */
+@Serializable
+data class FinalizedPropertyDto(
+    val periodCode: String,
+    val propertyCode: String,
+    val propertyId: Long? = null,
+    val finalizedAtUtc: String,
+    val rows: List<FinalizedMeterDto>,
+)

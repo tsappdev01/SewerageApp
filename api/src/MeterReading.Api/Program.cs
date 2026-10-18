@@ -50,6 +50,7 @@ builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<SourceCache>();
 builder.Services.AddHostedService<SourceCacheWarmer>();
 builder.Services.AddScoped<SubmitService>();
+builder.Services.AddScoped<FinalizeService>();
 builder.Services.AddScoped<MeterReading.Api.Domain.MeterStatusService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<CurrentReader>();

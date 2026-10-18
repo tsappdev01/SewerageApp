@@ -100,6 +100,7 @@ public sealed class GatewayTests : IAsyncLifetime
     [InlineData("GET", "/api/v1/me")]
     [InlineData("GET", "/api/v1/sync/meters?zone=597")]
     [InlineData("GET", "/api/v1/properties/search?q=1499")]
+    [InlineData("POST", "/api/v1/properties/598-1000/finalize")]
     [InlineData("GET", "/api/v1/readings/mine")]
     [InlineData("GET", "/api/v1/summary")]
     [InlineData("GET", "/api/v1/meters/BC0006")]

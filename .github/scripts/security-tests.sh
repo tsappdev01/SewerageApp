@@ -55,6 +55,7 @@ reading() { # id meter value tenant [extra json]
 
 echo "== 1. Authentication"
 ENDPOINTS=("GET /api/v1/me" "GET /api/v1/sync/meters" "GET /api/v1/properties/search?q=1101" "GET /api/v1/readings/mine"
+  "POST /api/v1/properties/1497/finalize"
   "GET /api/v1/summary" "GET /api/v1/meters/BC0001" "POST /api/v1/readings" "GET /api/v1/inspections/plan"
   "GET /api/v1/inspections/units?period=2026-10&property=597-559&tenant=T-0559" "POST /api/v1/inspections"
   "GET /api/v1/readings/$(uuidgen)/images/$(uuidgen)" "PUT /api/v1/readings/$(uuidgen)/images/$(uuidgen)")

@@ -134,6 +134,14 @@
     <string name="result_sent_sub">Meter %1$s is done</string>
     <string name="result_saved">Saved</string>
     <string name="result_saved_short">No signal. Saved on the phone; press Push readings when there is signal.</string>
+    <string name="finalize_property">Finalize property</string>
+    <string name="finalize_left">%1$d meters still to read or send</string>
+    <string name="finalize_title">Finalize %1$s?</string>
+    <string name="finalize_text">All meters here are read. This sends the readings of this property to the office. If a meter is read again later, finalize again.</string>
+    <string name="finalize_yes">Finalize</string>
+    <string name="finalize_no">Not yet</string>
+    <string name="finalize_done">Finalized. %1$d rows sent to the office.</string>
+    <string name="finalize_no_signal">No signal. Finalize again when there is signal.</string>
     <string name="push_readings">Push readings</string>
     <string name="push_readings_count">Push readings (%1$d)</string>
     <string name="push_nothing">Nothing waiting to send</string>
@@ -272,7 +280,7 @@
     <string name="speak_home">Press the big blue Start button to read the next meter.</string>
     <string name="speak_zones">Pick a zone. Green means it is finished.</string>
     <string name="speak_properties">Pick a building. Each small picture is one meter. A green border means it is read.</string>
-    <string name="speak_meters">Pick the meter with the blue border.</string>
+    <string name="speak_meters">Pick the meter with the blue border. When all meters are read, press Finalize property.</string>
     <string name="speak_condition">Look at the meter. If it is working, press the blue button. If not, press the picture that matches.</string>
     <string name="speak_photo">Hold the phone still. Put the numbers inside the white box. Press the big white button.</string>
     <string name="speak_photo_context">Hold the phone still. Take a photo of the meter. Press the big white button.</string>

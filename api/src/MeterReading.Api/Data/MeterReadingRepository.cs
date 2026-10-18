@@ -203,6 +203,73 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         return rows.ToDictionary(r => r.MeterId, StringComparer.Ordinal);
     }
 
+    /// <summary>
+    /// FR-037: the latest stored reading of each meter this period (not superseded, not sent back by a
+    /// supervisor), with the numbers that go into mr.MaintainFinalizedMeter.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, FinalizeReadingRow>> GetFinalizeReadingsAsync(
+        string periodCode, IReadOnlyCollection<string> meterIds, CancellationToken ct)
+    {
+        if (meterIds.Count == 0) return new Dictionary<string, FinalizeReadingRow>();
+        var sql = $"""
+            SELECT MeterId, TransactionId, PropertyId, PreviousReading, CurrentReading, Consumption
+            FROM (
+                SELECT t.MeterId, t.TransactionId, t.PropertyId, t.PreviousReading,
+                       COALESCE(t.NewReading, t.NewCurrentReading) AS CurrentReading, t.Consumption,
+                       ROW_NUMBER() OVER (PARTITION BY t.MeterId ORDER BY t.ReceivedAtUtc DESC, t.CapturedAtUtc DESC) AS rn
+                FROM mr.ReadingTransaction t
+                WHERE t.PeriodCode = @periodCode AND t.Status NOT IN ('SUPERSEDED', 'REJECTED_BY_SUPERVISOR')
+                  AND t.MeterId IN ({SqlList.Select("@ids", "varchar(50)")})
+            ) x
+            WHERE x.rn = 1
+            """;
+        await using var c = await db.OpenMeterReadingAsync(ct);
+        var rows = await c.QueryAsync<FinalizeReadingRow>(Cmd(sql, new { periodCode, ids = SqlList.Of(meterIds) }, ct));
+        return rows.ToDictionary(r => r.MeterId, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// FR-037.4: writes the property's rows to mr.MaintainFinalizedMeter in one transaction; an earlier set
+    /// for the same period and property is kept with IsCurrent = 0. Returns the time written (UTC).
+    /// </summary>
+    public async Task<DateTime> InsertFinalizedAsync(
+        string periodCode, string propertyCode, long? propertyId, IReadOnlyList<Domain.FinalizedPair> rows,
+        string readerId, Guid? deviceId, CancellationToken ct)
+    {
+        const string retire = """
+            UPDATE f SET IsCurrent = 0
+            FROM mr.MaintainFinalizedMeter f WITH (UPDLOCK, HOLDLOCK)
+            WHERE f.PeriodCode = @periodCode AND f.PropertyCode = @propertyCode AND f.IsCurrent = 1;
+            SELECT CAST(SYSUTCDATETIME() AS datetime2(0));
+            """;
+        const string insert = """
+            INSERT mr.MaintainFinalizedMeter (PeriodCode, PropertyId, PropertyCode,
+                MeterNumberSewerage, PrevReadingSewerage, CurrentReadingSewerage, ConsumptionSewerage,
+                MeterNumberIrrigation, PrevReadingIrrigation, CurrentReadingIrrigation, ConsumptionIrrigation,
+                SewerageTransactionId, IrrigationTransactionId, FinalizedByReaderId, DeviceId, FinalizedAtUtc, IsCurrent)
+            VALUES (@PeriodCode, @PropertyId, @PropertyCode,
+                @MeterNumberSewerage, @PrevReadingSewerage, @CurrentReadingSewerage, @ConsumptionSewerage,
+                @MeterNumberIrrigation, @PrevReadingIrrigation, @CurrentReadingIrrigation, @ConsumptionIrrigation,
+                @SewerageTransactionId, @IrrigationTransactionId, @ReaderId, @DeviceId, @At, 1);
+            """;
+        await using var c = await db.OpenMeterReadingAsync(ct);
+        await using var tx = await c.BeginTransactionAsync(ct);
+        var at = await c.ExecuteScalarAsync<DateTime>(new CommandDefinition(retire, new { periodCode, propertyCode }, tx,
+            CommandTimeoutSeconds, cancellationToken: ct));
+        await c.ExecuteAsync(new CommandDefinition(insert, rows.Select(r => new
+        {
+            PeriodCode = periodCode, PropertyId = propertyId, PropertyCode = propertyCode,
+            MeterNumberSewerage = r.Sewerage?.Number ?? "0", PrevReadingSewerage = r.Sewerage?.Previous ?? 0m,
+            CurrentReadingSewerage = r.Sewerage?.Current ?? 0m, ConsumptionSewerage = r.Sewerage?.Consumption ?? 0m,
+            MeterNumberIrrigation = r.Irrigation?.Number ?? "0", PrevReadingIrrigation = r.Irrigation?.Previous ?? 0m,
+            CurrentReadingIrrigation = r.Irrigation?.Current ?? 0m, ConsumptionIrrigation = r.Irrigation?.Consumption ?? 0m,
+            SewerageTransactionId = r.Sewerage?.TransactionId, IrrigationTransactionId = r.Irrigation?.TransactionId,
+            ReaderId = readerId, DeviceId = deviceId, At = at,
+        }).ToList(), tx, CommandTimeoutSeconds, cancellationToken: ct));
+        await tx.CommitAsync(ct);
+        return at;
+    }
+
     public async Task<IReadOnlyList<TransactionRow>> GetReaderTransactionsAsync(string readerId, string periodCode, CancellationToken ct)
     {
         const string sql = """

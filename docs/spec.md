@@ -644,6 +644,15 @@ readings per hour, last sync per reader/device.
 | FR-022.4 | The screen shall show the time of the last successful upload. |
 | FR-022.5 | The supervisor portal shall show the same reconciliation per reader and device, plus server-to-billing (posted, acknowledged, failed) per INT-009. |
 
+### 4.11 Finalize a property (FR-037) — DIP 2026-10-18
+
+| ID | Requirement |
+|---|---|
+| FR-037.1 | A property's meter list shall have a **Finalize property** button. It writes the property's readings for the open period to `mr.MaintainFinalizedMeter` (db/017). |
+| FR-037.2 | It is enabled only when every meter of the property has its reading on the server: sent, or "visit again" (not accessible). A reading still waiting on the phone, being checked or sent back does not count; the button says how many are left. The server checks again (`PROPERTY_NOT_COMPLETE`). |
+| FR-037.3 | One row per meter number: the sewerage and irrigation meters with the same number share a row (meter number, previous, current, consumption for each); a meter with no partner of the other type has its own row with meter number `0` and 0s on the other side. Rows in meter-number order. A not-accessible meter has its previous reading and 0 current and consumption. |
+| FR-037.4 | Finalizing again (after a meter was read again) writes a new set; the earlier rows stay with `IsCurrent = 0`. Each row keeps who finalized it, from which phone, when, and the readings it came from. |
+
 ## 9. Offline operation and synchronisation
 
 | ID | Requirement |
@@ -807,6 +816,7 @@ published with each build and is the contract for the Android client.
 | `GET /sync/assignments?since={token}` | Assignment delta for open period: zones, properties, meters, assignments (with previous reading, ExpectedLow/High), removals, outcomes; returns next `syncToken` |
 | `POST /readings` | Submit one reading (JSON, with `photoCount`). Returns `{transactionId, meterId, status, state, consumption, exceptions[]}` with 201 (new) or 200 (idempotent repeat) |
 | `PUT /readings/{transactionId}/images/{imageId}?role=&capturedAtUtc=` | Upload one photo after its reading: body `image/jpeg`, header `X-Content-SHA256`. 201 new, 200 repeat. Decided 2026-10-04 instead of one multipart request, so a reading is never held up by its photos |
+| `POST /properties/{propertyCode}/finalize` | FR-037: write the property's readings to `mr.MaintainFinalizedMeter`. 200 with the rows written |
 | `GET /readings/mine?period=&status=&page=` | Own submissions |
 | `GET /readings/{transactionId}` | One own submission and its outcome |
 
@@ -1085,6 +1095,9 @@ is hidden (`/me` answers `canInspect: false`).
 | LOGIN_NOT_UNIQUE | 409 | Two active readers share the sign-in name in vw_MR_Reader | Show "ask your supervisor" |
 | NO_OPEN_PERIOD | 409 | No reading period is open | Show "ask your supervisor" |
 | METER_NOT_FOUND | 404 | No active meter with this id (barcode) | Refresh meter list |
+| PROPERTY_NOT_FOUND | 404 | No active property with this code (FR-037) | Refresh meter list |
+| PROPERTY_NOT_COMPLETE | 409 | Finalize: meters of the property are still to read or send (FR-037.2) | Show how many are left |
+| FINALIZE_OFF | 503 | `mr.MaintainFinalizedMeter` is not on the server (db/017 not run) | Show "tell IT" |
 | READING_NOT_FOUND | 404 | Photo sent for a reading that is not the caller's or not stored | Send the reading first |
 | IMAGE_TOO_LARGE | 413 | Photo above the size limit | Shrink and retry |
 | IMAGE_ID_REUSED | 409 | Same image id, different photo | Log as defect |

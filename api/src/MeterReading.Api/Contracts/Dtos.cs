@@ -147,3 +147,11 @@ public sealed record SubmitReadingResponse(
 
 /// <summary>A stored photo (spec FR-009).</summary>
 public sealed record ImageUploadResponse(Guid ImageId, Guid TransactionId, string Role, int SizeBytes, string Sha256);
+
+/// <summary>A row of mr.MaintainFinalizedMeter (FR-037.3): an empty side is meter number "0" and 0s.</summary>
+public sealed record FinalizedMeterDto(
+    string SewerageMeterNumber, decimal SeweragePrevious, decimal SewerageCurrent, decimal SewerageConsumption,
+    string IrrigationMeterNumber, decimal IrrigationPrevious, decimal IrrigationCurrent, decimal IrrigationConsumption);
+
+/// <summary>What "Finalize property" wrote (FR-037).</summary>
+public sealed record FinalizedPropertyDto(string PeriodCode, string PropertyCode, long? PropertyId, DateTime FinalizedAtUtc, IReadOnlyList<FinalizedMeterDto> Rows);

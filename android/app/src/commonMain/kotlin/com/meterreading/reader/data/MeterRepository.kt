@@ -55,6 +55,13 @@ abstract class MeterRepository {
     protected fun tenantRefusal(draft: ReadingDraft): String? =
         TenantRules.problem(property(meter(draft.meterId).propertyCode), draft.tenantCode)?.message
 
+    /**
+     * FR-037: finalizes the property on the server. Sample data has no server: it answers with the rows
+     * the server would write (one per meter number).
+     */
+    open suspend fun finalizeProperty(propertyCode: String): FinalizeResult =
+        FinalizeResult.Done(metersAt(propertyCode, meters.value).map { it.number }.distinct().size)
+
     /** Sends readings and photos saved on the phone. Returns how many items were sent. */
     abstract suspend fun sendQueued(): Int
 

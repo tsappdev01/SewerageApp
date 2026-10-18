@@ -12,6 +12,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
+import io.ktor.http.encodeURLPathPart
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
@@ -96,6 +97,12 @@ class ApiClient(
     suspend fun submit(request: SubmitReadingRequest): SubmitReadingResponse =
         send(HttpMethod.Post, "/api/v1/readings", { jsonBody(json.encodeToString(SubmitReadingRequest.serializer(), request)) }) {
             json.decodeFromString(SubmitReadingResponse.serializer(), it)
+        }
+
+    /** FR-037: writes the property's readings for the period to mr.MaintainFinalizedMeter once every meter is read. */
+    suspend fun finalizeProperty(propertyCode: String): FinalizedPropertyDto =
+        send(HttpMethod.Post, "/api/v1/properties/${propertyCode.encodeURLPathPart()}/finalize", {}) {
+            json.decodeFromString(FinalizedPropertyDto.serializer(), it)
         }
 
     /** One photo of a stored reading (FR-009). The server checks the bytes against [sha256Hex]. */

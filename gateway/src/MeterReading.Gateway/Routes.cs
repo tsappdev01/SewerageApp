@@ -21,6 +21,7 @@ public static class Routes
         ("me", "/api/v1/me", ["GET"]),
         ("sync", "/api/v1/sync/meters", ["GET"]),
         ("search", "/api/v1/properties/search", ["GET"]),
+        ("finalize", "/api/v1/properties/{propertyCode}/finalize", ["POST"]),
         ("mine", "/api/v1/readings/mine", ["GET"]),
         ("summary", "/api/v1/summary", ["GET"]),
         ("meter", "/api/v1/meters/{meterId}", ["GET"]),
