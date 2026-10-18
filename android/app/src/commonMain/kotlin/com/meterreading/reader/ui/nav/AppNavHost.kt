@@ -25,6 +25,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.navigation.NavBackStackEntry
+import androidx.savedstate.read
 import com.meterreading.reader.data.AppGraph
 import com.meterreading.reader.data.ReadingState
 import kotlinx.coroutines.delay
@@ -130,7 +132,7 @@ fun AppNavHost() {
             )
         }
         composable(Routes.INSPECTION) { entry ->
-            val id = entry.arguments?.getString("id").orEmpty()
+            val id = entry.arg("id").orEmpty()
             com.meterreading.reader.ui.inspection.InspectionPropertyScreen(
                 planId = id,
                 onStart = { nav.navigate(Routes.inspectionUnits(id)) },
@@ -138,7 +140,7 @@ fun AppNavHost() {
             )
         }
         composable(Routes.INSPECTION_UNITS) { entry ->
-            val id = entry.arguments?.getString("id").orEmpty()
+            val id = entry.arg("id").orEmpty()
             com.meterreading.reader.ui.inspection.InspectionUnitsScreen(
                 planId = id,
                 inspector = AppServices.settings.readerLogin,
@@ -147,7 +149,7 @@ fun AppNavHost() {
             )
         }
         composable(Routes.INSPECTION_REVIEW) { entry ->
-            val id = entry.arguments?.getString("id").orEmpty()
+            val id = entry.arg("id").orEmpty()
             com.meterreading.reader.ui.inspection.InspectionReviewScreen(
                 planId = id,
                 onNextProperty = { next -> nav.navigate(Routes.inspection(next)) { popUpTo(Routes.INSPECTIONS) } },
@@ -163,7 +165,7 @@ fun AppNavHost() {
         }
         composable(Routes.ZONE) { entry ->
             PropertiesScreen(
-                zoneCode = entry.arguments?.getString("code").orEmpty(),
+                zoneCode = entry.arg("code").orEmpty(),
                 onProperty = { nav.navigate(Routes.property(it)) },
                 onFind = { zone, text -> nav.navigate(Routes.search(zone, text)) },
                 onBack = { nav.popBackStack() },
@@ -171,7 +173,7 @@ fun AppNavHost() {
         }
         composable(Routes.PROPERTY) { entry ->
             MetersScreen(
-                propertyCode = entry.arguments?.getString("code").orEmpty(),
+                propertyCode = entry.arg("code").orEmpty(),
                 onMeter = { nav.navigate(Routes.capture(it)) },
                 onBack = { nav.popBackStack() },
             )
@@ -184,8 +186,8 @@ fun AppNavHost() {
             ),
         ) { entry ->
             SearchScreen(
-                zoneCode = entry.arguments?.getString("zone")?.ifEmpty { null },
-                initialText = entry.arguments?.getString("text")?.ifEmpty { null },
+                zoneCode = entry.arg("zone")?.ifEmpty { null },
+                initialText = entry.arg("text")?.ifEmpty { null },
                 onProperty = { nav.navigate(Routes.property(it)) },
                 onMeter = { nav.navigate(Routes.capture(it)) },
                 onBack = { nav.popBackStack() },
@@ -193,7 +195,7 @@ fun AppNavHost() {
         }
         composable(Routes.CAPTURE, arguments = listOf(navArgument("meterId") { type = NavType.StringType })) { entry ->
             CaptureScreen(
-                meterId = entry.arguments?.getString("meterId").orEmpty(),
+                meterId = entry.arg("meterId").orEmpty(),
                 onNextMeter = { id -> nav.navigate(Routes.capture(id)) { popUpTo(Routes.HOME) } },
                 onHome = { nav.popBackStack(Routes.HOME, inclusive = false) },
                 onExit = { nav.popBackStack() },
@@ -247,3 +249,6 @@ private fun encodeUri(value: String): String = buildString {
         else append('%').append("0123456789ABCDEF"[c shr 4]).append("0123456789ABCDEF"[c and 0x0F])
     }
 }
+
+/** A route argument (navigation 2.9 keeps them in a SavedState). */
+private fun NavBackStackEntry.arg(name: String): String? = arguments?.read { getStringOrNull(name) }

@@ -3,7 +3,8 @@ agp = "8.10.1"
 kotlin = "2.4.21"
 composeMultiplatform = "1.11.1"
 ktor = "3.5.2"
-kotlinxDatetime = "0.6.2"
+# The 0.6 date API (kotlinx.datetime.Instant and Clock) with 0.7.1 inside: a library pulls 0.7, which drops it.
+kotlinxDatetime = { strictly = "0.7.1-0.6.x-compat" }
 okio = "3.18.2"
 jbLifecycle = "2.10.0"
 jbNavigation = "2.9.2"
