@@ -269,6 +269,10 @@ public sealed class SubmitTests(ApiFactory factory) : IAsyncLifetime
         Assert.False(r.GetBoolean(10));
         Assert.False(r.GetBoolean(11));
         Assert.Equal("O.K", r.GetString(12));                 // PMS's StatusCode (FR-006.2)
+        await r.CloseAsync();
+
+        // FR-037.10: the TranCode of the property row for the checked tenant (dev: "TR").
+        Assert.Equal("TR", await Scalar("SELECT TranCode FROM mr.ReadingTransaction WHERE TransactionId = @id", id));
     }
 
     [Fact]

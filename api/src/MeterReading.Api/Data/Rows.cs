@@ -103,6 +103,7 @@ public sealed class FinalizeReadingRow
     public decimal? Consumption { get; init; }
     /// <summary>The day the reading was taken, in the UAE.</summary>
     public DateTime? ReadingDate { get; init; }
+    public string? TranCode { get; init; }
 }
 
 /// <summary>A row of mr.IrrigationNoCharge (db/020, FR-037.7).</summary>
@@ -161,6 +162,8 @@ public sealed class NewTransactionRow
     public string? MeterNumber { get; init; }
     public string? MeterType { get; init; }
     public string? TenantCode { get; init; }
+    /// <summary>vw_MR_Property.TranCode of the property row for the checked tenant (db/021-022).</summary>
+    public string? TranCode { get; init; }
     public string? SubTenant { get; init; }
 }
 

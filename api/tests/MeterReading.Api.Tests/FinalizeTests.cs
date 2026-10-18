@@ -102,6 +102,21 @@ public class FinalizePairingTests
         Assert.Equal(0m, alone.IrrigationAmount);
     }
 
+    [Theory]
+    [InlineData("2026-09", "2026-09-01", "2026-09-30")]
+    [InlineData("2026-02", "2026-02-01", "2026-02-28")]
+    [InlineData("2028-02", "2028-02-01", "2028-02-29")]
+    [InlineData("2026-12", "2026-12-01", "2026-12-31")]
+    public void FR037_10_from_and_end_date_are_the_first_and_last_day_of_the_billing_month(string period, string from, string end) =>
+        Assert.Equal((DateOnly.Parse(from), DateOnly.Parse(end)), (FinalizeService.FromDate(period), FinalizeService.EndDate(period)));
+
+    [Fact]
+    public void FR037_10_the_row_takes_the_tran_code_of_its_readings()
+    {
+        var row = FinalizeService.Pair([new("I1", "001", "IRRIGATION", 0, 1, 1, null, TranCode: "11992")]).Single();
+        Assert.Equal("11992", row.TranCode);
+    }
+
     [Fact]
     public void FR037_5_no_float_value_or_rate_factor_means_no_amount()
     {
@@ -182,6 +197,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal("2026-10", body.GetProperty("periodCode").GetString());
+        Assert.Equal(("2026-10-01", "2026-10-31"), (body.GetProperty("fromDate").GetString(), body.GetProperty("endDate").GetString()));
         Assert.Equal(2, body.GetProperty("rows").GetArrayLength());
         Assert.Equal(
             [("0", 0m, 0m, 0m, "1497-I", 7450m, 8440m, 990m, true), ("1497-S", 2010m, 2300m, 290m, "0", 0m, 0m, 0m, true)],

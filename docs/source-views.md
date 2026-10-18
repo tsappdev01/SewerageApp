@@ -49,6 +49,7 @@ lists missing columns and wrong types; result 2 lists data problems and notes, w
 | Latitude, Longitude | number | A value that is not a number is read as empty. |
 | IsActive | flag | `Billable`. Only active values (as for readers) are listed. |
 | TenantCode | text | From `MaintainTransactionKeys`. |
+| TranCode | text | Added 2026-10-18 (db/021). Kept with each reading (the row for the tenant the reader checked) and on finalized rows (spec FR-037.10). |
 | CompanyName | text | The tenant's company (`MaintainTenant.CompanyName`). **Shown on the phone under the property code**, and searchable in Find a Property. If empty, the phone shows `PropertyName`. |
 
 ## 4. `vw_MR_Meter`

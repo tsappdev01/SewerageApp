@@ -164,7 +164,7 @@ GO
 CREATE OR ALTER VIEW dbo.vw_MR_Property AS
 SELECT ROW_NUMBER() OVER (ORDER BY p.PropertyCode) AS PropertyId,
        p.PropertyCode, p.PropertyCode AS PropertyName, p.ZoneCode, p.RouteSequence, p.Latitude, p.Longitude, p.IsActive,
-       t.TenantCode, t.CompanyName
+       t.TenantCode, t.CompanyName, t.TranCode
 FROM devsrc.Property p
 JOIN devsrc.Tenant t ON t.PropertyCode = p.PropertyCode;
 GO

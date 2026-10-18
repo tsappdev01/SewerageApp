@@ -173,6 +173,7 @@ data class FinalizedMeterDto(
     val irrigationNoCharge: Boolean = false,
     val tenPercentAmount: Double = 0.0,
     val irrigationAmountCalculated: Double = 0.0,
+    val tranCode: String? = null,
 )
 
 /** What "Finalize property" wrote (FR-037). */
@@ -182,5 +183,7 @@ data class FinalizedPropertyDto(
     val propertyCode: String,
     val propertyId: Long? = null,
     val finalizedAtUtc: String,
+    val fromDate: String? = null,
+    val endDate: String? = null,
     val rows: List<FinalizedMeterDto>,
 )

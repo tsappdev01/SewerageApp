@@ -213,9 +213,9 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     {
         if (meterIds.Count == 0) return new Dictionary<string, FinalizeReadingRow>();
         var sql = $"""
-            SELECT MeterId, TransactionId, PropertyId, PreviousReading, CurrentReading, Consumption, ReadingDate
+            SELECT MeterId, TransactionId, PropertyId, PreviousReading, CurrentReading, Consumption, ReadingDate, TranCode
             FROM (
-                SELECT t.MeterId, t.TransactionId, t.PropertyId, t.PreviousReading,
+                SELECT t.MeterId, t.TransactionId, t.PropertyId, t.PreviousReading, t.TranCode,
                        COALESCE(t.NewReading, t.NewCurrentReading) AS CurrentReading, t.Consumption,
                        CAST(CAST(t.CapturedAtUtc AT TIME ZONE 'UTC' AT TIME ZONE 'Arabian Standard Time' AS date) AS datetime2) AS ReadingDate,
                        ROW_NUMBER() OVER (PARTITION BY t.MeterId ORDER BY t.ReceivedAtUtc DESC, t.CapturedAtUtc DESC) AS rn
@@ -272,13 +272,15 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                 MeterNumberIrrigation, PrevReadingIrrigation, CurrentReadingIrrigation, ConsumptionIrrigation,
                 SewerageTransactionId, IrrigationTransactionId, FinalizedByReaderId, DeviceId, FinalizedAtUtc, IsCurrent,
                 SewerageAmount, IrrigationAmount, FloatValueSewerage, RateFactorSewerage, FloatValueIrrigation, RateFactorIrrigation,
-                SewerageVat, IrrigationVat, TotalAmount, IrrigationNoCharge, TenPercentAmount, IrrigationAmountCalculated)
+                SewerageVat, IrrigationVat, TotalAmount, IrrigationNoCharge, TenPercentAmount, IrrigationAmountCalculated,
+                TranCode, FromDate, EndDate)
             VALUES (@PeriodCode, @PropertyId, @PropertyCode,
                 @MeterNumberSewerage, @PrevReadingSewerage, @CurrentReadingSewerage, @ConsumptionSewerage,
                 @MeterNumberIrrigation, @PrevReadingIrrigation, @CurrentReadingIrrigation, @ConsumptionIrrigation,
                 @SewerageTransactionId, @IrrigationTransactionId, @ReaderId, @DeviceId, @At, 1,
                 @SewerageAmount, @IrrigationAmount, @FloatValueSewerage, @RateFactorSewerage, @FloatValueIrrigation, @RateFactorIrrigation,
-                @SewerageVat, @IrrigationVat, @TotalAmount, @IrrigationNoCharge, @TenPercentAmount, @IrrigationAmountCalculated);
+                @SewerageVat, @IrrigationVat, @TotalAmount, @IrrigationNoCharge, @TenPercentAmount, @IrrigationAmountCalculated,
+                @TranCode, @FromDate, @EndDate);
             """;
         await using var c = await db.OpenMeterReadingAsync(ct);
         await using var tx = await c.BeginTransactionAsync(ct);
@@ -293,7 +295,9 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             CurrentReadingIrrigation = r.Irrigation?.Current ?? 0m, ConsumptionIrrigation = r.Irrigation?.Consumption ?? 0m,
             SewerageTransactionId = r.Sewerage?.TransactionId, IrrigationTransactionId = r.Irrigation?.TransactionId,
             ReaderId = readerId, DeviceId = deviceId, At = at,
-            r.SewerageAmount, r.IrrigationAmount, r.SewerageVat, r.IrrigationVat, r.TotalAmount, r.IrrigationNoCharge, r.TenPercentAmount, r.IrrigationAmountCalculated,
+            r.SewerageAmount, r.IrrigationAmount, r.SewerageVat, r.IrrigationVat, r.TotalAmount, r.IrrigationNoCharge, r.TenPercentAmount, r.IrrigationAmountCalculated, r.TranCode,
+            FromDate = Domain.FinalizeService.FromDate(periodCode).ToDateTime(TimeOnly.MinValue),
+            EndDate = Domain.FinalizeService.EndDate(periodCode).ToDateTime(TimeOnly.MinValue),
             FloatValueSewerage = r.Sewerage?.FloatValue, RateFactorSewerage = r.Sewerage?.RateFactor,
             FloatValueIrrigation = r.Irrigation?.FloatValue, RateFactorIrrigation = r.Irrigation?.RateFactor,
         }).ToList(), tx, CommandTimeoutSeconds, cancellationToken: ct));
@@ -371,11 +375,11 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             INSERT mr.ReadingTransaction (TransactionId, PeriodCode, MeterId, ReaderId, DeviceId, MeterCondition, ConditionKind, ReasonCode, Remarks,
                 NewReading, PreviousReading, Consumption, OldFinalReading, NewMeterNumber, NewOpeningReading, NewCurrentReading,
                 Latitude, Longitude, GpsAccuracyM, CapturedAtUtc, Status, StatusNote, StatusChangedAtUtc, PayloadHash, ExpectedPhotos,
-                PropertyId, PropertyCode, MeterNumber, MeterType, TenantCode, SubTenant)
+                PropertyId, PropertyCode, MeterNumber, MeterType, TenantCode, SubTenant, TranCode)
             VALUES (@TransactionId, @PeriodCode, @MeterId, @ReaderId, @DeviceId, @MeterCondition, @ConditionKind, @ReasonCode, @Remarks,
                 @NewReading, @PreviousReading, @Consumption, @OldFinalReading, @NewMeterNumber, @NewOpeningReading, @NewCurrentReading,
                 @Latitude, @Longitude, @GpsAccuracyM, @CapturedAtUtc, @Status, @StatusNote, SYSUTCDATETIME(), @PayloadHash, @ExpectedPhotos,
-                @PropertyId, @PropertyCode, @MeterNumber, @MeterType, @TenantCode, @SubTenant);
+                @PropertyId, @PropertyCode, @MeterNumber, @MeterType, @TenantCode, @SubTenant, @TranCode);
             COMMIT TRANSACTION;
             SELECT 1;
             """;
@@ -424,6 +428,22 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     /// The current tenants of the given properties (all properties when null), from vw_MR_Tenant.
     /// A property can have more than one; the reader picks the one on site (FR-006.12).
     /// </summary>
+    /// <summary>
+    /// vw_MR_Property.TranCode (db/021) of the property's row for this tenant; without one for the tenant, the
+    /// property's first row. Null when the property has none.
+    /// </summary>
+    public async Task<string?> GetTranCodeAsync(string propertyCode, string? tenantCode, CancellationToken ct)
+    {
+        var sql = $"""
+            SELECT TOP (1) NULLIF(LTRIM(RTRIM(CAST(p.TranCode AS varchar(30)))), '')
+            FROM {_v.Property} p
+            WHERE CAST(p.PropertyCode AS varchar(30)) = @propertyCode
+            ORDER BY CASE WHEN LTRIM(RTRIM(CAST(p.TenantCode AS varchar(30)))) = @tenantCode THEN 0 ELSE 1 END
+            """;
+        await using var c = await db.OpenSourceAsync(ct);
+        return await c.ExecuteScalarAsync<string?>(Cmd(sql, new { propertyCode, tenantCode }, ct));
+    }
+
     public async Task<IReadOnlyList<TenantRow>> GetTenantsAsync(IReadOnlyCollection<string>? propertyCodes, CancellationToken ct)
     {
         var codeClause = propertyCodes is null

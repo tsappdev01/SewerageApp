@@ -95,6 +95,7 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
 
         // Property and meter as they are now, so the reading keeps them if they change later.
         var source = (await repo.GetMetersAsync(new MeterFilter(MeterIds: [meter.Id]), ct)).Single();
+        var tranCode = await repo.GetTranCodeAsync(source.PropertyCode, tenant.TenantCode, ct);
         var (consumption, exceptions) = Evaluate(r, meter);
         var (status, statusNote) = Decide(exceptions, rules.Value.SupervisorReview);
         var row = new NewTransactionRow
@@ -128,6 +129,7 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
             MeterNumber = source.MeterNumber,
             MeterType = source.SourceMeterType,
             TenantCode = tenant.TenantCode,
+            TranCode = tranCode,
             SubTenant = Trimmed(r.SubTenant, 100),
         };
 
