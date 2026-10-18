@@ -35,12 +35,35 @@ public sealed class MeterStatusService(MeterReadingRepository repo, IOptions<Met
 
     private MeterStatusOptions O => options.Value;
 
-    /// <summary>The view's statuses that have a kind, by SequenceNo. Without the view: the six kinds as codes.</summary>
+    private static readonly Dictionary<string, string> PlainNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["WORKING"] = "Working", ["DAMAGED"] = "Damaged", ["SUBMERSED"] = "Under water",
+        ["NOT_ACCESSIBLE"] = "Can't reach", ["METER_REPLACED"] = "New meter fitted", ["REMOVED"] = "Meter gone",
+    };
+
+    /// <summary>
+    /// The view's statuses that have a kind, by SequenceNo. When the view is missing or cannot be read
+    /// (e.g. no SELECT for the API's login: db/016), the codes in MeterStatus:Kinds with plain names, so the
+    /// meter list never fails because of the statuses and readings still carry PMS's codes.
+    /// </summary>
     public async Task<IReadOnlyList<MeterStatusDto>> GetAsync(CancellationToken ct)
     {
-        var rows = await repo.GetMeterStatusesAsync(ct);
+        IReadOnlyList<MeterStatusRow>? rows;
+        try
+        {
+            rows = await repo.GetMeterStatusesAsync(ct);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException e)
+        {
+            log.LogError("vw_MR_MeterStatus cannot be read ({Error}); using MeterStatus:Kinds. Grant SELECT with db/016.", e.Message);
+            rows = null;
+        }
         if (rows is null)
-            return KnownKinds.Select((k, i) => new MeterStatusDto(k, k, k, i + 1)).ToList();
+            return O.Kinds
+                .Where(k => KnownKinds.Contains(k.Value, StringComparer.OrdinalIgnoreCase))
+                .OrderBy(k => Array.FindIndex(KnownKinds, x => string.Equals(x, k.Value, StringComparison.OrdinalIgnoreCase)))
+                .Select((k, i) => new MeterStatusDto(k.Key, PlainNames.GetValueOrDefault(k.Value, k.Key), k.Value.ToUpperInvariant(), i + 1))
+                .ToList();
         var list = new List<MeterStatusDto>();
         foreach (var r in rows.OrderBy(r => r.SequenceNo ?? int.MaxValue).ThenBy(r => r.StatusCode))
         {
