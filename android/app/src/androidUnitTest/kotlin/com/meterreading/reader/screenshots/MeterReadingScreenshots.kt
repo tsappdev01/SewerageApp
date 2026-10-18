@@ -14,6 +14,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -221,5 +223,23 @@ class MeterReadingScreenshots {
             SyncPromptDialog(readings = 3, photos = 3, onSendNow = {}, onLater = {})
         }
         shot("14_signal_back_prompt")
+    }
+
+    /** FR-037: a property with meters still to read: Finalize is off and says how many are left. */
+    @Test fun s15_finalize_left() {
+        show { MetersScreen(propertyCode = "1499-W1", onMeter = {}, onBack = {}) }
+        shot("15_finalize_meters_left")
+    }
+
+    /** FR-037: every meter of 1497 is sent, so Finalize is on. */
+    @Test fun s16_finalize_ready() {
+        show { MetersScreen(propertyCode = "1497", onMeter = {}, onBack = {}) }
+        shot("16_finalize_ready")
+    }
+
+    @Test fun s17_finalize_confirm() {
+        show { MetersScreen(propertyCode = "1497", onMeter = {}, onBack = {}) }
+        compose.onNodeWithText("Finalize property").performClick()
+        shot("17_finalize_confirm")
     }
 }
