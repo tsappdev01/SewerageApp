@@ -8,6 +8,14 @@
 #
 # Database scripts are not run here: a DBA runs any new db/0xx_*.sql before approving (docs/devops-pipeline.md).
 
+parameters:
+# zApps' deploy site accepts only its private endpoint; until an agent in pool DIP-VNet reaches it
+# (docs/devops-pipeline.md §3), runs deploy mApps only. Tick this on "Run pipeline" once that agent is online.
+- name: deployZApps
+  displayName: Deploy zApps too (needs the DIP-VNet agent)
+  type: boolean
+  default: false
+
 trigger:
   branches:
     include: [main]
@@ -130,6 +138,7 @@ stages:
   - deployment: zApps
     displayName: zApps (Azure App Service)
     dependsOn: mApps
+    condition: and(succeeded(), ${{ parameters.deployZApps }})
     environment: UAT
     pool:
       name: $(zAppsAgentPool)

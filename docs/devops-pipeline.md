@@ -34,6 +34,9 @@ Repos → Branches → `main` → ⋯ → **Set as default branch**.
 pipeline never deploys or changes it.
 
 ### 3. Agent for zApps (inside the VNet)
+Until this agent is online, runs deploy **mApps only**: the zApps job runs only when *Deploy zApps too* is
+ticked on **Run pipeline** (runs started by a push leave it off). UATWEB01 cannot be used: zapps' SCM site
+answers it 403 (public access off) and `zApps.dipark.com` is not reachable from it.
 `zapps` has public access off, so the deploy must come from a machine that reaches its private endpoint
 (and its SCM site, `zAppsScmHost`, through the privatelink DNS).
 1. Project settings → **Agent pools** → **Add pool** → Self-hosted → name `DIP-VNet`.
