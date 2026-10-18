@@ -167,6 +167,9 @@ data class FinalizedMeterDto(
     val irrigationConsumption: Double,
     val sewerageAmount: Double = 0.0,
     val irrigationAmount: Double = 0.0,
+    val sewerageVat: Double = 0.0,
+    val irrigationVat: Double = 0.0,
+    val totalAmount: Double = 0.0,
 )
 
 /** What "Finalize property" wrote (FR-037). */

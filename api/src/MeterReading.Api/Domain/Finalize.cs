@@ -13,7 +13,15 @@ public sealed record FinalizeMeter(
 }
 
 /// <summary>A sewerage meter and an irrigation meter side by side; an empty side is meter number "0" and 0s.</summary>
-public sealed record FinalizedPair(FinalizeMeter? Sewerage, FinalizeMeter? Irrigation);
+public sealed record FinalizedPair(FinalizeMeter? Sewerage, FinalizeMeter? Irrigation)
+{
+    public decimal SewerageAmount => Sewerage?.Amount ?? 0m;
+    public decimal IrrigationAmount => Irrigation?.Amount ?? 0m;
+    public decimal SewerageVat => FinalizeService.Vat(SewerageAmount);
+    public decimal IrrigationVat => FinalizeService.Vat(IrrigationAmount);
+    /// <summary>FR-037.6: both amounts and both VATs.</summary>
+    public decimal TotalAmount => SewerageAmount + IrrigationAmount + SewerageVat + IrrigationVat;
+}
 
 /// <summary>
 /// FR-037: "Finalize property". Once every meter of the property is read this period, its readings
@@ -34,6 +42,11 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
         floatValue is { } f && rateFactor is { } r
             ? Math.Round(consumption * f * AmountMultiplier * (r / 100m), 2, MidpointRounding.AwayFromZero)
             : 0m;
+
+    /// <summary>FR-037.6: VAT, 5% of each amount (DIP 2026-10-18).</summary>
+    public const decimal VatRate = 0.05m;
+
+    public static decimal Vat(decimal amount) => Math.Round(amount * VatRate, 2, MidpointRounding.AwayFromZero);
 
     /// <summary>FR-037.2: a meter counts as read once its reading is stored (sent, or "visit again").</summary>
     public static bool IsRead(AssignmentState s) => s is AssignmentState.SENT or AssignmentState.REVISIT;
@@ -96,5 +109,5 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
     private static FinalizedMeterDto ToDto(FinalizedPair p) => new(
         p.Sewerage?.Number ?? "0", p.Sewerage?.Previous ?? 0m, p.Sewerage?.Current ?? 0m, p.Sewerage?.Consumption ?? 0m,
         p.Irrigation?.Number ?? "0", p.Irrigation?.Previous ?? 0m, p.Irrigation?.Current ?? 0m, p.Irrigation?.Consumption ?? 0m,
-        p.Sewerage?.Amount ?? 0m, p.Irrigation?.Amount ?? 0m);
+        p.SewerageAmount, p.IrrigationAmount, p.SewerageVat, p.IrrigationVat, p.TotalAmount);
 }

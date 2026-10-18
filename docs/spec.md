@@ -652,6 +652,7 @@ readings per hour, last sync per reader/device.
 | FR-037.2 | It is enabled only when every meter of the property has its reading on the server: sent, or "visit again" (not accessible). A reading still waiting on the phone, being checked or sent back does not count; the button says how many are left. The server checks again (`PROPERTY_NOT_COMPLETE`). |
 | FR-037.3 | One row per meter number: the sewerage and irrigation meters with the same number share a row (meter number, previous, current, consumption for each); a meter with no partner of the other type has its own row with meter number `0` and 0s on the other side. Rows in meter-number order. A not-accessible meter has its previous reading and 0 current and consumption. |
 | FR-037.5 | Each side has an amount: **Consumption × FloatValue × 1.2 × (RateFactor / 100)**, rounded to 2 decimals, with FloatValue and RateFactor from `vw_MR_Meter` (db/018) stored next to it (`SewerageAmount`, `IrrigationAmount`, db/019). 0 on an empty side or when the meter has no FloatValue or RateFactor. DIP 2026-10-18; UAT has 220 and 1.50 on every meter (3.96 per unit). |
+| FR-037.6 | VAT is 5% of each amount (`SewerageVat`, `IrrigationVat`, rounded to 2 decimals); `TotalAmount` is SewerageAmount + IrrigationAmount + SewerageVat + IrrigationVat. DIP 2026-10-18. |
 | FR-037.4 | Finalizing again (after a meter was read again) writes a new set; the earlier rows stay with `IsCurrent = 0`. Each row keeps who finalized it, from which phone, when, and the readings it came from. |
 
 ## 9. Offline operation and synchronisation

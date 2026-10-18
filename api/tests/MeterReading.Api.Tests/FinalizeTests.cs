@@ -43,6 +43,17 @@ public class FinalizePairingTests
         Assert.Equal(amount, FinalizeService.Amount(used, floatValue, rate));
 
     [Fact]
+    public void FR037_6_vat_is_5_percent_of_each_amount_and_total_is_the_sum_of_all()
+    {
+        var row = FinalizeService.Pair([
+            new("S1", "001", "SEWERAGE", 0, 157, 157, null, 220, 1.5m),     // 621.72, VAT 31.09 (31.086)
+            new("I1", "001", "IRRIGATION", 0, 31, 31, null, 220, 1.5m),     // 122.76, VAT 6.14 (6.138)
+        ]).Single();
+        Assert.Equal((621.72m, 31.09m, 122.76m, 6.14m, 781.71m),
+            (row.SewerageAmount, row.SewerageVat, row.IrrigationAmount, row.IrrigationVat, row.TotalAmount));
+    }
+
+    [Fact]
     public void FR037_5_no_float_value_or_rate_factor_means_no_amount()
     {
         Assert.Equal(0m, FinalizeService.Amount(100, null, 1.5m));
@@ -84,16 +95,16 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         return (response.StatusCode, await response.Content.ReadFromJsonAsync<JsonElement>());
     }
 
-    private static async Task<List<(decimal SewerageAmount, decimal IrrigationAmount)>> Amounts(string property)
+    private static async Task<List<(decimal SewerageAmount, decimal IrrigationAmount, decimal Total)>> Amounts(string property)
     {
         await using var c = new SqlConnection(ApiFactory.ConnectionString);
         await c.OpenAsync();
         await using var cmd = new SqlCommand(
-            "SELECT SewerageAmount, IrrigationAmount FROM mr.MaintainFinalizedMeter WHERE PropertyCode = @p AND IsCurrent = 1 ORDER BY FinalizedMeterId", c);
+            "SELECT SewerageAmount, IrrigationAmount, TotalAmount FROM mr.MaintainFinalizedMeter WHERE PropertyCode = @p AND IsCurrent = 1 ORDER BY FinalizedMeterId", c);
         cmd.Parameters.AddWithValue("@p", property);
-        var list = new List<(decimal, decimal)>();
+        var list = new List<(decimal, decimal, decimal)>();
         await using var r = await cmd.ExecuteReaderAsync();
-        while (await r.ReadAsync()) list.Add((r.GetDecimal(0), r.GetDecimal(1)));
+        while (await r.ReadAsync()) list.Add((r.GetDecimal(0), r.GetDecimal(1), r.GetDecimal(2)));
         return list;
     }
 
@@ -126,8 +137,9 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         Assert.Equal(
             [("0", 0m, 0m, 0m, "1497-I", 7450m, 8440m, 990m, true), ("1497-S", 2010m, 2300m, 290m, "0", 0m, 0m, 0m, true)],
             await Rows("1497"));
-        // FR-037.5: dev meters are priced like UAT (220, 1.50): 3.96 per unit; 990 -> 3920.40, 290 -> 1148.40.
-        Assert.Equal([(0m, 3920.40m), (1148.40m, 0m)], await Amounts("1497"));
+        // FR-037.5/6: dev meters are priced like UAT (220, 1.50): 3.96 per unit; 990 -> 3920.40 (+196.02 VAT),
+        // 290 -> 1148.40 (+57.42 VAT).
+        Assert.Equal([(0m, 3920.40m, 4116.42m), (1148.40m, 0m, 1205.82m)], await Amounts("1497"));
         Assert.Equal(1148.40m, body.GetProperty("rows")[1].GetProperty("sewerageAmount").GetDecimal());
     }
 
