@@ -52,6 +52,7 @@ public class FinalizePairingTests
         ]).Single();
         Assert.Equal((621.72m, 31.09m, 122.76m, 6.14m, 781.71m),
             (row.SewerageAmount, row.SewerageVat, row.IrrigationAmount, row.IrrigationVat, row.TotalAmount));
+        Assert.Equal(74.45m, row.TenPercentAmount); // FR-037.8: 10% of 744.48
     }
 
     [Theory]

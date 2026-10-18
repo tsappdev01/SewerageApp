@@ -21,6 +21,8 @@ public sealed record FinalizedPair(FinalizeMeter? Sewerage, FinalizeMeter? Irrig
     public decimal IrrigationVat => FinalizeService.Vat(IrrigationAmount);
     /// <summary>FR-037.6: both amounts and both VATs.</summary>
     public decimal TotalAmount => SewerageAmount + IrrigationAmount + SewerageVat + IrrigationVat;
+    /// <summary>FR-037.8: 10% of both amounts (before VAT); not part of TotalAmount.</summary>
+    public decimal TenPercentAmount => Math.Round((SewerageAmount + IrrigationAmount) * 0.10m, 2, MidpointRounding.AwayFromZero);
     /// <summary>FR-037.7: the irrigation side is not charged.</summary>
     public bool IrrigationNoCharge => Irrigation?.NoCharge ?? false;
 }
@@ -120,5 +122,5 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
     private static FinalizedMeterDto ToDto(FinalizedPair p) => new(
         p.Sewerage?.Number ?? "0", p.Sewerage?.Previous ?? 0m, p.Sewerage?.Current ?? 0m, p.Sewerage?.Consumption ?? 0m,
         p.Irrigation?.Number ?? "0", p.Irrigation?.Previous ?? 0m, p.Irrigation?.Current ?? 0m, p.Irrigation?.Consumption ?? 0m,
-        p.SewerageAmount, p.IrrigationAmount, p.SewerageVat, p.IrrigationVat, p.TotalAmount, p.IrrigationNoCharge);
+        p.SewerageAmount, p.IrrigationAmount, p.SewerageVat, p.IrrigationVat, p.TotalAmount, p.IrrigationNoCharge, p.TenPercentAmount);
 }
