@@ -273,6 +273,8 @@ public sealed class SubmitTests(ApiFactory factory) : IAsyncLifetime
 
         // FR-037.10: the TranCode of the property row for the checked tenant (dev: "TR").
         Assert.Equal("TR", await Scalar("SELECT TranCode FROM mr.ReadingTransaction WHERE TransactionId = @id", id));
+        // FR-037.10: and the checked tenant's BaanCode (dev: "B" + tenant code).
+        Assert.Equal("BT-0201", await Scalar("SELECT BaanCode FROM mr.ReadingTransaction WHERE TransactionId = @id", id));
     }
 
     [Fact]

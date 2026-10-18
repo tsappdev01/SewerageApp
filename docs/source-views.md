@@ -109,6 +109,7 @@ WHERE k.TranCode NOT LIKE '%-%'
 | Column | Read as | Notes |
 |---|---|---|
 | PropertyCode | text | As in `vw_MR_Property`. |
+| BaanCode | text | The tenant's code in Baan. Added 2026-10-18 (db/023). Kept with each reading and on finalized rows (spec FR-037.10). |
 | TenantCode | text | Stored on the reading. |
 | CompanyName | text | Shown to the reader to tap. |
 

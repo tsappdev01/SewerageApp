@@ -6,7 +6,7 @@ namespace MeterReading.Api.Domain;
 /// <summary>One meter of the property as it goes into mr.MaintainFinalizedMeter.</summary>
 public sealed record FinalizeMeter(
     string MeterId, string Number, string Type, decimal Previous, decimal Current, decimal Consumption, Guid? TransactionId,
-    decimal? FloatValue = null, decimal? RateFactor = null, bool NoCharge = false, string? TranCode = null)
+    decimal? FloatValue = null, decimal? RateFactor = null, bool NoCharge = false, string? TranCode = null, string? BaanCode = null)
 {
     /// <summary>FR-037.5: what the consumption costs; 0 when not charged (FR-037.7).</summary>
     public decimal Amount => NoCharge ? 0m : FinalizeService.Amount(Consumption, FloatValue, RateFactor);
@@ -28,6 +28,8 @@ public sealed record FinalizedPair(FinalizeMeter? Sewerage, FinalizeMeter? Irrig
     public decimal TenPercentAmount => Math.Round(SewerageAmount * 0.10m, 2, MidpointRounding.AwayFromZero);
     /// <summary>FR-037.10: the TranCode kept with the row's readings (sewerage first).</summary>
     public string? TranCode => Sewerage?.TranCode ?? Irrigation?.TranCode;
+    /// <summary>FR-037.10: the tenant's BaanCode kept with the row's readings (sewerage first).</summary>
+    public string? BaanCode => Sewerage?.BaanCode ?? Irrigation?.BaanCode;
     /// <summary>FR-037.7: the irrigation side is not charged.</summary>
     public bool IrrigationNoCharge => Irrigation?.NoCharge ?? false;
 }
@@ -137,6 +139,7 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
                 t?.TransactionId,
                 s?.FloatValue, s?.RateFactor,
                 TranCode: t?.TranCode,
+                BaanCode: t?.BaanCode,
                 NoCharge: m.Type == "IRRIGATION" && IsNoCharge(t?.ReadingDate is { } d ? (DateOnly?)DateOnly.FromDateTime(d) : null, noCharge));
         }));
         var code = meters[0].PropertyCode;
@@ -151,5 +154,5 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
     private static FinalizedMeterDto ToDto(FinalizedPair p) => new(
         p.Sewerage?.Number ?? "0", p.Sewerage?.Previous ?? 0m, p.Sewerage?.Current ?? 0m, p.Sewerage?.Consumption ?? 0m,
         p.Irrigation?.Number ?? "0", p.Irrigation?.Previous ?? 0m, p.Irrigation?.Current ?? 0m, p.Irrigation?.Consumption ?? 0m,
-        p.SewerageAmount, p.IrrigationAmount, p.SewerageVat, p.IrrigationVat, p.TotalAmount, p.IrrigationNoCharge, p.TenPercentAmount, p.IrrigationAmountCalculated, p.TranCode);
+        p.SewerageAmount, p.IrrigationAmount, p.SewerageVat, p.IrrigationVat, p.TotalAmount, p.IrrigationNoCharge, p.TenPercentAmount, p.IrrigationAmountCalculated, p.TranCode, p.BaanCode);
 }

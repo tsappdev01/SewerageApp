@@ -170,7 +170,7 @@ JOIN devsrc.Tenant t ON t.PropertyCode = p.PropertyCode;
 GO
 /* Same as the real view: current tenants only (TranCode without a dash). */
 CREATE OR ALTER VIEW dbo.vw_MR_Tenant AS
-SELECT PropertyCode, TenantCode, CompanyName FROM devsrc.Tenant WHERE TranCode NOT LIKE '%-%';
+SELECT PropertyCode, TenantCode, CompanyName, 'B' + TenantCode AS BaanCode FROM devsrc.Tenant WHERE TranCode NOT LIKE '%-%';
 GO
 /* Shaped like the real view: barcode id, last billed reading as OpeningReading, ISNULL zeros, Status 1/0. */
 CREATE OR ALTER VIEW dbo.vw_MR_Meter AS

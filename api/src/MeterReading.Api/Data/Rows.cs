@@ -26,6 +26,8 @@ public sealed class TenantRow
     public string PropertyCode { get; init; } = "";
     public string TenantCode { get; init; } = "";
     public string? CompanyName { get; init; }
+    /// <summary>The tenant's code in Baan (db/023); kept with the reading (FR-037.10).</summary>
+    public string? BaanCode { get; init; }
 }
 
 public sealed class MeterRow
@@ -104,6 +106,7 @@ public sealed class FinalizeReadingRow
     /// <summary>The day the reading was taken, in the UAE.</summary>
     public DateTime? ReadingDate { get; init; }
     public string? TranCode { get; init; }
+    public string? BaanCode { get; init; }
 }
 
 /// <summary>A row of mr.IrrigationNoCharge (db/020, FR-037.7).</summary>
@@ -164,6 +167,8 @@ public sealed class NewTransactionRow
     public string? TenantCode { get; init; }
     /// <summary>vw_MR_Property.TranCode of the property row for the checked tenant (db/021-022).</summary>
     public string? TranCode { get; init; }
+    /// <summary>vw_MR_Tenant.BaanCode of the checked tenant (db/022-023).</summary>
+    public string? BaanCode { get; init; }
     public string? SubTenant { get; init; }
 }
 

@@ -37,7 +37,7 @@ INSERT @Expected (ViewName, ColumnName, Family, ViewRequired) VALUES
  (N'vw_MR_ReadingPeriod', N'StartDate', 'date', 1), (N'vw_MR_ReadingPeriod', N'EndDate', 'date', 1),
  (N'vw_MR_ReadingPeriod', N'Status', 'text', 1),
  (N'vw_MR_Tenant', N'PropertyCode', 'text', 1), (N'vw_MR_Tenant', N'TenantCode', 'text', 1),
- (N'vw_MR_Tenant', N'CompanyName', 'text', 1),
+ (N'vw_MR_Tenant', N'CompanyName', 'text', 1), (N'vw_MR_Tenant', N'BaanCode', 'text', 1),
  (N'vw_MR_ReadingHistory', N'MeterId', 'key', 0), (N'vw_MR_ReadingHistory', N'PeriodCode', 'text', 0),
  (N'vw_MR_ReadingHistory', N'ReadingDate', 'date', 0), (N'vw_MR_ReadingHistory', N'ReadingValue', 'decimal', 0),
  (N'vw_MR_ReadingHistory', N'Consumption', 'decimal', 0), (N'vw_MR_ReadingHistory', N'ConsumptionBasis', 'text', 0),

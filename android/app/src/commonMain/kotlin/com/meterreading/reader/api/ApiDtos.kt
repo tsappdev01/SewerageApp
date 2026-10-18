@@ -174,6 +174,7 @@ data class FinalizedMeterDto(
     val tenPercentAmount: Double = 0.0,
     val irrigationAmountCalculated: Double = 0.0,
     val tranCode: String? = null,
+    val baanCode: String? = null,
 )
 
 /** What "Finalize property" wrote (FR-037). */

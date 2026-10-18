@@ -130,6 +130,7 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
             MeterType = source.SourceMeterType,
             TenantCode = tenant.TenantCode,
             TranCode = tranCode,
+            BaanCode = tenant.BaanCode,
             SubTenant = Trimmed(r.SubTenant, 100),
         };
 

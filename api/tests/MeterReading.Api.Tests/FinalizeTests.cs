@@ -113,8 +113,8 @@ public class FinalizePairingTests
     [Fact]
     public void FR037_10_the_row_takes_the_tran_code_of_its_readings()
     {
-        var row = FinalizeService.Pair([new("I1", "001", "IRRIGATION", 0, 1, 1, null, TranCode: "11992")]).Single();
-        Assert.Equal("11992", row.TranCode);
+        var row = FinalizeService.Pair([new("I1", "001", "IRRIGATION", 0, 1, 1, null, TranCode: "11992", BaanCode: "C10234")]).Single();
+        Assert.Equal(("11992", "C10234"), (row.TranCode, row.BaanCode));
     }
 
     [Fact]
