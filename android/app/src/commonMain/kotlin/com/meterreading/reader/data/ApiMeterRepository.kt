@@ -128,7 +128,8 @@ class ApiMeterRepository(
         lastSync = sync
         lastMine = mine
         val waiting = queue.associateBy { it.meterId }
-        _statuses.value = sync.statuses.mapNotNull { s ->
+        // FR-006.2: in PMS's order (vw_MR_MeterStatus.SequenceNo), whatever order they arrive in.
+        _statuses.value = sync.statuses.sortedBy { it.sequence }.mapNotNull { s ->
             MeterCondition.entries.firstOrNull { it.name == s.kind }?.let { MeterStatusOption(s.code, s.name, it) }
         }
         _properties.value = sync.properties.map {
