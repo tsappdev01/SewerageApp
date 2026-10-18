@@ -46,11 +46,18 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
     /// </summary>
     public async Task<MeterSet> LoadAsync(string periodCode, MeterFilter filter, CancellationToken ct)
     {
-        // A single meter (submit, meter detail) is read fresh; lists come from the kept copy of the views.
+        // A single meter (submit, meter detail) is read fresh; lists come from the kept copy of the full list,
+        // narrowed to the zones here. A copy per zone choice was not warmed, so a phone with zones set read the
+        // views itself, tenants by a long list of property codes, and gave up ("0 properties", UAT 2026-10-18).
         var source = filter.MeterIds is { Count: > 0 }
             ? await ReadSourceAsync(filter, ct)
-            : await cache.GetAsync(Key(filter), c => ReadSourceAsync(filter, c), ct);
+            : await cache.GetAsync(Key(new MeterFilter()), c => ReadSourceAsync(new MeterFilter(), c), ct);
         var rows = source.Rows;
+        if (filter.MeterIds is not { Count: > 0 } && filter.ZoneCodes is { Count: > 0 } zones)
+        {
+            var wanted = zones.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            rows = rows.Where(r => wanted.Contains(r.ZoneCode)).ToList();
+        }
         var tenants = source.Tenants;
         var averages = source.Averages;
         // Reading states are always live (mr.ReadingTransaction).
