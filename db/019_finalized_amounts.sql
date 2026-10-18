@@ -6,8 +6,10 @@
       IrrigationAmount = ConsumptionIrrigation * FloatValue * 1.2 * (RateFactor / 100)
   rounded to 2 decimals; 0 on an empty side or when the meter has no FloatValue or RateFactor.
   VAT is 5% of each amount (SewerageVat, IrrigationVat, rounded to 2 decimals) and TotalAmount is the
-  sum of all four (DIP 2026-10-18). TenPercentAmount is 10% of SewerageAmount + IrrigationAmount (the
-  formula above, both sides), rounded to 2 decimals; it is not part of TotalAmount.
+  sum of all four (DIP 2026-10-18). TenPercentAmount is 10% of SewerageAmount, rounded to 2 decimals.
+  Irrigation billing (FR-037.9): IrrigationAmountCalculated is the formula above; IrrigationAmount is what
+  is billed: the calculated amount when it is above TenPercentAmount or above 500, otherwise
+  TenPercentAmount, at most 500. VAT is on the billed amount.
   Run in MRDB after 017. Re-runnable.
 */
 IF COL_LENGTH(N'mr.MaintainFinalizedMeter', N'SewerageAmount') IS NULL
@@ -39,4 +41,8 @@ GO
 IF COL_LENGTH(N'mr.MaintainFinalizedMeter', N'TenPercentAmount') IS NULL
     ALTER TABLE mr.MaintainFinalizedMeter ADD TenPercentAmount decimal(18, 2) NOT NULL
         CONSTRAINT DF_MaintainFinalizedMeter_TenPercentAmount DEFAULT 0;
+GO
+IF COL_LENGTH(N'mr.MaintainFinalizedMeter', N'IrrigationAmountCalculated') IS NULL
+    ALTER TABLE mr.MaintainFinalizedMeter ADD IrrigationAmountCalculated decimal(18, 2) NOT NULL
+        CONSTRAINT DF_MaintainFinalizedMeter_IrrigationAmountCalculated DEFAULT 0;
 GO

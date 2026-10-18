@@ -16,13 +16,16 @@ public sealed record FinalizeMeter(
 public sealed record FinalizedPair(FinalizeMeter? Sewerage, FinalizeMeter? Irrigation)
 {
     public decimal SewerageAmount => Sewerage?.Amount ?? 0m;
-    public decimal IrrigationAmount => Irrigation?.Amount ?? 0m;
+    /// <summary>FR-037.5: the irrigation consumption priced, exclusive of VAT, before the FR-037.9 minimum.</summary>
+    public decimal IrrigationAmountCalculated => Irrigation?.Amount ?? 0m;
+    /// <summary>FR-037.9: what irrigation is billed; 0 with no irrigation meter on the row or when not charged (FR-037.7).</summary>
+    public decimal IrrigationAmount => Irrigation is null || Irrigation.NoCharge ? 0m : FinalizeService.IrrigationBilled(IrrigationAmountCalculated, TenPercentAmount);
     public decimal SewerageVat => FinalizeService.Vat(SewerageAmount);
     public decimal IrrigationVat => FinalizeService.Vat(IrrigationAmount);
     /// <summary>FR-037.6: both amounts and both VATs.</summary>
     public decimal TotalAmount => SewerageAmount + IrrigationAmount + SewerageVat + IrrigationVat;
-    /// <summary>FR-037.8: 10% of both amounts (before VAT); not part of TotalAmount.</summary>
-    public decimal TenPercentAmount => Math.Round((SewerageAmount + IrrigationAmount) * 0.10m, 2, MidpointRounding.AwayFromZero);
+    /// <summary>FR-037.8: 10% of the sewerage amount (before VAT); the base of the irrigation minimum (FR-037.9).</summary>
+    public decimal TenPercentAmount => Math.Round(SewerageAmount * 0.10m, 2, MidpointRounding.AwayFromZero);
     /// <summary>FR-037.7: the irrigation side is not charged.</summary>
     public bool IrrigationNoCharge => Irrigation?.NoCharge ?? false;
 }
@@ -46,6 +49,21 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
         floatValue is { } f && rateFactor is { } r
             ? Math.Round(consumption * f * AmountMultiplier * (r / 100m), 2, MidpointRounding.AwayFromZero)
             : 0m;
+
+    /// <summary>The cap of the irrigation minimum (FR-037.9).</summary>
+    public const decimal IrrigationMinimumCap = 500m;
+
+    /// <summary>
+    /// FR-037.9, DIP's rule of 2026-10-18 as given: the calculated irrigation amount (exclusive of VAT) is billed
+    /// when it is above 10% of the sewerage amount or above 500; otherwise 10% of the sewerage amount, at most 500.
+    /// In short: max(calculated, min(tenPercent, 500)).
+    /// </summary>
+    public static decimal IrrigationBilled(decimal calculated, decimal tenPercentOfSewerage)
+    {
+        if (calculated > tenPercentOfSewerage || calculated > IrrigationMinimumCap) return calculated;
+        if (tenPercentOfSewerage <= IrrigationMinimumCap) return tenPercentOfSewerage;
+        return tenPercentOfSewerage > 0 ? IrrigationMinimumCap : calculated;
+    }
 
     /// <summary>FR-037.6: VAT, 5% of each amount (DIP 2026-10-18).</summary>
     public const decimal VatRate = 0.05m;
@@ -122,5 +140,5 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
     private static FinalizedMeterDto ToDto(FinalizedPair p) => new(
         p.Sewerage?.Number ?? "0", p.Sewerage?.Previous ?? 0m, p.Sewerage?.Current ?? 0m, p.Sewerage?.Consumption ?? 0m,
         p.Irrigation?.Number ?? "0", p.Irrigation?.Previous ?? 0m, p.Irrigation?.Current ?? 0m, p.Irrigation?.Consumption ?? 0m,
-        p.SewerageAmount, p.IrrigationAmount, p.SewerageVat, p.IrrigationVat, p.TotalAmount, p.IrrigationNoCharge, p.TenPercentAmount);
+        p.SewerageAmount, p.IrrigationAmount, p.SewerageVat, p.IrrigationVat, p.TotalAmount, p.IrrigationNoCharge, p.TenPercentAmount, p.IrrigationAmountCalculated);
 }

@@ -52,7 +52,7 @@ public class FinalizePairingTests
         ]).Single();
         Assert.Equal((621.72m, 31.09m, 122.76m, 6.14m, 781.71m),
             (row.SewerageAmount, row.SewerageVat, row.IrrigationAmount, row.IrrigationVat, row.TotalAmount));
-        Assert.Equal(74.45m, row.TenPercentAmount); // FR-037.8: 10% of 744.48
+        Assert.Equal(62.17m, row.TenPercentAmount); // FR-037.8: 10% of 621.72; 122.76 is above it, so billed as is
     }
 
     [Theory]
@@ -73,6 +73,33 @@ public class FinalizePairingTests
         ]).Single();
         Assert.Equal((31m, 0m, 0m, 652.81m, true),
             (row.Irrigation!.Consumption, row.IrrigationAmount, row.IrrigationVat, row.TotalAmount, row.IrrigationNoCharge));
+    }
+
+    [Theory]
+    [InlineData(120, 100, 120)]   // above 10% of sewerage: as calculated
+    [InlineData(600, 800, 600)]   // above 500: as calculated
+    [InlineData(50, 100, 100)]    // below: 10% of sewerage
+    [InlineData(50, 500, 500)]
+    [InlineData(50, 800, 500)]    // below, and 10% of sewerage above 500: 500
+    [InlineData(0, 0, 0)]         // no sewerage: as calculated
+    [InlineData(30, 0, 30)]
+    public void FR037_9_irrigation_is_billed_at_least_10_percent_of_sewerage_up_to_500(decimal calculated, decimal tenPercent, decimal billed) =>
+        Assert.Equal(billed, FinalizeService.IrrigationBilled(calculated, tenPercent));
+
+    [Fact]
+    public void FR037_9_the_minimum_applies_on_a_row_with_an_irrigation_meter_and_vat_follows_the_billed_amount()
+    {
+        // Sewerage 1000 used: 3960.00 (+198.00 VAT), 10% = 396.00. Irrigation 10 used: 39.60 calculated, billed 396.00 (+19.80 VAT).
+        var row = FinalizeService.Pair([
+            new("S1", "001", "SEWERAGE", 0, 1000, 1000, null, 220, 1.5m),
+            new("I1", "001", "IRRIGATION", 0, 10, 10, null, 220, 1.5m),
+        ]).Single();
+        Assert.Equal((39.60m, 396.00m, 19.80m, 4573.80m),
+            (row.IrrigationAmountCalculated, row.IrrigationAmount, row.IrrigationVat, row.TotalAmount));
+
+        // No irrigation meter on the row: nothing billed for irrigation.
+        var alone = FinalizeService.Pair([new("S2", "002", "SEWERAGE", 0, 1000, 1000, null, 220, 1.5m)]).Single();
+        Assert.Equal(0m, alone.IrrigationAmount);
     }
 
     [Fact]
