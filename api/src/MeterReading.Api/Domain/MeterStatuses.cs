@@ -16,7 +16,8 @@ public sealed class MeterStatusOptions
     /// <summary>StatusCode → kind. A code in the view with no kind here is not offered to readers.</summary>
     public Dictionary<string, string> Kinds { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["O.K"] = "WORKING", ["DMG"] = "DAMAGED", ["FWW"] = "SUBMERSED", ["FLT"] = "NOT_ACCESSIBLE", ["CHG"] = "METER_REPLACED",
+        // FLT is "Meter Faulty" in PMS: like Damaged (DIP, 2026-10-18). RES ("Reserved") is not offered.
+        ["O.K"] = "WORKING", ["DMG"] = "DAMAGED", ["FWW"] = "SUBMERSED", ["FLT"] = "DAMAGED", ["CHG"] = "METER_REPLACED",
     };
 
     /// <summary>Kind → StatusCode, for a phone that sends only the kind (apps before 2026-10-18). Meter gone is DMG.</summary>

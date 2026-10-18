@@ -154,7 +154,7 @@ GO
 CREATE OR ALTER VIEW dbo.vw_MR_MeterStatus AS
 SELECT StatusCode, StatusName, SequenceNo
 FROM (VALUES ('O.K', N'Working', 1), ('DMG', N'Damaged', 2), ('FWW', N'Under water', 3),
-             ('FLT', N'Can''t reach', 4), ('CHG', N'New meter fitted', 5)) v (StatusCode, StatusName, SequenceNo);
+             ('FLT', N'Meter faulty', 4), ('CHG', N'New meter fitted', 5)) v (StatusCode, StatusName, SequenceNo);
 GO
 CREATE OR ALTER VIEW dbo.vw_MR_Zone AS
 SELECT ZoneCode, ZoneName + ' ' AS ZoneName, CAST(IsActive AS varchar(1)) AS IsActive FROM devsrc.Zone;

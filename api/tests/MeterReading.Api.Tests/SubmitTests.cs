@@ -78,7 +78,7 @@ public sealed class SubmitTests(ApiFactory factory) : IAsyncLifetime
         var statuses = sync.GetProperty("statuses").EnumerateArray()
             .Select(s => (s.GetProperty("code").GetString(), s.GetProperty("name").GetString(), s.GetProperty("kind").GetString())).ToList();
         Assert.Equal([("O.K", "Working", "WORKING"), ("DMG", "Damaged", "DAMAGED"), ("FWW", "Under water", "SUBMERSED"),
-                      ("FLT", "Can't reach", "NOT_ACCESSIBLE"), ("CHG", "New meter fitted", "METER_REPLACED")], statuses);
+                      ("FLT", "Meter faulty", "DAMAGED"), ("CHG", "New meter fitted", "METER_REPLACED")], statuses);
     }
 
     [Fact]
