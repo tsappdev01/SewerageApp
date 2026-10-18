@@ -53,9 +53,9 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
             ? await ReadSourceAsync(filter, ct)
             : await cache.GetAsync(Key(new MeterFilter()), c => ReadSourceAsync(new MeterFilter(), c), ct);
         var rows = source.Rows;
-        if (filter.MeterIds is not { Count: > 0 } && filter.ZoneCodes is { Count: > 0 } zones)
+        if (filter.MeterIds is not { Count: > 0 } && filter.ZoneCodes is { Count: > 0 } zoneCodes)
         {
-            var wanted = zones.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var wanted = zoneCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
             rows = rows.Where(r => wanted.Contains(r.ZoneCode)).ToList();
         }
         var tenants = source.Tenants;
