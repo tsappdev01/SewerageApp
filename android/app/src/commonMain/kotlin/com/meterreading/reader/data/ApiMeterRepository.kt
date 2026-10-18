@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import com.meterreading.reader.platform.File
 import okio.IOException
 import kotlinx.datetime.Instant
@@ -156,7 +158,9 @@ class ApiMeterRepository(
         cache.save(MeterListCache.Saved(api.baseUrl, login, _readerName.value, clock().toEpochMilli(), sync, lastMine))
     }
 
-    override suspend fun refresh(): Boolean = lock.withLock {
+    // NonCancellable: leaving Home (or the screen locking) must not abort a slow list download; it
+    // finishes and is kept, so the next screen shows it (the server can take 30 s after a restart).
+    override suspend fun refresh(): Boolean = withContext(NonCancellable) { lock.withLock {
         try {
             val sync = api.meters()
             val mine = api.myReadings()
@@ -172,7 +176,7 @@ class ApiMeterRepository(
             if (e.needsSignIn) { signInReason = e.title; signInNeeded.value = true }
             false
         }
-    }
+    } }
 
     override suspend fun submit(draft: ReadingDraft): SubmitResult = lock.withLock {
         tenantRefusal(draft)?.let { return@withLock SubmitResult(SubmitOutcome.REJECTED, it) } // never saved or queued

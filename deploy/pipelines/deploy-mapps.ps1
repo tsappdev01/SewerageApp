@@ -45,6 +45,15 @@ Set-Content -Path (Join-Path $SitePath 'app_offline.htm') -Value '<html><body>Up
 if ((Get-WebAppPoolState -Name $AppPool).Value -ne 'Stopped') { Stop-WebAppPool -Name $AppPool }
 foreach ($i in 1..30) { if ((Get-WebAppPoolState -Name $AppPool).Value -eq 'Stopped') { break }; Start-Sleep 1 }
 
+# Keep the API running with its meter list in memory (SourceCache): an idle or recycled pool loses it,
+# and the next phone waits 30-50 s for PMS's views and gives up (seen 2026-10-18).
+Set-ItemProperty "IIS:\AppPools\$AppPool" -Name processModel.idleTimeout -Value ([TimeSpan]::Zero)
+Set-ItemProperty "IIS:\AppPools\$AppPool" -Name startMode -Value AlwaysRunning
+Set-ItemProperty "IIS:\AppPools\$AppPool" -Name recycling.periodicRestart.time -Value ([TimeSpan]::Zero)
+Get-Website | Where-Object { $_.physicalPath -eq $SitePath } | ForEach-Object {
+    Set-ItemProperty "IIS:\Sites\$($_.Name)" -Name applicationDefaults.preloadEnabled -Value $true
+}
+
 try {
     Copy-Site $Source $SitePath
 } finally {

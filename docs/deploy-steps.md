@@ -79,7 +79,7 @@ Delete `publish\appsettings.Development.json`.
 **B3. Copy** the `publish` folder to the server, e.g. `D:\Sites\MeterReadingApi`.
 
 **B4. Application pool.** IIS Manager → Application Pools → Add: name `MeterReadingApi`,
-**.NET CLR version: No Managed Code**. Advanced settings: **Start Mode = AlwaysRunning**.
+**.NET CLR version: No Managed Code**. Advanced settings: **Start Mode = AlwaysRunning**, **Idle Time-out = 0** and **Regular Time Interval = 0**, and on the site **Preload Enabled = True** (the pipeline's deploy script sets these): an idle or recycled pool loses the meter list kept in memory, and the next phone waits 30–50 s and gives up ("0 properties").
 
 **B5. Site.** IIS Manager → Sites → Add Website: physical path `D:\Sites\MeterReadingApi`, pool
 `MeterReadingApi`, binding **https** on port 443 with the certificate and host name. Do not add

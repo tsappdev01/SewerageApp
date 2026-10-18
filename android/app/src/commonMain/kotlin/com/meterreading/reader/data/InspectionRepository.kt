@@ -137,7 +137,8 @@ class InspectionRepository(
     }
 
     /** Loads the plan. False without signal (the saved plan stays on screen) or when the server refuses. */
-    suspend fun refreshPlan(): Boolean = lock.withLock {
+    // NonCancellable, like the meter list: leaving the screen must not abort a slow download.
+    suspend fun refreshPlan(): Boolean = withContext(NonCancellable) { lock.withLock {
         try {
             val list = api.inspectionPlan()
             _available.value = true
@@ -153,7 +154,7 @@ class InspectionRepository(
             if (e.needsSignIn) onSignInNeeded?.invoke(e.title)
             false
         }
-    }
+    } }
 
     fun plan(planId: String): InspectionPlanDto? = _plans.value.firstOrNull { it.id == planId }
 
