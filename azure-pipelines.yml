@@ -29,7 +29,6 @@ variables:
   # zApps (Azure App Service)
   azureServiceConnection: 'zapps-arm'          # Project settings → Service connections (Azure Resource Manager)
   zAppsName: 'zapps'
-  zAppsResourceGroup: 'SET-RESOURCE-GROUP'
   zAppsAgentPool: 'DIP-VNet'                    # self-hosted agent that reaches zapps' private endpoint
   zAppsHealthUrl: 'https://zApps.dipark.com/gateway/health'
 
@@ -144,7 +143,6 @@ stages:
               azureSubscription: $(azureServiceConnection)
               appType: webApp
               appName: $(zAppsName)
-              resourceGroupName: $(zAppsResourceGroup)
               package: $(Pipeline.Workspace)/zApps/zApps.zip
               deploymentMethod: zipDeploy
           - powershell: |

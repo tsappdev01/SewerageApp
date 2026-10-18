@@ -44,9 +44,10 @@ pipeline never deploys or changes it.
 
 ### 4. Service connection to Azure
 Project settings → **Service connections** → **New** → **Azure Resource Manager** → **Workload identity
-federation (automatic)** → the subscription and the resource group of `zapps` → name **`zapps-arm`** →
-tick *Grant access permission to all pipelines* (or allow it on the first run). Someone with Owner or
-User Access Administrator on that resource group has to do this.
+federation (automatic)** → the subscription → name **`zapps-arm`** → tick *Grant access permission to all
+pipelines* (or allow it on the first run). Picking the resource group of `zapps` instead of "All resource
+groups" limits what the pipeline can touch and is better; either works, because the deploy finds the app by
+its name. Someone with Owner or User Access Administrator on the subscription (or that group) has to do this.
 
 ### 5. The pipeline
 1. Pipelines → **New pipeline** → **Azure Repos Git** → `DIPFieldServiceApps` → **Existing Azure
@@ -55,7 +56,6 @@ User Access Administrator on that resource group has to do this.
 
 | Variable | Value |
 |---|---|
-| `zAppsResourceGroup` | The resource group of the App Service `zapps` |
 | `zAppsName` | `zapps` |
 | `zAppsAgentPool` | `DIP-VNet` |
 | `azureServiceConnection` | `zapps-arm` |
