@@ -6,7 +6,8 @@
   - mr.MaintainFinalizedMeter: TenantCode, TranCode and BaanCode, and FromDate / EndDate, the first and
     last day of the billing month (PeriodCode 2026-09: 2026-09-01 to 2026-09-30). Spec FR-037.10.
     When finalizing, BaanCode is looked up in vw_MR_Tenant and TranCode in vw_MR_Property for the row's
-    PropertyCode and TenantCode (the reading's tenant), so they are the views' current values.
+    PropertyCode and TenantCode (the reading's tenant), so they are the views' current values (a BaanCode
+    can change during the month; billing uses the latest). The codes kept with readings are a record only.
   Run in MRDB after 020. Re-runnable.
 */
 IF COL_LENGTH(N'mr.ReadingTransaction', N'TranCode') IS NULL

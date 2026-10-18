@@ -140,9 +140,10 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
         var source = await readers.SourceRowsAsync(ids, ct);
         var noCharge = await repo.GetIrrigationNoChargeAsync(meters[0].PropertyCode, ct);
 
-        // FR-037.10: tenant, BaanCode (vw_MR_Tenant) and TranCode (vw_MR_Property) as the views have them now,
-        // for the tenant the reading was taken for. A reading without a tenant (stored before FR-006.12) takes
-        // the property's only tenant. What the reading kept is used only when the views no longer have it.
+        // FR-037.10: BaanCode (vw_MR_Tenant) and TranCode (vw_MR_Property) as the views have them now, read fresh
+        // (not from SourceCache), for the tenant the reading was taken for: a BaanCode can change during the month
+        // and billing must use the latest. A reading without a tenant takes the property's only tenant. What the
+        // reading kept is never used: without the tenant in the views, the code is left empty.
         var tenants = await repo.GetTenantsAsync([meters[0].PropertyCode], ct);
         var tranCodes = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         foreach (var tenantCode in readings.Values.Select(r => TenantFor(r.TenantCode, tenants)).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase))
@@ -160,8 +161,8 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
                 t?.Consumption ?? 0m,
                 t?.TransactionId,
                 s?.FloatValue, s?.RateFactor,
-                TranCode: (tenantCode is null ? null : tranCodes.GetValueOrDefault(tenantCode)) ?? t?.TranCode,
-                BaanCode: tenant?.BaanCode ?? t?.BaanCode,
+                TranCode: tenantCode is null ? null : tranCodes.GetValueOrDefault(tenantCode),
+                BaanCode: tenant?.BaanCode,
                 TenantCode: tenantCode,
                 NoCharge: m.Type == "IRRIGATION" && IsNoCharge(t?.ReadingDate is { } d ? (DateOnly?)DateOnly.FromDateTime(d) : null, noCharge));
         }));
