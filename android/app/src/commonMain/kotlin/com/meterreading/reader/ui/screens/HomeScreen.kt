@@ -49,6 +49,7 @@ fun HomeScreen(
     val readings by repo.readings.collectAsStateWithLifecycle()
     val readerName by repo.readerName.collectAsStateWithLifecycle()
     val savedListFrom by repo.savedListFrom.collectAsStateWithLifecycle()
+    val periodClosed by repo.periodClosed.collectAsStateWithLifecycle()
     // Counted in properties: a reader visits a property once and reads all its meters there.
     val progress = remember(meters) { HomeProgress.of(meters) }
     val queued = readings.count { it.state == ReadingState.QUEUED }
@@ -88,6 +89,10 @@ fun HomeScreen(
             // FR-020.1: opened without signal from the phone's saved list; it updates once the server is reached.
             savedListFrom?.let {
                 Pill(stringResource(Res.string.saved_list_from, formatDayTime(it)), AppColors.Warn, AppColors.WarnTint, Icons.Rounded.CloudOff)
+            }
+            // FR-037.11: posting is complete; readings wait on the phone until IT opens the period again.
+            if (periodClosed) {
+                Banner(stringResource(Res.string.period_closed), Icons.Rounded.Lock, AppColors.Warn, AppColors.WarnTint)
             }
             ProgressCard(progress.done, progress.total)
             PushReadings(queued)

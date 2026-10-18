@@ -65,6 +65,8 @@ class ApiMeterRepository(
 
     private val _savedListFrom = MutableStateFlow<Instant?>(null)
     override val savedListFrom: StateFlow<Instant?> = _savedListFrom.asStateFlow()
+    private val _periodClosed = MutableStateFlow(false)
+    override val periodClosed: StateFlow<Boolean> = _periodClosed.asStateFlow()
 
     /** The last list from the server, kept so the saved copy can follow readings sent since. */
     private var lastSync: SyncDto? = null
@@ -125,6 +127,7 @@ class ApiMeterRepository(
 
     /** Puts a list from the server (or its saved copy) on screen, keeping readings still waiting. */
     private fun show(sync: SyncDto, mine: List<ReadingDto>) {
+        _periodClosed.value = sync.period.status.equals("CLOSED", ignoreCase = true)
         lastSync = sync
         lastMine = mine
         val waiting = queue.associateBy { it.meterId }

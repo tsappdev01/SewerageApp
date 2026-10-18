@@ -188,4 +188,5 @@ data class FinalizedPropertyDto(
     val fromDate: String? = null,
     val endDate: String? = null,
     val rows: List<FinalizedMeterDto>,
+    val periodClosed: Boolean = false,
 )

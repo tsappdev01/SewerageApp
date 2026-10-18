@@ -159,4 +159,6 @@ public sealed record FinalizedPropertyDto(
     string PeriodCode, string PropertyCode, long? PropertyId, DateTime FinalizedAtUtc,
     /// <summary>FR-037.10: first and last day of the billing month.</summary>
     DateOnly FromDate, DateOnly EndDate,
-    IReadOnlyList<FinalizedMeterDto> Rows);
+    IReadOnlyList<FinalizedMeterDto> Rows,
+    /// <summary>FR-037.11: this was the last property; the period is now closed.</summary>
+    bool PeriodClosed = false);

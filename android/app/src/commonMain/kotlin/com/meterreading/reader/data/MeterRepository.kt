@@ -25,6 +25,9 @@ abstract class MeterRepository {
      */
     open val savedListFrom: StateFlow<Instant?> = MutableStateFlow(null)
 
+    /** FR-037.11: the reading period is closed after posting; readings wait on the phone until it opens. */
+    open val periodClosed: StateFlow<Boolean> = MutableStateFlow(false)
+
     /** Photos of stored readings still to upload. */
     abstract val photosWaiting: StateFlow<Int>
 

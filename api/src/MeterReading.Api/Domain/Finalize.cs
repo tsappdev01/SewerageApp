@@ -42,6 +42,10 @@ public sealed record FinalizedPair(FinalizeMeter? Sewerage, FinalizeMeter? Irrig
 /// </summary>
 public sealed class FinalizeService(MeterReadingRepository repo, ReaderService readers)
 {
+    /// <summary>FR-037.11: the words phones show for PERIOD_CLOSED.</summary>
+    public static string PeriodClosedTitle(string periodCode) =>
+        $"Reading period {periodCode} is closed. Readings wait on the phone until it is opened again.";
+
     public sealed record Outcome(FinalizedPropertyDto? Result, int ErrorStatus = 0, string? ErrorCode = null, string? ErrorTitle = null);
 
     /// <summary>The 1.2 in DIP's pricing (2026-10-18).</summary>
@@ -56,12 +60,8 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
             ? Math.Round(consumption * f * AmountMultiplier * (r / 100m), 2, MidpointRounding.AwayFromZero)
             : 0m;
 
-    /// <summary>FR-037.10: the first day of the billing month (PeriodCode yyyy-MM).</summary>
-    public static DateOnly FromDate(string periodCode) =>
-        new(int.Parse(periodCode[..4]), int.Parse(periodCode.Substring(5, 2)), 1);
-
-    /// <summary>FR-037.10: the last day of the billing month.</summary>
-    public static DateOnly EndDate(string periodCode) => FromDate(periodCode).AddMonths(1).AddDays(-1);
+    /// <summary>FR-037.11: posting is complete when every property of the period has been finalized.</summary>
+    public static bool PostingComplete(int properties, int finalized) => properties > 0 && finalized >= properties;
 
     /// <summary>
     /// FR-037.10: the tenant of a reading; a reading without one (stored before tenants were checked) takes the
@@ -124,6 +124,7 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
     {
         var period = await repo.GetOpenPeriodAsync(ct);
         if (period is null) return new(null, StatusCodes.Status409Conflict, "NO_OPEN_PERIOD", "There is no open reading period.");
+        if (period.Status == "CLOSED") return new(null, StatusCodes.Status409Conflict, "PERIOD_CLOSED", PeriodClosedTitle(period.PeriodCode));
 
         var set = await readers.LoadAsync(period.PeriodCode, new MeterFilter(), ct);
         var meters = set.Meters.Where(m => string.Equals(m.PropertyCode, propertyCode, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -169,10 +170,19 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
         var code = meters[0].PropertyCode;
         var propertyId = readings.Values.Select(r => r.PropertyId).FirstOrDefault(id => id is not null);
 
-        var at = await repo.InsertFinalizedAsync(period.PeriodCode, code, propertyId, rows, reader.ReaderId, deviceId, ct);
+        // FR-037.10: FromDate and EndDate are the period's StartDate and EndDate in vw_MR_ReadingPeriod.
+        var fromDate = DateOnly.FromDateTime(period.StartDate);
+        var endDate = DateOnly.FromDateTime(period.EndDate);
+        var at = await repo.InsertFinalizedAsync(period.PeriodCode, code, propertyId, rows, reader.ReaderId, deviceId, fromDate, endDate, ct);
+
+        // FR-037.11: the last property of the period finalized: posting is complete, the period closes.
+        var properties = set.Properties.Select(p => p.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var closed = PostingComplete(properties.Length, await repo.CountFinalizedPropertiesAsync(period.PeriodCode, properties, ct));
+        if (closed) await repo.ClosePeriodAsync(period.PeriodCode, reader.ReaderId, "Posting complete: every property finalized", ct);
+
         return new(new FinalizedPropertyDto(period.PeriodCode, code, propertyId, DateTime.SpecifyKind(at, DateTimeKind.Utc),
-            FromDate(period.PeriodCode), EndDate(period.PeriodCode),
-            rows.Select(ToDto).ToList()));
+            fromDate, endDate,
+            rows.Select(ToDto).ToList(), closed));
     }
 
     private static FinalizedMeterDto ToDto(FinalizedPair p) => new(

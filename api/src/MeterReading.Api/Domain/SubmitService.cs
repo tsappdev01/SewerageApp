@@ -63,6 +63,8 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
 
         var period = await repo.GetOpenPeriodAsync(ct);
         if (period is null) return SubmitOutcome.Reject(409, "NO_OPEN_PERIOD", "There is no open reading period.");
+        // FR-037.11: closed after posting; no new readings until IT opens it again.
+        if (period.Status == "CLOSED") return SubmitOutcome.Reject(409, "PERIOD_CLOSED", FinalizeService.PeriodClosedTitle(period.PeriodCode));
 
         var now = clock.GetUtcNow().UtcDateTime;
         var captured = DateTime.SpecifyKind(r.CapturedAtUtc, DateTimeKind.Utc);

@@ -134,6 +134,7 @@
     <string name="result_sent_sub">Meter %1$s is done</string>
     <string name="result_saved">Saved</string>
     <string name="result_saved_short">No signal. Saved on the phone; press Push readings when there is signal.</string>
+    <string name="period_closed">This month is closed. New readings stay on the phone until the office opens it again.</string>
     <string name="finalize_property">Finalize property</string>
     <string name="finalize_left">%1$d meters still to read or send</string>
     <string name="finalize_title">Finalize %1$s?</string>

@@ -103,12 +103,11 @@ public class FinalizePairingTests
     }
 
     [Theory]
-    [InlineData("2026-09", "2026-09-01", "2026-09-30")]
-    [InlineData("2026-02", "2026-02-01", "2026-02-28")]
-    [InlineData("2028-02", "2028-02-01", "2028-02-29")]
-    [InlineData("2026-12", "2026-12-01", "2026-12-31")]
-    public void FR037_10_from_and_end_date_are_the_first_and_last_day_of_the_billing_month(string period, string from, string end) =>
-        Assert.Equal((DateOnly.Parse(from), DateOnly.Parse(end)), (FinalizeService.FromDate(period), FinalizeService.EndDate(period)));
+    [InlineData(1288, 1288, true)]
+    [InlineData(1288, 1287, false)]
+    [InlineData(0, 0, false)]
+    public void FR037_11_posting_is_complete_when_every_property_is_finalized(int properties, int finalized, bool complete) =>
+        Assert.Equal(complete, FinalizeService.PostingComplete(properties, finalized));
 
     [Fact]
     public void FR037_10_the_row_takes_the_tran_code_of_its_readings()
@@ -157,7 +156,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
     {
         await using var c = new SqlConnection(ApiFactory.ConnectionString);
         await c.OpenAsync();
-        await using var cmd = new SqlCommand("DELETE FROM mr.MaintainFinalizedMeter WHERE PropertyCode IN ('1497', '3010', '1101'); DELETE FROM mr.IrrigationNoCharge WHERE PropertyCode = '3010'", c);
+        await using var cmd = new SqlCommand("DELETE FROM mr.MaintainFinalizedMeter WHERE PropertyCode IN ('1497', '3010', '1101'); DELETE FROM mr.IrrigationNoCharge WHERE PropertyCode = '3010'; DELETE FROM mr.ReadingPeriodStatus WHERE PeriodCode = '2026-10'", c);
         await cmd.ExecuteNonQueryAsync();
     }
 
@@ -271,6 +270,41 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         var rows = await Rows("1497");
         Assert.Equal(4, rows.Count);
         Assert.Equal([false, false, true, true], rows.Select(r => r.Current));
+    }
+
+    [Fact]
+    public async Task FR037_11_a_closed_period_takes_no_readings_and_no_finalizing_until_it_is_opened_again()
+    {
+        static async Task Run(string sql)
+        {
+            await using var c = new SqlConnection(ApiFactory.ConnectionString);
+            await c.OpenAsync();
+            await using var cmd = new SqlCommand(sql, c);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        await Run("INSERT mr.ReadingPeriodStatus (PeriodCode, Status, ChangedBy) VALUES ('2026-10', 'CLOSED', 'test')");
+
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Dev-User", Rashid);
+        var sync = await client.GetFromJsonAsync<JsonElement>("/api/v1/sync/meters?zone=597");
+        Assert.Equal("CLOSED", sync.GetProperty("period").GetProperty("status").GetString());
+
+        var id = Guid.NewGuid();
+        var submit = await client.PostAsJsonAsync("/api/v1/readings", new
+        {
+            transactionId = id, meterId = "BC0003", condition = "WORKING", newReading = 31_000m,
+            capturedAtUtc = DateTime.UtcNow.AddMinutes(-2), tenantCode = "T-0102",
+        });
+        Assert.Equal(HttpStatusCode.Conflict, submit.StatusCode);
+        Assert.Equal("PERIOD_CLOSED", (await submit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+
+        var (status, body) = await FinalizeProperty("1497");
+        Assert.Equal(HttpStatusCode.Conflict, status);
+        Assert.Equal("PERIOD_CLOSED", body.GetProperty("code").GetString());
+
+        // ops/reopen_reading_period.sql
+        await Run("UPDATE mr.ReadingPeriodStatus SET Status = 'OPEN' WHERE PeriodCode = '2026-10'");
+        Assert.Equal(HttpStatusCode.OK, (await FinalizeProperty("1497")).Status);
     }
 
     [Fact]

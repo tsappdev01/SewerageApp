@@ -42,6 +42,10 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     }
 
     /// <summary>The latest OPEN period. The source may mark several months OPEN; the newest wins.</summary>
+    /// <summary>
+    /// The period open in vw_MR_ReadingPeriod. Its Status reads CLOSED when mr.ReadingPeriodStatus (db/024)
+    /// closed it after posting (FR-037.11): it is still returned, so phones see it, but takes no readings.
+    /// </summary>
     public async Task<PeriodRow?> GetOpenPeriodAsync(CancellationToken ct)
     {
         var sql = $"""
@@ -50,8 +54,48 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             WHERE Status = 'OPEN'
             ORDER BY StartDate DESC
             """;
-        await using var c = await db.OpenSourceAsync(ct);
-        return await c.QuerySingleOrDefaultAsync<PeriodRow>(Cmd(sql, null, ct));
+        PeriodRow? period;
+        await using (var c = await db.OpenSourceAsync(ct))
+            period = await c.QuerySingleOrDefaultAsync<PeriodRow>(Cmd(sql, null, ct));
+        if (period is null || !await IsPeriodClosedAsync(period.PeriodCode, ct)) return period;
+        return new PeriodRow { PeriodCode = period.PeriodCode, StartDate = period.StartDate, EndDate = period.EndDate, Status = "CLOSED" };
+    }
+
+    /// <summary>FR-037.11: closed in mr.ReadingPeriodStatus. False when db/024 has not been run.</summary>
+    public async Task<bool> IsPeriodClosedAsync(string periodCode, CancellationToken ct)
+    {
+        const string sql = """
+            IF OBJECT_ID(N'mr.ReadingPeriodStatus', N'U') IS NULL SELECT 0;
+            ELSE SELECT CASE WHEN EXISTS (SELECT 1 FROM mr.ReadingPeriodStatus WHERE PeriodCode = @periodCode AND Status = 'CLOSED') THEN 1 ELSE 0 END;
+            """;
+        await using var c = await db.OpenMeterReadingAsync(ct);
+        return await c.ExecuteScalarAsync<int>(Cmd(sql, new { periodCode }, ct)) == 1;
+    }
+
+    /// <summary>FR-037.11: how many of these properties have a current finalized set for the period.</summary>
+    public async Task<int> CountFinalizedPropertiesAsync(string periodCode, IReadOnlyCollection<string> propertyCodes, CancellationToken ct)
+    {
+        if (propertyCodes.Count == 0) return 0;
+        var sql = $"""
+            SELECT COUNT(DISTINCT f.PropertyCode) FROM mr.MaintainFinalizedMeter f
+            WHERE f.PeriodCode = @periodCode AND f.IsCurrent = 1
+              AND f.PropertyCode IN ({SqlList.Select("@codes", "varchar(50)")})
+            """;
+        await using var c = await db.OpenMeterReadingAsync(ct);
+        return await c.ExecuteScalarAsync<int>(Cmd(sql, new { periodCode, codes = SqlList.Of(propertyCodes) }, ct));
+    }
+
+    /// <summary>FR-037.11: closes the period for the app (mr.ReadingPeriodStatus, db/024).</summary>
+    public async Task ClosePeriodAsync(string periodCode, string changedBy, string note, CancellationToken ct)
+    {
+        const string sql = """
+            MERGE mr.ReadingPeriodStatus WITH (HOLDLOCK) AS t
+            USING (SELECT @periodCode AS PeriodCode) AS s ON t.PeriodCode = s.PeriodCode
+            WHEN MATCHED THEN UPDATE SET Status = 'CLOSED', ChangedAtUtc = SYSUTCDATETIME(), ChangedBy = @changedBy, Note = @note
+            WHEN NOT MATCHED THEN INSERT (PeriodCode, Status, ChangedBy, Note) VALUES (@periodCode, 'CLOSED', @changedBy, @note);
+            """;
+        await using var c = await db.OpenMeterReadingAsync(ct);
+        await c.ExecuteAsync(Cmd(sql, new { periodCode, changedBy, note }, ct));
     }
 
     public async Task<PeriodRow?> GetPeriodAsync(string periodCode, CancellationToken ct)
@@ -258,7 +302,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     /// </summary>
     public async Task<DateTime> InsertFinalizedAsync(
         string periodCode, string propertyCode, long? propertyId, IReadOnlyList<Domain.FinalizedPair> rows,
-        string readerId, Guid? deviceId, CancellationToken ct)
+        string readerId, Guid? deviceId, DateOnly fromDate, DateOnly endDate, CancellationToken ct)
     {
         const string retire = """
             UPDATE f SET IsCurrent = 0
@@ -296,8 +340,8 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             SewerageTransactionId = r.Sewerage?.TransactionId, IrrigationTransactionId = r.Irrigation?.TransactionId,
             ReaderId = readerId, DeviceId = deviceId, At = at,
             r.SewerageAmount, r.IrrigationAmount, r.SewerageVat, r.IrrigationVat, r.TotalAmount, r.IrrigationNoCharge, r.TenPercentAmount, r.IrrigationAmountCalculated, r.TranCode, r.BaanCode, r.TenantCode,
-            FromDate = Domain.FinalizeService.FromDate(periodCode).ToDateTime(TimeOnly.MinValue),
-            EndDate = Domain.FinalizeService.EndDate(periodCode).ToDateTime(TimeOnly.MinValue),
+            FromDate = fromDate.ToDateTime(TimeOnly.MinValue),
+            EndDate = endDate.ToDateTime(TimeOnly.MinValue),
             FloatValueSewerage = r.Sewerage?.FloatValue, RateFactorSewerage = r.Sewerage?.RateFactor,
             FloatValueIrrigation = r.Irrigation?.FloatValue, RateFactorIrrigation = r.Irrigation?.RateFactor,
         }).ToList(), tx, CommandTimeoutSeconds, cancellationToken: ct));

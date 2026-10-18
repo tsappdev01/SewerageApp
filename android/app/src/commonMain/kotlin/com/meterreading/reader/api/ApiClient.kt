@@ -22,8 +22,11 @@ import kotlin.concurrent.Volatile
 
 /** The server refused the request. [code] is the problem code from spec Appendix A. */
 class ApiException(val status: Int, val code: String?, val title: String) : Exception("$status $code: $title") {
-    /** 408, 429 and 5xx are worth retrying later; other refusals are final. */
-    val isRetryable: Boolean get() = status == 408 || status == 429 || status >= 500
+    /**
+     * 408, 429 and 5xx are worth retrying later, and PERIOD_CLOSED (FR-037.11): the reading waits on the
+     * phone until IT opens the period again. Other refusals are final.
+     */
+    val isRetryable: Boolean get() = status == 408 || status == 429 || status >= 500 || code == "PERIOD_CLOSED"
 
     /**
      * The server did not accept this phone or reader (not registered, blocked, or not signed in):
