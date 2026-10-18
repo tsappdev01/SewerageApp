@@ -187,21 +187,22 @@ install it instead.
 **D2. Phone ready.** Android 10 or newer, a **screen lock** set (PIN, pattern, fingerprint or face),
 an **English** text-to-speech voice (*Settings → Accessibility → Text-to-speech*).
 
-**D3. Registration code (IT, in SSMS).** Open `db/ops/new_device_code.sql`, set `@Label` to the
-phone's name or asset tag (e.g. `N'Phone 07'`), run it in MRDB. Give the code (like
-`K7QM-2XPA-9TRB`) to the supervisor. It works once, for 24 hours.
+**D3. Open the app once (reader or supervisor, with signal).** Open **DIP Field Service**, allow
+notifications, unlock with the phone's PIN, finger or face. The start screen says **Waiting for IT** and
+shows the **Phone ID** (the phone's ANDROID_ID) and a 6-letter **Check code**. Send both to IT (read
+them out, or take a screenshot). They are also under the gear → **Settings → This phone**.
 
-**D4. Set up the phone (supervisor).**
-1. Open **DIP Field Service** and allow notifications when asked. Unlock with the phone's PIN, finger
-   or face.
-2. The start screen says "No reader is set". Tap the **gear** and type the **supervisor PIN**
-   (from C5).
-3. In **Settings**: check the **Server address** and tap **Test** → "Server found".
-4. **This phone** → type the code → **Register this phone**. The app goes back to the start screen.
-5. Gear → PIN → Settings → **Reader on this phone**: the reader's email as in `vw_MR_Reader`.
-   Keep **Unlock with the phone's lock** on. Optionally **Change supervisor PIN**. **Save**.
-- **Check:** Settings shows **Registered as Phone 07**, and the app opens Home with "Hello, <name>".
-  `db/ops/list_devices.sql` shows the phone with `LastReaderId` filled in.
+**D4. Register it (IT, in SSMS).** Open `db/ops/approve_device.sql`, fill in `@AndroidId` (Phone ID),
+`@CheckCode`, `@ReaderLogin` (the reader's email as in `vw_MR_Reader`) and `@Label` (e.g. `N'Phone 07'`),
+run it in MRDB. It answers **Registered**.
+
+**D5. Open the app again.** Close it and open it (or press **Check again**). It opens Home with
+"Hello, <name>": the reader comes from IT, nothing is typed on the phone.
+- **Check:** Settings shows **Registered as Phone 07**; `db/ops/list_devices.sql` shows it `REGISTERED`.
+- **Updating the app** (installing over it) keeps the registration. **After an uninstall or a wipe** the
+  phone shows a new Check code (and, after a factory reset, a new Phone ID): run D4 again with them.
+  The old registration is blocked by the same script.
+- The one-time code (`db/ops/new_device_code.sql`) still works for phones that were set up with it.
 
 **D5. First reading.** The reader reads one meter: photo, number, taps the tenant, **Yes, send**.
 - **Check** in SSMS:

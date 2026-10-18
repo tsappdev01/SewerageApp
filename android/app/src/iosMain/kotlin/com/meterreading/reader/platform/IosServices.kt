@@ -119,6 +119,7 @@ private class IosServices : PlatformServices {
         versionName = info("CFBundleShortVersionString") ?: "",
         isDebug = kotlin.native.Platform.isDebugBinary,
         deviceModel = "Apple ${UIDevice.currentDevice.model}",
+        phoneId = UIDevice.currentDevice.identifierForVendor?.UUIDString.orEmpty(),
         osVersion = "${UIDevice.currentDevice.systemName} ${UIDevice.currentDevice.systemVersion}",
     )
 

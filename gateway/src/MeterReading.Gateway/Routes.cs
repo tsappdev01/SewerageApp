@@ -16,6 +16,8 @@ public static class Routes
     public static readonly IReadOnlyList<(string Id, string Path, string[] Methods)> Allowed =
     [
         ("register", "/api/v1/devices/register", ["POST"]),
+        ("enrol", "/api/v1/devices/enrol", ["POST"]),
+        ("device-status", "/api/v1/devices/status", ["GET"]),
         ("me", "/api/v1/me", ["GET"]),
         ("sync", "/api/v1/sync/meters", ["GET"]),
         ("search", "/api/v1/properties/search", ["GET"]),
@@ -37,7 +39,7 @@ public static class Routes
     {
         RouteId = r.Id,
         ClusterId = Cluster,
-        RateLimiterPolicy = r.Id == "register" ? RegisterPolicy : null,
+        RateLimiterPolicy = r.Id is "register" or "enrol" ? RegisterPolicy : null,
         Match = new RouteMatch { Path = r.Path, Methods = r.Methods },
     }).ToList();
 

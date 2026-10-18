@@ -226,6 +226,15 @@
     <string name="pin_cancel">Cancel</string>
 
     <string name="settings_title">Settings</string>
+    <string name="start_waiting_title">Waiting for IT</string>
+    <string name="start_waiting_text">Give IT these two. When they have registered the phone, press Check again, or close the app and open it again.</string>
+    <string name="speak_waiting">This phone is waiting for IT. Show them the phone ID and the check code.</string>
+    <string name="phone_id_label">Phone ID</string>
+    <string name="check_code_label">Check code</string>
+    <string name="start_check_again">Check again</string>
+    <string name="start_blocked">This phone has been blocked. Give it to your supervisor. Readings on it are kept.</string>
+    <string name="device_waiting">Waiting for IT</string>
+    <string name="device_not_asked">Not asked yet. Open the app with signal.</string>
     <string name="quit">Quit</string>
     <string name="quit_title">Close the app?</string>
     <string name="quit_text">Next time it opens, it asks for the phone\'s lock again.</string>

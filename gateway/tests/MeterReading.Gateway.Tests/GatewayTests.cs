@@ -95,6 +95,8 @@ public sealed class GatewayTests : IAsyncLifetime
 
     [Theory]
     [InlineData("POST", "/api/v1/devices/register")]
+    [InlineData("POST", "/api/v1/devices/enrol")]
+    [InlineData("GET", "/api/v1/devices/status")]
     [InlineData("GET", "/api/v1/me")]
     [InlineData("GET", "/api/v1/sync/meters?zone=597")]
     [InlineData("GET", "/api/v1/properties/search?q=1499")]
@@ -139,6 +141,8 @@ public sealed class GatewayTests : IAsyncLifetime
     [Theory]
     [InlineData("DELETE", "/api/v1/readings")]
     [InlineData("GET", "/api/v1/devices/register")]
+    [InlineData("GET", "/api/v1/devices/enrol")]
+    [InlineData("POST", "/api/v1/devices/status")]
     [InlineData("POST", "/api/v1/me")]
     [InlineData("GET", "/api/v1/inspections")]
     [InlineData("DELETE", "/api/v1/inspections/6f1c2b4a-1111-4222-8333-444455556666/images/7f1c2b4a-1111-4222-8333-444455556666")]

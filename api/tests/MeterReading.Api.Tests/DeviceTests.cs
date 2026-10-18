@@ -36,7 +36,7 @@ public sealed class DeviceTests : IClassFixture<DeviceApiFactory>, IAsyncLifetim
 
     public async Task DisposeAsync()
     {
-        await Sql("DELETE FROM mr.Device WHERE Label = @label; DELETE FROM mr.DeviceRegistrationCode WHERE Label = @label;");
+        await Sql("DELETE FROM mr.Device WHERE Label = @label OR AndroidId LIKE @label + '%'; DELETE FROM mr.DeviceRegistrationCode WHERE Label = @label;");
     }
 
     private async Task<object?> Sql(string sql, Dictionary<string, object>? args = null)
@@ -301,5 +301,100 @@ public sealed class DeviceRateLimitTests
         for (var i = 0; i < 3; i++)
             codes.Add((await client.PostAsJsonAsync("/api/v1/devices/register", new { code = "ZZZZ-ZZZZ-ZZZZ" })).StatusCode);
         Assert.Equal([HttpStatusCode.UnprocessableEntity, HttpStatusCode.UnprocessableEntity, HttpStatusCode.TooManyRequests], codes);
+    }
+
+    // ---- FR-002.8: registration by the phone's ANDROID_ID, approved by IT in SQL ----
+
+    private async Task<(Guid Id, string Key, string Check)> Enrol(string androidId)
+    {
+        var response = await _factory.CreateClient().PostAsJsonAsync("/api/v1/devices/enrol",
+            new { androidId, model = "Galaxy A15", androidVersion = "14", appVersion = "1.0.0" });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("PENDING", body.GetProperty("status").GetString());
+        return (body.GetProperty("deviceId").GetGuid(), body.GetProperty("deviceKey").GetString()!, body.GetProperty("checkCode").GetString()!);
+    }
+
+    /// <summary>Runs IT's own script, db/ops/approve_device.sql, with these values; returns its first column.</summary>
+    private async Task<string?> Approve(string androidId, string check, string reader = Rashid)
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (!File.Exists(Path.Combine(dir.FullName, "db", "ops", "approve_device.sql"))) dir = dir.Parent!;
+        var script = (await File.ReadAllTextAsync(Path.Combine(dir.FullName, "db", "ops", "approve_device.sql")))
+            .Replace("'PHONE_ID'", "@androidId").Replace("'CHECK1'", "@check").Replace("N'reader@dipark.com'", "@reader").Replace("N'Phone 01'", "@label");
+        return (string?)await Sql(script, new() { ["@androidId"] = androidId, ["@check"] = check, ["@reader"] = reader });
+    }
+
+    private async Task<JsonElement> Status(Guid id, string key) =>
+        await (await Phone(id, key).GetAsync("/api/v1/devices/status")).Content.ReadFromJsonAsync<JsonElement>();
+
+    [Fact]
+    public async Task FR002_8_a_phone_waits_for_IT_then_opens_as_the_reader_IT_gave_it()
+    {
+        var androidId = _label + "a1b2c3d4";
+        var (id, key, check) = await Enrol(androidId);
+        Assert.Matches("^[A-Z2-9]{6}$", check);
+
+        // Waiting: the API is closed, the status says so.
+        var waiting = await Phone(id, key).GetAsync("/api/v1/me");
+        Assert.Equal(HttpStatusCode.Forbidden, waiting.StatusCode);
+        Assert.Equal("DEVICE_PENDING", await Code(waiting));
+        var status = await Status(id, key);
+        Assert.Equal("PENDING", status.GetProperty("status").GetString());
+        Assert.Equal(check, status.GetProperty("checkCode").GetString());
+
+        Assert.Equal("Registered", await Approve(androidId, check));
+
+        status = await Status(id, key);
+        Assert.Equal("REGISTERED", status.GetProperty("status").GetString());
+        Assert.Equal(Rashid, status.GetProperty("readerLogin").GetString());
+        Assert.Equal(HttpStatusCode.OK, (await Phone(id, key).GetAsync("/api/v1/me")).StatusCode);
+        // It belongs to that reader only (FR-002.7).
+        Assert.Equal("READER_NOT_ON_THIS_PHONE", await Code(await Phone(id, key, Anil).GetAsync("/api/v1/me")));
+    }
+
+    [Fact]
+    public async Task FR002_8_the_phone_id_alone_opens_nothing()
+    {
+        var androidId = _label + "e5f60718";
+        var (id, key, check) = await Enrol(androidId);
+        // Someone who knows the ID asks too: they get their own key and check code.
+        var (otherId, otherKey, otherCheck) = await Enrol(androidId);
+        Assert.NotEqual(check, otherCheck);
+
+        // IT approves what the real phone shows; the other request stays closed.
+        Assert.Equal("Registered", await Approve(androidId, check));
+        Assert.Equal(HttpStatusCode.OK, (await Phone(id, key).GetAsync("/api/v1/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Phone(otherId, otherKey).GetAsync("/api/v1/me")).StatusCode);
+        // A made-up check code approves nothing.
+        Assert.Equal("Not found", await Approve(androidId, "ZZZZZZ"));
+        // The status needs the phone's own key.
+        Assert.Equal(HttpStatusCode.Forbidden, (await Phone(id, key + "x").GetAsync("/api/v1/devices/status")).StatusCode);
+    }
+
+    [Fact]
+    public async Task FR002_8_after_a_reinstall_IT_approves_again_and_the_old_key_is_blocked()
+    {
+        var androidId = _label + "0aa0bb0c";
+        var (oldId, oldKey, oldCheck) = await Enrol(androidId);
+        await Approve(androidId, oldCheck);
+
+        var (newId, newKey, newCheck) = await Enrol(androidId); // reinstalled: same ID, new key
+        Assert.Equal("DEVICE_PENDING", await Code(await Phone(newId, newKey).GetAsync("/api/v1/me")));
+        Assert.Equal("Registered", await Approve(androidId, newCheck));
+
+        Assert.Equal(HttpStatusCode.OK, (await Phone(newId, newKey).GetAsync("/api/v1/me")).StatusCode);
+        Assert.Equal("DEVICE_REVOKED", await Code(await Phone(oldId, oldKey).GetAsync("/api/v1/me")));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("abc def")]
+    [InlineData("'; DROP TABLE mr.Device; --")]
+    public async Task FR002_8_a_phone_id_that_is_not_one_is_refused(string androidId)
+    {
+        var response = await _factory.CreateClient().PostAsJsonAsync("/api/v1/devices/enrol", new { androidId });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal("VALIDATION_FAILED", await Code(response));
     }
 }

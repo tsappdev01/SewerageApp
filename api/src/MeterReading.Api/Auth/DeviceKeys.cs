@@ -17,6 +17,14 @@ public static class DeviceKeys
     public static string NewKey() =>
         Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
+    /// <summary>Check code shown on a waiting phone (FR-002.8): 6 easy-to-read characters (no I, O, 0, 1).</summary>
+    public static string NewCheckCode() =>
+        string.Concat(RandomNumberGenerator.GetBytes(6).Select(b => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 32]));
+
+    /// <summary>An ANDROID_ID (16 hex) or an iOS identifierForVendor (UUID): letters, digits and dashes, at most 64.</summary>
+    public static bool IsPhoneId(string? id) =>
+        !string.IsNullOrWhiteSpace(id) && id.Length <= 64 && id.All(c => char.IsAsciiLetterOrDigit(c) || c == '-');
+
     /// <summary>Constant-time comparison of a presented key with the stored hash.</summary>
     public static bool Matches(string key, string storedHash) =>
         CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(Hash(key)), Encoding.ASCII.GetBytes(storedHash.Trim()));

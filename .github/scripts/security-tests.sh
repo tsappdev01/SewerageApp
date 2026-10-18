@@ -83,6 +83,27 @@ s=$(call POST /api/v1/devices/register "${J[@]}" -d "{\"code\":\"$c\"}")
 k=$(sql "SELECT COUNT(*) FROM mr.Device WHERE KeyHash = '$A_KEY'"); kh=$(sql "SELECT LEN(KeyHash) FROM mr.Device WHERE DeviceId='$A_ID'")
 [ "$k" = 0 ] && [ "$kh" = 64 ] && row 1.10 PASS "Only a hash of the phone key is stored" "KeyHash is 64 hex, never the key" || row 1.10 FAIL "Only key hash stored" "match=$k len=$kh"
 
+# FR-002.8: registration by the phone's ANDROID_ID. The ID is not secret, so it must never open anything.
+VICTIM_ID="sec$(LC_ALL=C tr -dc 'a-f0-9' </dev/urandom | head -c 13)"
+s=$(call POST /api/v1/devices/enrol "${J[@]}" -d "{\"androidId\":\"$VICTIM_ID\",\"model\":\"sec-test\"}")
+P_ID=$(jq -r .deviceId "$BODY"); P_KEY=$(jq -r .deviceKey "$BODY"); P_CHECK=$(jq -r .checkCode "$BODY")
+s=$(call GET /api/v1/me -H "X-Device-Id: $P_ID" -H "X-Device-Key: $P_KEY" -H "X-Reader: $RASHID")
+[ "$s" = 403 ] && [ "$(code_of)" = DEVICE_PENDING ] && row 1.11 PASS "A phone waiting for IT opens nothing" "$s DEVICE_PENDING" || row 1.11 FAIL "Waiting phone refused" "HTTP $s $(code_of)"
+# Someone who knows the phone's ID asks too; IT approves the check code the real phone shows.
+call POST /api/v1/devices/enrol "${J[@]}" -d "{\"androidId\":\"$VICTIM_ID\"}" >/dev/null
+X_ID=$(jq -r .deviceId "$BODY"); X_KEY=$(jq -r .deviceKey "$BODY")
+sed -e "s/'PHONE_ID'/'$VICTIM_ID'/" -e "s/'CHECK1'/'$P_CHECK'/" -e "s/N'reader@dipark.com'/N'$RASHID'/" -e "s/N'Phone 01'/N'Security enrol'/" "$ROOT/db/ops/approve_device.sql" > "$OUT/sec-approve.sql"
+docker cp "$OUT/sec-approve.sql" mrsql:/tmp/sec-approve.sql
+docker exec mrsql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SA_PASSWORD" -C -I -b -d MeterReading -i /tmp/sec-approve.sql >/dev/null
+s1=$(call GET /api/v1/me -H "X-Device-Id: $P_ID" -H "X-Device-Key: $P_KEY" -H "X-Reader: $RASHID")
+s2=$(call GET /api/v1/me -H "X-Device-Id: $X_ID" -H "X-Device-Key: $X_KEY" -H "X-Reader: $RASHID")
+[ "$s1" = 200 ] && refused "$s2" && row 1.12 PASS "Knowing a phone's ID does not let anyone in" "approved phone $s1; same ID, other key → $s2 $(code_of)" \
+  || row 1.12 FAIL "Phone ID alone opens nothing" "approved=$s1 other=$s2"
+s=$(call GET /api/v1/devices/status -H "X-Device-Id: $P_ID" -H "X-Device-Key: wrong")
+refused "$s" && ! grep -q "$P_CHECK" "$BODY" && row 1.13 PASS "A phone's status needs its own key" "$s $(code_of)" || row 1.13 FAIL "Status needs the key" "HTTP $s"
+s=$(call POST /api/v1/devices/enrol "${J[@]}" -d '{"androidId":"x\u0027; DROP TABLE mr.Device; --"}')
+[ "$s" = 422 ] && row 1.14 PASS "A phone ID that is not one is refused" "$s $(code_of)" || row 1.14 FAIL "Bad phone ID refused" "HTTP $s"
+
 echo "== 2. Record-level authorization"
 # Unread meters with a tenant, from the live list: "meter value tenant", value = last + 100.
 call GET /api/v1/sync/meters "${A[@]}" >/dev/null

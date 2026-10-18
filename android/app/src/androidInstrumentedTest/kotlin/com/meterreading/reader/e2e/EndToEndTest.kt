@@ -1,8 +1,6 @@
 package com.meterreading.reader.e2e
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
-import org.junit.Assume.assumeTrue
 import org.junit.FixMethodOrder
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -11,7 +9,7 @@ import org.junit.runners.MethodSorters
 /**
  * End to end: the real app on an emulator, through the DMZ gateway and the API, into SQL Server with the
  * development data (db/dev). Run by .github/workflows/e2e.yml, which builds the stack, passes a fresh
- * registration code (-e regCode) and afterwards checks in the database what these tests sent
+ * approval of the waiting phone in SQL and afterwards checks in the database what these tests sent
  * (db/dev/900_e2e_checks.sql). The tests share one phone, so they run in name order.
  *
  * They tap the screens as a reader would, by the texts on them (commonMain/composeResources), and save a
@@ -21,32 +19,24 @@ import org.junit.runners.MethodSorters
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 class EndToEndTest {
     private val phone = Phone("EndToEndTest")
-    private val pin = "2468"
 
-    @Test fun t1_FR002_phone_is_registered_with_a_code_and_opens_as_its_reader() {
-        val code = InstrumentationRegistry.getArguments().getString("regCode")
-        assumeTrue("no -e regCode given", !code.isNullOrBlank())
+    @Test fun t1_FR002_8_the_phone_waits_for_IT_and_opens_once_registered() {
         phone.openApp()
-        // Not registered yet: the server refuses the reader and the start screen stays.
-        phone.waitText("Open", 30_000)
-        Thread.sleep(3_000)
-        phone.shot("01_start_not_registered")
+        // First start: the phone asks to be registered and shows what IT needs.
+        phone.waitText("Waiting for IT", 60_000)
+        phone.waitText("Phone ID")
+        phone.waitText("Check code")
+        Thread.sleep(2_000)
+        phone.shot("01_waiting_for_it")
 
-        phone.tapDesc("Settings")
-        // First time: the supervisor chooses a PIN.
-        phone.waitText("New supervisor PIN")
-        phone.type("PIN", pin, orIndex = 0)
-        phone.type("Type the PIN again", pin, orIndex = 1)
-        phone.shot("02_new_supervisor_pin")
-        phone.tap("OK")
-
-        phone.waitText("Registration code from IT")
-        phone.type("Registration code from IT", code!!, orIndex = 1)
-        phone.shot("03_settings_registration_code")
-        phone.tap("Register this phone")
-
-        // Registered: the app opens as the phone's reader (rashid@dip.example in the debug build).
-        phone.waitText("Hello, Rashid", 60_000)
+        // The workflow approves it in SQL meanwhile, as IT would (db/ops/approve_device.sql).
+        val end = System.currentTimeMillis() + 180_000
+        while (!phone.has("Hello, Rashid") && System.currentTimeMillis() < end) {
+            phone.tap("Check again", optional = true)
+            Thread.sleep(3_000)
+        }
+        // Registered: the app opens as the reader IT gave the phone.
+        phone.waitText("Hello, Rashid", 30_000)
         phone.shot("04_home_after_registration")
     }
 

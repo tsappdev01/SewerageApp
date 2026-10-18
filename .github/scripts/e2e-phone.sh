@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Runs on the booted emulator (from android/): installs the app and its end-to-end tests, gives them a
-# fresh registration code from db/ops/new_device_code.sql, runs EndToEndTest, checks the database
+# Runs on the booted emulator (from android/): installs the app and its end-to-end tests, approves the
+# phone when it asks to be registered (db/ops/approve_device.sql), runs EndToEndTest, checks the database
 # (db/dev/900_e2e_checks.sql), blocks the phone (db/ops/revoke_device.sql) and runs RevokedPhoneTest.
 # Everything it sees goes to ../e2e-out/. Fails if any test or check failed.
 set -uo pipefail
@@ -27,12 +27,30 @@ adb shell input keyevent KEYCODE_HOME; sleep 5
 GEO=$!
 adb logcat -c
 
-CODE=$(sql_file ops/new_device_code.sql | grep -oE '[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}' | head -n 1)
-echo "Registration code made (label $LABEL)."
-[ -n "$CODE" ] || { echo "No registration code"; exit 1; }
+# FR-002.8: the app asks to be registered on first start; approve it as IT would, with
+# db/ops/approve_device.sql and the Phone ID and Check code the phone shows (read here from mr.Device).
+approve_waiting_phone() {
+  for _ in $(seq 1 80); do
+    row=$(docker exec mrsql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SA_PASSWORD" -C -d MeterReading -h -1 -W \
+      -Q "SET NOCOUNT ON; SELECT TOP (1) AndroidId + ' ' + CheckCode FROM mr.Device WHERE Status = 'PENDING' ORDER BY RegisteredAtUtc DESC" | tr -d '\r' | grep -v '^$' | head -n 1)
+    if [ -n "$row" ]; then
+      set -- $row
+      echo "Waiting phone $1, check code $2: approving for rashid@dip.example"
+      sed -e "s/'PHONE_ID'/'$1'/" -e "s/'CHECK1'/'$2'/" -e "s/N'reader@dipark.com'/N'rashid@dip.example'/" -e "s/N'Phone 01'/N'$LABEL'/" \
+        ../db/ops/approve_device.sql > "$OUT/approve.sql"
+      docker cp "$OUT/approve.sql" mrsql:/tmp/approve.sql
+      docker exec mrsql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SA_PASSWORD" -C -I -b -d MeterReading -W -s " | " -i /tmp/approve.sql
+      return 0
+    fi
+    sleep 3
+  done
+  echo "No phone asked to be registered"; return 1
+}
+approve_waiting_phone > "$OUT/approve.txt" 2>&1 &
 
 echo "== EndToEndTest"
-adb shell am instrument -w -r -e class com.meterreading.reader.e2e.EndToEndTest -e regCode "$CODE" "$RUNNER" | tee "$OUT/instrument-e2e.txt"
+adb shell am instrument -w -r -e class com.meterreading.reader.e2e.EndToEndTest "$RUNNER" | tee "$OUT/instrument-e2e.txt"
+cat "$OUT/approve.txt"
 grep -q "^OK (" "$OUT/instrument-e2e.txt" || failed=1
 
 echo "== Waiting for the PMS copy (every 10 s)"

@@ -69,6 +69,18 @@ class ApiClient(
         return DeviceCredentials(response.deviceId, response.deviceKey, response.label)
     }
 
+    /** FR-002.8: asks IT to register this phone by its ID; returns its new id, key and check code (PENDING). */
+    suspend fun enrol(phoneId: String, model: String?, androidVersion: String?, appVersion: String?): DeviceCredentials {
+        val body = json.encodeToString(EnrolDeviceRequest.serializer(), EnrolDeviceRequest(phoneId, model, androidVersion, appVersion))
+        val response = send(HttpMethod.Post, "/api/v1/devices/enrol", { jsonBody(body) }) {
+            json.decodeFromString(EnrolDeviceResponse.serializer(), it)
+        }
+        return DeviceCredentials(response.deviceId, response.deviceKey, "", response.checkCode)
+    }
+
+    /** This phone's registration, asked with its own id and key. */
+    suspend fun deviceStatus(): DeviceStatusDto = get("/api/v1/devices/status")
+
     /** True when the server answers /health/live; for the Settings screen's "Test" button. No sign-in needed. */
     suspend fun isReachable(): Boolean = transport { http.get("$base/health/live").status.isSuccess() }
 

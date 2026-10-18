@@ -1,6 +1,7 @@
 package com.meterreading.reader.settings
 
 import com.meterreading.reader.api.ApiClient
+import com.meterreading.reader.api.ApiException
 import com.meterreading.reader.api.DeviceCredentials
 import com.meterreading.reader.data.ApiMeterRepository
 import com.meterreading.reader.data.AppGraph
@@ -122,6 +123,69 @@ object AppServices {
         return registered
     }
 
+    // --- FR-002.8: registration by the phone's ID, approved by IT ---
+
+    /** This phone's ID as IT sees it (ANDROID_ID / identifierForVendor). */
+    val phoneId: String get() = platform.build.phoneId
+
+    /** The last answer from [checkRegistration], for Settings. */
+    var registration: Registration? = null
+        private set
+
+    /**
+     * Asks the server about this phone. A phone with no key yet asks IT to register it first (enrol).
+     * Registered: the reader IT gave it becomes the phone's reader. No signal: [Registration.Unavailable],
+     * and the app carries on as before (it may open with its saved list).
+     */
+    suspend fun checkRegistration(): Registration {
+        if (platform.build.useFakeData) return Registration.Registered(settings.readerLogin)
+        val url = settings.apiBaseUrl
+        val result = try {
+            var creds = device ?: enrol(url)
+            val status = try {
+                clientFor(url, creds).deviceStatus()
+            } catch (e: ApiException) {
+                // The server no longer knows this key: ask again.
+                if (e.code != "DEVICE_NOT_REGISTERED") throw e
+                creds = enrol(url)
+                clientFor(url, creds).deviceStatus()
+            }
+            when (status.status) {
+                "REGISTERED" -> {
+                    val reader = status.readerLogin?.trim().orEmpty()
+                    if (reader.isNotEmpty() && !reader.equals(settings.readerLogin, ignoreCase = true)) save(settings.copy(readerLogin = reader))
+                    if (!status.label.isNullOrBlank() && status.label != creds.label) {
+                        creds = creds.copy(label = status.label)
+                        deviceStore.save(creds)
+                        device = creds
+                    }
+                    Registration.Registered(settings.readerLogin)
+                }
+                "PENDING" -> Registration.Waiting(phoneId, status.checkCode ?: creds.checkCode)
+                else -> Registration.Blocked
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: ApiException) {
+            Registration.Unavailable(e.title)
+        } catch (e: Exception) {
+            Registration.Unavailable(null)
+        }
+        registration = result
+        return result
+    }
+
+    private suspend fun enrol(url: String): DeviceCredentials {
+        val b = platform.build
+        val enrolled = ApiClient(url).enrol(phoneId, b.deviceModel, b.osVersion, b.versionName)
+        deviceStore.save(enrolled)
+        device = enrolled
+        apply(settings)
+        return enrolled
+    }
+
+    private fun clientFor(url: String, creds: DeviceCredentials) = ApiClient(url).apply { device = creds }
+
     // --- phone lock ---
 
     fun markUnlocked() {
@@ -234,4 +298,14 @@ object AppServices {
     private const val KEY_PIN_HASH = "pin_hash"
     private const val KEY_PIN_FAILURES = "pin_failures"
     private const val KEY_PIN_BLOCKED = "pin_blocked_until"
+}
+
+/** FR-002.8: where this phone stands with IT. */
+sealed interface Registration {
+    /** Waiting for IT: they approve it with [phoneId] and [checkCode] (db/ops/approve_device.sql). */
+    data class Waiting(val phoneId: String, val checkCode: String) : Registration
+    data class Registered(val reader: String) : Registration
+    data object Blocked : Registration
+    /** No answer (no signal, server down): carry on as before. */
+    data class Unavailable(val message: String?) : Registration
 }

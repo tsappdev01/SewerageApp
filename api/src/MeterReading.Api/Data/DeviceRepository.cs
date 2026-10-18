@@ -10,6 +10,11 @@ public sealed class DeviceRow
     public string? Label { get; init; }
     /// <summary>The reader this phone belongs to (FR-002.7); null until its first sign-in.</summary>
     public string? BoundReaderLogin { get; init; }
+    public string? AndroidId { get; init; }
+    public string? CheckCode { get; init; }
+
+    /// <summary>ACTIVE (registered with a code, db/009) or REGISTERED (approved by IT, db/014).</summary>
+    public bool IsRegistered => Status is "ACTIVE" or "REGISTERED";
 }
 
 /// <summary>Registered phones, mr.Device and mr.DeviceRegistrationCode (db/009). The API's own tables.</summary>
@@ -52,7 +57,29 @@ public sealed class DeviceRepository(SqlConnectionFactory db)
     {
         await using var c = await db.OpenMeterReadingAsync(ct);
         return await c.QuerySingleOrDefaultAsync<DeviceRow>(new CommandDefinition(
-            "SELECT DeviceId, KeyHash, Status, Label, BoundReaderLogin FROM mr.Device WHERE DeviceId = @deviceId", new { deviceId }, cancellationToken: ct));
+            "SELECT DeviceId, KeyHash, Status, Label, BoundReaderLogin, AndroidId, CheckCode FROM mr.Device WHERE DeviceId = @deviceId", new { deviceId }, cancellationToken: ct));
+    }
+
+    /// <summary>
+    /// FR-002.8: a phone asks to be registered with its ANDROID_ID and the key it made. Kept as PENDING
+    /// until IT approves it (db/ops/approve_device.sql). Too many waiting requests for one ID are refused,
+    /// so the table cannot be filled with requests for someone else's phone.
+    /// </summary>
+    public async Task<bool> EnrolAsync(Guid deviceId, string androidId, string keyHash, string checkCode, string? model, string? androidVersion, string? appVersion, CancellationToken ct)
+    {
+        const string sql = """
+            IF (SELECT COUNT(*) FROM mr.Device WHERE AndroidId = @androidId AND Status = 'PENDING') >= 5
+            BEGIN SELECT CAST(0 AS bit); RETURN; END
+            INSERT mr.Device (DeviceId, KeyHash, AndroidId, CheckCode, Model, AndroidVersion, AppVersion, Status)
+            VALUES (@deviceId, @keyHash, @androidId, @checkCode, @model, @androidVersion, @appVersion, 'PENDING');
+            SELECT CAST(1 AS bit);
+            """;
+        await using var c = await db.OpenMeterReadingAsync(ct);
+        return await c.ExecuteScalarAsync<bool>(new CommandDefinition(sql, new
+        {
+            deviceId, androidId, keyHash, checkCode,
+            model = Trim(model, 100), androidVersion = Trim(androidVersion, 20), appVersion = Trim(appVersion, 20),
+        }, cancellationToken: ct));
     }
 
     /// <summary>
@@ -82,12 +109,12 @@ public sealed class DeviceRepository(SqlConnectionFactory db)
         await c.ExecuteAsync(new CommandDefinition(sql, new { deviceId, reader = readerLogin }, cancellationToken: ct));
     }
 
-    /// <summary>For the readiness check in Device mode: db/009 and db/013 have been run.</summary>
+    /// <summary>For the readiness check in Device mode: db/009, db/013 and db/014 have been run.</summary>
     public async Task<bool> TablesExistAsync(CancellationToken ct)
     {
         await using var c = await db.OpenMeterReadingAsync(ct);
         return await c.ExecuteScalarAsync<int>(new CommandDefinition(
-            "SELECT CASE WHEN OBJECT_ID(N'mr.DeviceRegistrationCode') IS NULL OR COL_LENGTH(N'mr.Device', N'KeyHash') IS NULL OR COL_LENGTH(N'mr.Device', N'BoundReaderLogin') IS NULL THEN 0 ELSE 1 END",
+            "SELECT CASE WHEN OBJECT_ID(N'mr.DeviceRegistrationCode') IS NULL OR COL_LENGTH(N'mr.Device', N'KeyHash') IS NULL OR COL_LENGTH(N'mr.Device', N'BoundReaderLogin') IS NULL OR COL_LENGTH(N'mr.Device', N'AndroidId') IS NULL THEN 0 ELSE 1 END",
             cancellationToken: ct)) == 1;
     }
 

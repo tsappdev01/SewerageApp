@@ -116,13 +116,30 @@ data class SubmitReadingResponse(
 )
 
 /** This phone's registration (spec FR-002): its id and secret key, and IT's name for it. */
-data class DeviceCredentials(val deviceId: String, val deviceKey: String, val label: String)
+data class DeviceCredentials(val deviceId: String, val deviceKey: String, val label: String, val checkCode: String = "")
 
 @Serializable
 data class RegisterDeviceRequest(val code: String, val model: String? = null, val androidVersion: String? = null, val appVersion: String? = null)
 
 @Serializable
 data class RegisterDeviceResponse(val deviceId: String, val deviceKey: String, val label: String = "")
+
+/** FR-002.8: the phone asks IT to register it by its ANDROID_ID. */
+@Serializable
+data class EnrolDeviceRequest(val androidId: String, val model: String? = null, val androidVersion: String? = null, val appVersion: String? = null)
+
+@Serializable
+data class EnrolDeviceResponse(val deviceId: String, val deviceKey: String, val checkCode: String, val status: String = "PENDING")
+
+/** PENDING, REGISTERED or REVOKED, and the reader IT gave the phone. */
+@Serializable
+data class DeviceStatusDto(
+    val status: String,
+    val androidId: String? = null,
+    val checkCode: String? = null,
+    val readerLogin: String? = null,
+    val label: String? = null,
+)
 
 @Serializable
 data class ProblemDto(val title: String? = null, val status: Int? = null, val code: String? = null)

@@ -23,6 +23,8 @@ object AndroidPlatform {
     }
 }
 
+// HardwareIds: ANDROID_ID is used on purpose, as the ID IT approves (FR-002.8); it is never the secret.
+@android.annotation.SuppressLint("HardwareIds")
 private class AndroidServices(private val context: Context) : PlatformServices {
     override val prefs: KeyValueStore = SharedPreferencesStore(context.getSharedPreferences("settings", Context.MODE_PRIVATE))
 
@@ -41,6 +43,8 @@ private class AndroidServices(private val context: Context) : PlatformServices {
         versionName = BuildConfig.VERSION_NAME,
         isDebug = BuildConfig.DEBUG,
         deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}",
+        // Same for this app on this phone across reinstalls; a factory reset makes a new one.
+        phoneId = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ANDROID_ID).orEmpty(),
         osVersion = Build.VERSION.RELEASE,
     )
 

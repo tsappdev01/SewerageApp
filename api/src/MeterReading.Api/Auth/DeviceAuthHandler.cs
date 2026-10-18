@@ -39,7 +39,9 @@ public sealed class DeviceAuthHandler(
         var device = await devices.FindAsync(deviceId, Context.RequestAborted);
         if (device?.KeyHash is not { } hash) return Fail("DEVICE_NOT_REGISTERED", NotRegistered, "DEVICE_UNKNOWN");
         if (!DeviceKeys.Matches(key, hash)) return Fail("DEVICE_NOT_REGISTERED", NotRegistered, "DEVICE_KEY_WRONG");
-        if (!string.Equals(device.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase))
+        if (device.Status == "PENDING")
+            return Fail("DEVICE_PENDING", "This phone is waiting for IT to register it.", "DEVICE_PENDING");
+        if (!device.IsRegistered)
             return Fail("DEVICE_REVOKED", "This phone has been blocked. Give it to your supervisor. Readings on it are kept.", "DEVICE_REVOKED");
 
         var reader = Request.Headers[ReaderHeader].ToString().Trim();

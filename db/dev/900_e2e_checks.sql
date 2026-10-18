@@ -1,7 +1,7 @@
 /*
   dev/900_e2e_checks.sql — DEVELOPMENT AND TEST ONLY.
   Checks in the database what the end-to-end test (android/app/src/androidInstrumentedTest/.../e2e,
-  run by .github/workflows/e2e.yml) sent from the phone: the registration, two readings with their
+  run by .github/workflows/e2e.yml) sent from the phone: the registration (asked by the phone, approved by IT), two readings with their
   photos, the copy into the PMS stand-in, and one field inspection visit with its photo.
   Run in the test database after the test. Read-only. Lists every check with PASS or FAIL and then
   raises an error if any failed, so `sqlcmd -b` stops the workflow.
@@ -12,10 +12,11 @@ DECLARE @label nvarchar(100) = N'E2E emulator';
 DECLARE @device uniqueidentifier = (SELECT TOP (1) DeviceId FROM mr.Device WHERE Label = @label ORDER BY RegisteredAtUtc DESC);
 DECLARE @checks TABLE (Seq int IDENTITY, [Check] nvarchar(200), Result varchar(4), Detail nvarchar(400));
 
--- FR-002: the phone registered with the one-time code.
-INSERT @checks SELECT N'Phone registered with the code (FR-002)',
-    IIF(@device IS NOT NULL AND EXISTS (SELECT 1 FROM mr.DeviceRegistrationCode WHERE DeviceId = @device AND UsedAtUtc IS NOT NULL), 'PASS', 'FAIL'),
-    (SELECT CONCAT(N'model ', Model, N', ', AndroidVersion, N', app ', AppVersion, N', status ', Status) FROM mr.Device WHERE DeviceId = @device);
+-- FR-002.8: the phone asked with its ANDROID_ID and IT approved it for Rashid.
+INSERT @checks SELECT N'Phone asked with its ID and was approved by IT (FR-002.8)',
+    IIF(EXISTS (SELECT 1 FROM mr.Device WHERE DeviceId = @device AND Status = 'REGISTERED' AND LEN(AndroidId) >= 8
+                AND LEN(CheckCode) = 6 AND BoundReaderLogin = N'rashid@dip.example'), 'PASS', 'FAIL'),
+    (SELECT CONCAT(N'ID ', AndroidId, N', check ', CheckCode, N', ', Model, N', Android ', AndroidVersion, N', app ', AppVersion, N', status ', Status) FROM mr.Device WHERE DeviceId = @device);
 INSERT @checks SELECT N'Only the key''s hash is stored (SEC)',
     IIF(EXISTS (SELECT 1 FROM mr.Device WHERE DeviceId = @device AND LEN(KeyHash) = 64), 'PASS', 'FAIL'), NULL;
 

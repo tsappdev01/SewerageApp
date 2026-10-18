@@ -24,6 +24,7 @@ import com.meterreading.reader.data.AppGraph
 import com.meterreading.reader.data.AppSettings
 import com.meterreading.reader.data.SettingsRules
 import com.meterreading.reader.settings.AppServices
+import com.meterreading.reader.settings.Registration
 import com.meterreading.reader.ui.components.*
 import com.meterreading.reader.ui.theme.AppColors
 import kotlinx.coroutines.launch
@@ -46,35 +47,6 @@ fun SettingsScreen(onSaved: () -> Unit, onBack: () -> Unit) {
     var pinChanged by remember { mutableStateOf(false) }
     val deviceUnlock = rememberDeviceUnlock()
     val phoneHasLock = remember { deviceUnlock.isSetUp() }
-    var code by rememberSaveable { mutableStateOf("") }
-    var registering by remember { mutableStateOf(false) }
-    var registerError by remember { mutableStateOf<String?>(null) }
-    val saveServerFirst = stringResource(Res.string.device_save_server_first)
-    val noConnection = stringResource(Res.string.device_no_connection)
-
-    /** Registers against the saved server; the app then opens again with the phone's key. */
-    fun register() {
-        if (registering) return
-        if (SettingsRules.normalizeUrl(url, AppServices.allowHttp) != current.apiBaseUrl) {
-            registerError = saveServerFirst
-            return
-        }
-        registering = true
-        registerError = null
-        scope.launch {
-            try {
-                AppServices.registerDevice(current.apiBaseUrl, code)
-                code = ""
-                onSaved()
-            } catch (e: ApiException) {
-                registerError = e.title
-            } catch (e: okio.IOException) {
-                registerError = noConnection
-            }
-            registering = false
-        }
-    }
-
     fun edited() = AppSettings(url, reader, lockOn)
 
     fun save() {
@@ -137,29 +109,18 @@ fun SettingsScreen(onSaved: () -> Unit, onBack: () -> Unit) {
             HorizontalDivider()
             // FR-002: this phone's registration. The key itself is never shown.
             Text(stringResource(Res.string.device_title), style = MaterialTheme.typography.titleLarge)
+            // FR-002.8: what IT needs to register this phone (db/ops/approve_device.sql). The key itself is never shown.
             val device = AppServices.device
-            if (device != null) {
-                Pill(stringResource(Res.string.device_registered, device.label.ifBlank { device.deviceId.take(8) }), AppColors.Ok, AppColors.OkTint, Icons.Rounded.VerifiedUser)
-            } else {
-                Pill(stringResource(Res.string.device_not_registered), AppColors.Warn, AppColors.WarnTint, Icons.Rounded.Warning)
+            when {
+                AppServices.registration is Registration.Blocked ->
+                    Pill(stringResource(Res.string.start_blocked), AppColors.Bad, AppColors.BadTint, Icons.Rounded.Block)
+                AppServices.registration is Registration.Waiting || (device != null && device.label.isBlank() && device.checkCode.isNotBlank() && AppServices.registration !is Registration.Registered) ->
+                    Pill(stringResource(Res.string.device_waiting), AppColors.Warn, AppColors.WarnTint, Icons.Rounded.HourglassTop)
+                device != null ->
+                    Pill(stringResource(Res.string.device_registered, device.label.ifBlank { device.deviceId.take(8) }), AppColors.Ok, AppColors.OkTint, Icons.Rounded.VerifiedUser)
+                else -> Pill(stringResource(Res.string.device_not_asked), AppColors.Warn, AppColors.WarnTint, Icons.Rounded.Warning)
             }
-            OutlinedTextField(
-                value = code,
-                onValueChange = { text -> code = text.uppercase().filter { it.isLetterOrDigit() || it == '-' }.take(14) },
-                label = { Text(stringResource(Res.string.device_code_label)) },
-                supportingText = { Text(stringResource(if (device == null) Res.string.device_code_hint else Res.string.device_code_hint_again)) },
-                placeholder = { Text("ABCD-EFGH-JKLM") },
-                singleLine = true,
-                enabled = !registering,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedButton(onClick = ::register, enabled = !registering && code.count { it.isLetterOrDigit() } == 12, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
-                Icon(Icons.Rounded.PhonelinkLock, null)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(if (registering) Res.string.device_registering else Res.string.device_register))
-            }
-            registerError?.let { Banner(it, Icons.Rounded.Warning, AppColors.Bad, AppColors.BadTint) }
+            PhoneIdLines(AppServices.phoneId, device?.checkCode.orEmpty())
 
             HorizontalDivider()
             Text(stringResource(Res.string.settings_reader), style = MaterialTheme.typography.titleLarge)

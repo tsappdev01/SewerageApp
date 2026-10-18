@@ -35,6 +35,8 @@ data class BuildValues(
     val isDebug: Boolean,
     val deviceModel: String,
     val osVersion: String,
+    /** FR-002.8: ANDROID_ID (Android) or identifierForVendor (iOS). Shown to IT; not a secret. */
+    val phoneId: String = "",
 )
 
 /** Small values kept by the platform (SharedPreferences on Android, NSUserDefaults on iOS). */

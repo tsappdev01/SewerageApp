@@ -17,8 +17,9 @@ class DeviceKeyStore(private val prefs: KeyValueStore, private val sealer: Seale
         val id = prefs.getString(KEY_ID) ?: return null
         val sealed = prefs.getString(KEY_SECRET) ?: return null
         val label = prefs.getString(KEY_LABEL).orEmpty()
+        val check = prefs.getString(KEY_CHECK).orEmpty()
         return runCatching {
-            DeviceCredentials(id, sealer.open(Base64.decode(sealed)).decodeToString(), label)
+            DeviceCredentials(id, sealer.open(Base64.decode(sealed)).decodeToString(), label, check)
         }.getOrNull()
     }
 
@@ -26,11 +27,13 @@ class DeviceKeyStore(private val prefs: KeyValueStore, private val sealer: Seale
         prefs.putString(KEY_ID, device.deviceId)
         prefs.putString(KEY_SECRET, Base64.encode(sealer.seal(device.deviceKey.encodeToByteArray())))
         prefs.putString(KEY_LABEL, device.label)
+        prefs.putString(KEY_CHECK, device.checkCode)
     }
 
     private companion object {
         const val KEY_ID = "device_id"
         const val KEY_SECRET = "device_key_sealed"
         const val KEY_LABEL = "device_label"
+        const val KEY_CHECK = "device_check_code"
     }
 }

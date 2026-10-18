@@ -14,6 +14,8 @@ never run outside development.
 
 - .NET 10 minimal API, Dapper on Microsoft.Data.SqlClient. The phone app authenticates as a registered
   phone (`Auth:Mode` `Device`: device key + reader, FR-002); Entra ID is still supported for other clients.
+  A phone asks to be registered by its ANDROID_ID on first start and IT approves it in SQL
+  (`db/ops/approve_device.sql`, FR-002.8); the ID is not secret and never opens the API, the key does.
   Only hashes of registration codes and device keys are stored. A phone belongs to the first reader it
   signs in as (FR-002.7); the phone a reading or visit came from is taken from its key, never the body.
 - Master data comes from the customer's `vw_MR_*` views (`docs/source-views.md`). **Never write
