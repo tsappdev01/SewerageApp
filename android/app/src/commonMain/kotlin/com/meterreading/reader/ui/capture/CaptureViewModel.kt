@@ -24,6 +24,19 @@ class CaptureViewModel(private val repo: MeterRepository, meterId: String) : Vie
     var condition by mutableStateOf(MeterCondition.WORKING)
         private set
 
+    /** FR-006.2: PMS's statuses (from the server) and the one picked; empty: the built-in six. */
+    val statusOptions: List<MeterStatusOption> = repo.statuses.value
+    var statusCode by mutableStateOf(statusOptions.firstOrNull { it.kind == MeterCondition.WORKING }?.code)
+        private set
+
+    fun chooseStatus(option: MeterStatusOption) {
+        chooseCondition(option.kind)
+        statusCode = option.code
+    }
+
+    /** The picked status's name as PMS has it, when the list came from PMS. */
+    val statusName: String? get() = statusOptions.firstOrNull { it.code == statusCode }?.name
+
     /** -1 is the condition picker; 0.. index into [steps]. */
     var stepIndex by mutableIntStateOf(-1)
         private set
@@ -162,6 +175,7 @@ class CaptureViewModel(private val repo: MeterRepository, meterId: String) : Vie
                 capturedAt = LocalDateTime.now(),
                 subTenant = subTenant.trim().ifEmpty { null },
                 tenantCode = tenantCode,
+                statusCode = statusCode,
             )
             val result = repo.submit(draft)
             refusal = result.message

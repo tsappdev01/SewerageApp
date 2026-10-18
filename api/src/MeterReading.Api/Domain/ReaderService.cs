@@ -39,7 +39,7 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
             // The source writes 0 for "no average" and "never read" (ISNULL in the view), so 0 means unknown.
             var sourceAverage = r.AverageConsumption is > 0 ? r.AverageConsumption : null;
             var average = ExpectedRange.Average(sourceAverage, averages.TryGetValue(r.MeterId, out var a) ? a : null, r.MeterType, rules.Value);
-            var state = AssignmentStates.From(t?.Status, t?.MeterCondition);
+            var state = AssignmentStates.From(t?.Status, t?.ConditionKind);
             var isFirst = r.LastReading is null or 0m; // BR-004
             return new MeterDto(
                 r.MeterId, r.MeterNumber, r.MeterType, r.PropertyCode, r.ZoneCode, r.MeterRoute,

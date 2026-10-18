@@ -238,8 +238,16 @@ private fun ConditionStep(vm: CaptureViewModel, onBack: () -> Unit) {
             )
         },
     ) {
-        TileGrid(Choices.conditions.entries.toList()) { (condition, choice), modifier ->
-            PictureTile(choice.icon, stringResource(choice.label), choice.tint, vm.condition == condition, { vm.chooseCondition(condition) }, modifier)
+        if (vm.statusOptions.isNotEmpty()) {
+            // FR-006.2: PMS's statuses, its names and order; the picture follows what the status means.
+            TileGrid(vm.statusOptions) { option, modifier ->
+                val choice = Choices.conditions.getValue(option.kind)
+                PictureTile(choice.icon, option.name, choice.tint, vm.statusCode == option.code, { vm.chooseStatus(option) }, modifier)
+            }
+        } else {
+            TileGrid(Choices.conditions.entries.toList()) { (condition, choice), modifier ->
+                PictureTile(choice.icon, stringResource(choice.label), choice.tint, vm.condition == condition, { vm.chooseCondition(condition) }, modifier)
+            }
         }
     }
 }
@@ -532,7 +540,7 @@ private fun ConfirmStep(vm: CaptureViewModel) {
             BigValue(null, vm.value(NumberTarget.CURRENT))
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
-            Pill(stringResource(choice.label), choice.tint, AppColors.Card, choice.icon)
+            Pill(vm.statusName ?: stringResource(choice.label), choice.tint, AppColors.Card, choice.icon)
             vm.consumption()?.let { Pill(stringResource(Res.string.used, formatReading(it)), AppColors.Ok, AppColors.OkTint) }
         }
         if (vm.note.isNotBlank()) Text("“${vm.note}”", color = AppColors.SubInk, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())

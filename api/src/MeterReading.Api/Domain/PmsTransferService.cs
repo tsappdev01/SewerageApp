@@ -27,7 +27,7 @@ public sealed partial class PmsTransferService(SqlConnectionFactory db, IOptions
     private const string Eligible = """
         t.PmsCopiedAtUtc IS NULL
         AND t.Status IN ('ACCEPTED', 'APPROVED')
-        AND t.MeterCondition IN ('WORKING', 'DAMAGED', 'SUBMERSED', 'REMOVED')
+        AND ISNULL(t.ConditionKind, t.MeterCondition) IN ('WORKING', 'DAMAGED', 'SUBMERSED', 'REMOVED')
         AND t.NewReading IS NOT NULL
         """;
 

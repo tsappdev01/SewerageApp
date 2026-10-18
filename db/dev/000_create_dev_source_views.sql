@@ -150,6 +150,12 @@ SELECT ReaderId AS UserId, LoginEmail, DisplayName, TeamCode, SupervisorEmail,
        CAST(CASE WHEN IsActive = 1 THEN 'Y' ELSE 'N' END AS varchar(1)) AS IsActive
 FROM devsrc.Reader;
 GO
+/* Like PMS's dbo.vw_MR_MeterStatus (codes as DIP gave them, 2026-10-18). */
+CREATE OR ALTER VIEW dbo.vw_MR_MeterStatus AS
+SELECT StatusCode, StatusName, SequenceNo
+FROM (VALUES ('O.K', N'Working', 1), ('DMG', N'Damaged', 2), ('FWW', N'Under water', 3),
+             ('FLT', N'Can''t reach', 4), ('CHG', N'New meter fitted', 5)) v (StatusCode, StatusName, SequenceNo);
+GO
 CREATE OR ALTER VIEW dbo.vw_MR_Zone AS
 SELECT ZoneCode, ZoneName + ' ' AS ZoneName, CAST(IsActive AS varchar(1)) AS IsActive FROM devsrc.Zone;
 GO

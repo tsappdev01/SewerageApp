@@ -272,7 +272,7 @@ and `Revisit` meters shall be capturable again.
 | ID | Requirement |
 |---|---|
 | FR-006.1 | The screen shall show property (e.g. 597-1100), meter number, type and previous reading with its date. |
-| FR-006.2 | Meter status shall be selected from the `MeterStatus` LOV; `WORKING` is the default. |
+| FR-006.2 | Meter status shall be selected from the `MeterStatus` LOV; `WORKING` is the default. **Changed 2026-10-18 (DIP):** the list is PMS's `vw_MR_MeterStatus` (StatusCode, StatusName, SequenceNo), sent to the phone with the meter list and shown in its order and names. The StatusCode picked (`O.K`, `DMG`, `FWW`, `FLT`, `CHG`) is stored in `mr.ReadingTransaction.MeterCondition` and sent to PMS; what it asks of the reader is its kind (API setting `MeterStatus:Kinds`: O.K = WORKING, DMG = DAMAGED, FWW = SUBMERSED, FLT = NOT_ACCESSIBLE, CHG = METER_REPLACED), kept in `ConditionKind`. A code not in the view is refused (`INVALID_LOV_CODE`); a code with no kind is not offered. Meter gone is recorded as DMG. |
 | FR-006.3 | The new reading field shall be numeric only, limited to `RegisterDigits` whole digits and `DecimalDigits` fractional digits for the meter. |
 | FR-006.4 | The app shall display consumption (new − previous, with rollover handling) as the user types, for information only. |
 | FR-006.5 | Fields shown and required shall change by meter status per §6.1, driven by the `StatusRules` configuration downloaded from the server (not hard-coded). |

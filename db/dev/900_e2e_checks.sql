@@ -23,8 +23,8 @@ INSERT @checks SELECT N'Only the key''s hash is stored (SEC)',
 -- FR-006: meter BC0003 read with a photo and the tenant checked on site.
 DECLARE @r1 uniqueidentifier = (SELECT TOP (1) TransactionId FROM mr.ReadingTransaction WHERE MeterId = 'BC0003' AND DeviceId = @device ORDER BY ReceivedAtUtc DESC);
 INSERT @checks SELECT N'BC0003 reading stored from this phone, by Rashid (E1001)',
-    IIF(EXISTS (SELECT 1 FROM mr.ReadingTransaction WHERE TransactionId = @r1 AND ReaderId = 'E1001' AND MeterCondition = 'WORKING' AND NewReading = 31050), 'PASS', 'FAIL'),
-    (SELECT CONCAT(N'reading ', NewReading, N', previous ', PreviousReading, N', used ', Consumption, N', status ', Status) FROM mr.ReadingTransaction WHERE TransactionId = @r1);
+    IIF(EXISTS (SELECT 1 FROM mr.ReadingTransaction WHERE TransactionId = @r1 AND ReaderId = 'E1001' AND MeterCondition = 'O.K' AND ConditionKind = 'WORKING' AND NewReading = 31050), 'PASS', 'FAIL'),
+    (SELECT CONCAT(N'status ', MeterCondition, N' (', ConditionKind, N'), reading ', NewReading, N', previous ', PreviousReading, N', used ', Consumption, N', status ', Status) FROM mr.ReadingTransaction WHERE TransactionId = @r1);
 INSERT @checks SELECT N'BC0003 tenant is the one tapped on site, T-0102 (FR-006.12)',
     IIF(EXISTS (SELECT 1 FROM mr.ReadingTransaction WHERE TransactionId = @r1 AND TenantCode = 'T-0102'), 'PASS', 'FAIL'), NULL;
 -- Photos are switched off in the app for now (StatusRules.PHOTOS_ON), so a reading may carry none:

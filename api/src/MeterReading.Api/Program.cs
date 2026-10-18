@@ -20,6 +20,7 @@ builder.Services.Configure<ImageStoreOptions>(config.GetSection(ImageStoreOption
 builder.Services.Configure<PmsTransferOptions>(config.GetSection(PmsTransferOptions.Section));
 builder.Services.Configure<GatewayTrustOptions>(config.GetSection(GatewayTrustOptions.Section));
 builder.Services.Configure<InspectionOptions>(config.GetSection(InspectionOptions.Section));
+builder.Services.Configure<MeterReading.Api.Domain.MeterStatusOptions>(config.GetSection(MeterReading.Api.Domain.MeterStatusOptions.Section));
 builder.Services.AddScoped<PmsTransferService>();
 builder.Services.AddHostedService<PmsTransferWorker>();
 switch ((config[$"{ImageStoreOptions.Section}:Kind"] ?? "Database").ToUpperInvariant())
@@ -46,6 +47,7 @@ builder.Services.AddRateLimiter(o =>
 });
 builder.Services.AddScoped<ReaderService>();
 builder.Services.AddScoped<SubmitService>();
+builder.Services.AddScoped<MeterReading.Api.Domain.MeterStatusService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<CurrentReader>();
 builder.Services.AddHttpContextAccessor();

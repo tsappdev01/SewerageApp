@@ -60,6 +60,9 @@ class ApiMeterRepository(
     private val _photosWaiting = MutableStateFlow(0)
     override val photosWaiting: StateFlow<Int> = _photosWaiting.asStateFlow()
 
+    private val _statuses = MutableStateFlow<List<MeterStatusOption>>(emptyList())
+    override val statuses: StateFlow<List<MeterStatusOption>> = _statuses.asStateFlow()
+
     private val _savedListFrom = MutableStateFlow<Instant?>(null)
     override val savedListFrom: StateFlow<Instant?> = _savedListFrom.asStateFlow()
 
@@ -125,6 +128,9 @@ class ApiMeterRepository(
         lastSync = sync
         lastMine = mine
         val waiting = queue.associateBy { it.meterId }
+        _statuses.value = sync.statuses.mapNotNull { s ->
+            MeterCondition.entries.firstOrNull { it.name == s.kind }?.let { MeterStatusOption(s.code, s.name, it) }
+        }
         _properties.value = sync.properties.map {
             Property(
                 it.code, it.name ?: it.code, it.zoneCode, it.routeSequence ?: Int.MAX_VALUE, it.tenantCode, it.companyName,
@@ -318,6 +324,7 @@ class ApiMeterRepository(
         photoCount = photos.size,
         subTenant = subTenant?.trim()?.ifEmpty { null },
         tenantCode = tenantCode,
+        statusCode = statusCode,
     )
 
     private fun ReadingDraft.toQueuedReading() = Reading(transactionId, meterId, condition, value, capturedAt, ReadingState.QUEUED, needsCheck = false)

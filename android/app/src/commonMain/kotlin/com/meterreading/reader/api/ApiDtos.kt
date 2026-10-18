@@ -65,7 +65,12 @@ data class SyncDto(
     val properties: List<PropertyDto>,
     val meters: List<MeterDto>,
     val serverTimeUtc: String,
+    /** FR-006.2: PMS's meter statuses (vw_MR_MeterStatus), in its order. */
+    val statuses: List<MeterStatusDto> = emptyList(),
 )
+
+@Serializable
+data class MeterStatusDto(val code: String, val name: String, val kind: String, val sequence: Int = 0)
 
 @Serializable
 data class ReadingDto(
@@ -103,6 +108,8 @@ data class SubmitReadingRequest(
     val photoCount: Int = 0,
     val subTenant: String? = null,
     val tenantCode: String? = null,
+    /** PMS's status code (vw_MR_MeterStatus); the server stores it and takes the kind from it. */
+    val statusCode: String? = null,
 )
 
 @Serializable

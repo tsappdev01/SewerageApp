@@ -36,7 +36,7 @@ public static partial class ReaderEndpoints
     }
 
     private static async Task<IResult> GetMeters(
-        CurrentReader current, MeterReadingRepository repo, ReaderService service, string? zone, CancellationToken ct)
+        CurrentReader current, MeterReadingRepository repo, ReaderService service, MeterStatusService statuses, string? zone, CancellationToken ct)
     {
         if (!TryParseZones(zone, out var zones)) return Problems.Invalid("zone must be zone codes separated by commas, e.g. 597,598.");
         var (reader, readerProblem) = await current.ResolveAsync(ct);
@@ -44,7 +44,7 @@ public static partial class ReaderEndpoints
         var period = await repo.GetOpenPeriodAsync(ct);
         if (period is null) return Problems.NoOpenPeriod();
         var set = await service.LoadAsync(period.PeriodCode, new MeterFilter(ZoneCodes: zones), ct);
-        return Results.Ok(new SyncDto(ToDto(period), set.Zones, set.Properties, set.Meters, DateTime.UtcNow));
+        return Results.Ok(new SyncDto(ToDto(period), set.Zones, set.Properties, set.Meters, DateTime.UtcNow, await statuses.GetAsync(ct)));
     }
 
     private static async Task<IResult> SearchProperties(
@@ -148,11 +148,11 @@ public static partial class ReaderEndpoints
         new(p.PeriodCode, DateOnly.FromDateTime(p.StartDate), DateOnly.FromDateTime(p.EndDate), p.Status);
 
     private static ReadingDto ToDto(TransactionRow r, MeterDto? meter) => new(
-        r.TransactionId, r.MeterId, meter?.Number, meter?.Type, r.MeterCondition, r.ReasonCode, r.NewReading, r.Consumption,
+        r.TransactionId, r.MeterId, meter?.Number, meter?.Type, r.ConditionKind, r.ReasonCode, r.NewReading, r.Consumption,
         DateTime.SpecifyKind(r.CapturedAtUtc, DateTimeKind.Utc), DateTime.SpecifyKind(r.ReceivedAtUtc, DateTimeKind.Utc),
-        r.Status, AssignmentStates.From(r.Status, r.MeterCondition),
+        r.Status, AssignmentStates.From(r.Status, r.ConditionKind),
         r.Status is "REJECTED_BY_SUPERVISOR" or "EXCEPTION" ? r.StatusNote : null,
-        r.ExpectedPhotos ?? 0, r.PhotosReceived, r.TenantCode, r.SubTenant);
+        r.ExpectedPhotos ?? 0, r.PhotosReceived, r.TenantCode, r.SubTenant, r.MeterCondition);
 
     [GeneratedRegex(@"^\d{4}-(0[1-9]|1[0-2])$")]
     private static partial Regex PeriodCode();

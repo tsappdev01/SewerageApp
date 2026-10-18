@@ -88,9 +88,14 @@ data class ReadingDraft(
     val subTenant: String? = null,
     /** The tenant the reader checked on site (FR-006.12). */
     val tenantCode: String? = null,
+    /** PMS's status code the reader picked (vw_MR_MeterStatus, FR-006.2); [condition] is its kind. */
+    val statusCode: String? = null,
 ) {
     val value: Long? get() = numbers[NumberTarget.CURRENT] ?: numbers[NumberTarget.OLD_FINAL]
 }
+
+/** A meter status as PMS has it (vw_MR_MeterStatus): its code and name, and what it means here. */
+data class MeterStatusOption(val code: String, val name: String, val kind: MeterCondition)
 
 /** A photo taken for a reading. [imageId] is made once, so a retried upload is recognised (FR-009). */
 data class DraftPhoto(val imageId: String, val role: ImageRole, val path: String)

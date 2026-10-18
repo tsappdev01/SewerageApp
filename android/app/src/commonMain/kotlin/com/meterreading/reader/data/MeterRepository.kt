@@ -41,6 +41,9 @@ abstract class MeterRepository {
     /** Sample data, not a server: the sign-in screen shows the "no signal" demo switch. */
     open val isDemo: Boolean = false
 
+    /** FR-006.2: the statuses to pick from, from the server (PMS's list); empty: the built-in six. */
+    open val statuses: StateFlow<List<MeterStatusOption>> = MutableStateFlow(emptyList())
+
     abstract suspend fun signIn(login: String): SignInResult
 
     /** Reloads meters and readings from the server. Returns false when there is no connection. */

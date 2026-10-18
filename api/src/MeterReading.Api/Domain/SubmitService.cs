@@ -18,7 +18,7 @@ public sealed record SubmitOutcome(SubmitReadingResponse? Response, bool Created
 /// A repeat with the same TransactionId and payload returns the stored result (BR-013).
 /// </summary>
 public sealed class SubmitService(MeterReadingRepository repo, ReaderService readers, TimeProvider clock, Microsoft.Extensions.Options.IOptions<ImageStoreOptions> images,
-    Microsoft.Extensions.Options.IOptions<ReadingRulesOptions> rules)
+    Microsoft.Extensions.Options.IOptions<ReadingRulesOptions> rules, MeterStatusService statuses)
 {
     private int MaxImages => images.Value.MaxImagesPerReading;
 
@@ -34,6 +34,21 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
             return SubmitOutcome.Reject(422, "VALIDATION_FAILED", "TransactionId and MeterId are required.");
         if (r.PhotoCount < 0 || r.PhotoCount > MaxImages)
             return SubmitOutcome.Reject(422, "VALIDATION_FAILED", $"A reading can have at most {MaxImages} photos.");
+        // FR-006.2: the status is PMS's (vw_MR_MeterStatus); its kind decides the rules below.
+        string statusCode;
+        if (!string.IsNullOrWhiteSpace(r.StatusCode))
+        {
+            var status = (await statuses.GetAsync(ct)).FirstOrDefault(s => string.Equals(s.Code, r.StatusCode.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (status is null) return SubmitOutcome.Reject(422, "INVALID_LOV_CODE", $"Unknown meter status '{r.StatusCode}'.");
+            statusCode = status.Code;
+            r = r with { Condition = status.Kind };
+        }
+        else
+        {
+            if (!Conditions.Contains(r.Condition))
+                return SubmitOutcome.Reject(422, "INVALID_LOV_CODE", $"Unknown meter condition '{r.Condition}'.");
+            statusCode = statuses.CodeFor(r.Condition); // an app that sends only the kind
+        }
         if (!Conditions.Contains(r.Condition))
             return SubmitOutcome.Reject(422, "INVALID_LOV_CODE", $"Unknown meter condition '{r.Condition}'.");
 
@@ -89,7 +104,8 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
             MeterId = meter.Id,
             ReaderId = reader.ReaderId,
             DeviceId = r.DeviceId,
-            MeterCondition = r.Condition,
+            MeterCondition = statusCode,
+            ConditionKind = r.Condition,
             ReasonCode = Trimmed(r.ReasonCode, 30),
             Remarks = Trimmed(r.Note, 500),
             NewReading = r.NewReading,
@@ -193,6 +209,6 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(r with { CapturedAtUtc = DateTime.SpecifyKind(r.CapturedAtUtc, DateTimeKind.Utc) }))));
 
     private static SubmitReadingResponse ToResponse(TransactionRow t) => new(
-        t.TransactionId, t.MeterId, t.Status, AssignmentStates.From(t.Status, t.MeterCondition), t.Consumption,
+        t.TransactionId, t.MeterId, t.Status, AssignmentStates.From(t.Status, t.ConditionKind), t.Consumption,
         t.Status == "EXCEPTION" && t.StatusNote is { } note ? note.Split(',') : []);
 }

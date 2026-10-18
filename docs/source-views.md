@@ -202,3 +202,18 @@ be used instead (`ImageStore:Kind` in `appsettings.json`).
 
 The API's login needs **SELECT** on the views and **read/write** on schema `mr`. When the transfer
 is switched on it also needs **INSERT** (and nothing else) on `MaintainMeterReading`.
+
+## vw_MR_MeterStatus (meter statuses, spec FR-006.2)
+
+Added 2026-10-18. In MRDB: `SELECT StatusCode, StatusName, SequenceNo FROM PropertyManagementSystem.dbo.vw_MR_MeterStatus`.
+
+| Column | Use |
+|---|---|
+| StatusCode | Stored as `mr.ReadingTransaction.MeterCondition` and sent to PMS (e.g. `O.K`, `DMG`, `FWW`, `FLT`, `CHG`). |
+| StatusName | The words on the phone's "How is the meter?" tiles. |
+| SequenceNo | The order of the tiles. |
+
+What a code asks of the reader comes from the API setting `MeterStatus:Kinds` (code → WORKING, DAMAGED, SUBMERSED,
+NOT_ACCESSIBLE or METER_REPLACED). A new status in the view is offered once it has a kind there, e.g. in mApps'
+web.config `<environmentVariable name="MeterStatus__Kinds__XYZ" value="DAMAGED" />`. Without the view the app offers its
+six built-in statuses.

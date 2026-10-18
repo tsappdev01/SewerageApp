@@ -61,6 +61,8 @@ public sealed class LatestTransactionRow
     public string Status { get; init; } = "";
     public string? StatusNote { get; init; }
     public string MeterCondition { get; init; } = "";
+    /// <summary>WORKING, DAMAGED, ...: what the status means (MeterCondition is PMS's StatusCode).</summary>
+    public string ConditionKind { get; init; } = "";
     public DateTime ReceivedAtUtc { get; init; }
 }
 
@@ -76,6 +78,7 @@ public sealed class TransactionRow
     public Guid TransactionId { get; init; }
     public string MeterId { get; init; } = "";
     public string MeterCondition { get; init; } = "";
+    public string ConditionKind { get; init; } = "";
     public string? ReasonCode { get; init; }
     public decimal? NewReading { get; init; }
     public decimal? Consumption { get; init; }
@@ -108,7 +111,10 @@ public sealed class NewTransactionRow
     public string MeterId { get; init; } = "";
     public string ReaderId { get; init; } = "";
     public Guid? DeviceId { get; init; }
+    /// <summary>PMS's StatusCode (vw_MR_MeterStatus), e.g. O.K.</summary>
     public string MeterCondition { get; init; } = "";
+    /// <summary>What it means here: WORKING, DAMAGED, SUBMERSED, NOT_ACCESSIBLE, METER_REPLACED or REMOVED.</summary>
+    public string ConditionKind { get; init; } = "";
     public string? ReasonCode { get; init; }
     public string? Remarks { get; init; }
     public decimal? NewReading { get; init; }
@@ -143,4 +149,12 @@ public sealed class ImageRow
     public string Sha256 { get; init; } = "";
     public int SizeBytes { get; init; }
     public DateTime CapturedAtUtc { get; init; }
+}
+
+/// <summary>A row of vw_MR_MeterStatus.</summary>
+public sealed class MeterStatusRow
+{
+    public string StatusCode { get; init; } = "";
+    public string? StatusName { get; init; }
+    public int? SequenceNo { get; init; }
 }

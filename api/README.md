@@ -24,6 +24,7 @@ The API reads five `vw_MR_*` views in `PropertyManagementSystem` (plus an option
 | `010_field_inspection.sql` | Field Inspection: `mr.InspectionVisit`, `mr.InspectionUnitResult`, `mr.InspectionImage`, and `mr.vw_InspectionResult` for the office (spec §21). Re-runnable. | Any environment |
 | `013_device_reader_binding.sql` | A phone belongs to the first reader it signs in as (`mr.Device.BoundReaderLogin`); other readers on it are refused with `READER_NOT_ON_THIS_PHONE` (spec FR-002.7). Re-runnable. | Any environment |
 | `014_device_enrolment.sql` | Registration by the phone's ANDROID_ID (spec FR-002.8): `mr.Device.AndroidId`, `CheckCode`, statuses `PENDING` and `REGISTERED`. IT approves with `ops/approve_device.sql`. Re-runnable. | Any environment |
+| `015_meter_status_from_pms.sql` | Meter statuses from PMS's `vw_MR_MeterStatus` (spec FR-006.2): `MeterCondition` holds the StatusCode, new `ConditionKind` holds what it means. Re-runnable. | Any environment |
 | `012_inspection_location.sql` | Adds `AtProperty` and `DistanceFromOfficeKm` to `mr.InspectionVisit` (spec FR-031.2). Re-runnable. | Any environment |
 | `011_inspection_wrapper_views.sql` | The MRDB wrappers `vw_MR_InspectionPlan` / `vw_MR_InspectionUnit` over PMS (no `TOP (1000)`; `TenantCode` on units passed through only if PMS has it). Then run `008` again. | UAT and production (dev has stand-ins) |
 | `ops/approve_device.sql`, `ops/new_device_code.sql`, `ops/list_devices.sql`, `ops/revoke_device.sql`, `ops/rebind_device.sql` | IT's tasks: register a phone waiting with its Phone ID and Check code (FR-002.8), make a one-time registration code, list phones, block a lost phone, give a phone to another reader (`docs/deployment.md` 2.11). | Any environment, as needed |
@@ -151,7 +152,7 @@ docker run -d --name mrsql -p 1433:1433 -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='D
 # create database MeterReading, then run in order:
 #   ../db/dev/000_create_dev_source_views.sql, ../db/002_create_mr_schema.sql, ../db/003_meter_id_as_text.sql,
 #   ../db/004_add_expected_photos.sql, ../db/005_reading_tenant_and_export.sql, ../db/006_pms_transfer.sql, ../db/007_reading_image_data.sql,
-#   ../db/009_device_keys.sql, ../db/010_field_inspection.sql, ../db/012_inspection_location.sql, ../db/013_device_reader_binding.sql, ../db/014_device_enrolment.sql,
+#   ../db/009_device_keys.sql, ../db/010_field_inspection.sql, ../db/012_inspection_location.sql, ../db/013_device_reader_binding.sql, ../db/014_device_enrolment.sql, ../db/015_meter_status_from_pms.sql,
 #   ../db/dev/010_seed_dev_readings.sql, ../db/dev/020_create_dev_maintain_meter_reading.sql
 dotnet run --project src/MeterReading.Api            # Development: http://localhost:5080
 curl -H "X-Dev-User: rashid@dip.example" "http://localhost:5080/api/v1/sync/meters?zone=598"

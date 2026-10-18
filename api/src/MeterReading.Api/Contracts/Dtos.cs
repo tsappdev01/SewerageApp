@@ -50,7 +50,9 @@ public sealed record SyncDto(
     IReadOnlyList<ZoneDto> Zones,
     IReadOnlyList<PropertyDto> Properties,
     IReadOnlyList<MeterDto> Meters,
-    DateTime ServerTimeUtc);
+    DateTime ServerTimeUtc,
+    /// <summary>Meter statuses to pick from (vw_MR_MeterStatus), in PMS's order.</summary>
+    IReadOnlyList<MeterReading.Api.Domain.MeterStatusDto>? Statuses = null);
 
 public sealed record PropertyHitDto(PropertyDto Property, IReadOnlyList<MeterDto> Meters, int Done);
 
@@ -75,7 +77,9 @@ public sealed record ReadingDto(
     int PhotosReceived,
     /// <summary>The tenant when the reading was taken, and the sub-tenant the reader typed.</summary>
     string? TenantCode = null,
-    string? SubTenant = null);
+    string? SubTenant = null,
+    /// <summary>PMS's status code stored with it (vw_MR_MeterStatus); Condition is its kind.</summary>
+    string? StatusCode = null);
 
 public sealed record ZoneReconciliationDto(string ZoneCode, int Meters, int Read, int NotRead);
 
@@ -107,7 +111,7 @@ public sealed record MeterDetailDto(MeterDto Meter, PropertyDto Property, IReadO
 public sealed record SubmitReadingRequest(
     Guid TransactionId,
     string MeterId,
-    /// <summary>WORKING, DAMAGED, SUBMERSED, NOT_ACCESSIBLE, METER_REPLACED or REMOVED.</summary>
+    /// <summary>The kind: WORKING, DAMAGED, SUBMERSED, NOT_ACCESSIBLE, METER_REPLACED or REMOVED.</summary>
     string Condition,
     string? ReasonCode,
     string? Note,
@@ -128,7 +132,9 @@ public sealed record SubmitReadingRequest(
     decimal? Longitude = null,
     decimal? GpsAccuracyM = null,
     /// <summary>The tenant the reader checked on site; must be a current tenant of the property (FR-006.12).</summary>
-    string? TenantCode = null);
+    string? TenantCode = null,
+    /// <summary>PMS's status code the reader picked (vw_MR_MeterStatus). Stored as MeterCondition; sets the kind.</summary>
+    string? StatusCode = null);
 
 /// <summary>What the server did with a reading: ACCEPTED, or EXCEPTION with the reason codes.</summary>
 public sealed record SubmitReadingResponse(

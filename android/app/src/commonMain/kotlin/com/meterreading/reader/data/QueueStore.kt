@@ -68,6 +68,7 @@ class QueueStore(private val file: File, private val sealer: Sealer?) {
         val capturedAt: String,
         val subTenant: String? = null,
         val tenantCode: String? = null,
+        val statusCode: String? = null,
     ) {
         fun toDraft() = ReadingDraft(
             transactionId = transactionId,
@@ -82,12 +83,13 @@ class QueueStore(private val file: File, private val sealer: Sealer?) {
             capturedAt = LocalDateTime.parse(capturedAt),
             subTenant = subTenant,
             tenantCode = tenantCode,
+            statusCode = statusCode,
         )
 
         companion object {
             fun of(d: ReadingDraft) = StoredDraft(
                 d.transactionId, d.meterId, d.condition.name, d.reasonCode, d.note, d.numbers.mapKeys { it.key.name },
-                d.newMeterNumber, d.photos.map(StoredPhoto::of), d.readerConfirmedWarning, d.capturedAt.toString(), d.subTenant, d.tenantCode,
+                d.newMeterNumber, d.photos.map(StoredPhoto::of), d.readerConfirmedWarning, d.capturedAt.toString(), d.subTenant, d.tenantCode, d.statusCode,
             )
         }
     }

@@ -65,6 +65,21 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         return await c.QuerySingleOrDefaultAsync<PeriodRow>(Cmd(sql, new { periodCode }, ct));
     }
 
+    /// <summary>vw_MR_MeterStatus (PMS's meter statuses), or null when the view is not there.</summary>
+    public async Task<IReadOnlyList<MeterStatusRow>?> GetMeterStatusesAsync(CancellationToken ct)
+    {
+        await using var c = await db.OpenSourceAsync(ct);
+        var exists = await c.ExecuteScalarAsync<int?>(Cmd($"SELECT OBJECT_ID(N'{_v.MeterStatus.Replace("'", "''")}')", null, ct));
+        if (exists is null) return null;
+        var sql = $"""
+            SELECT LTRIM(RTRIM(CAST(StatusCode AS varchar(20)))) AS StatusCode, CAST(StatusName AS nvarchar(100)) AS StatusName,
+                   TRY_CAST(SequenceNo AS int) AS SequenceNo
+            FROM {_v.MeterStatus}
+            WHERE StatusCode IS NOT NULL
+            """;
+        return (await c.QueryAsync<MeterStatusRow>(Cmd(sql, null, ct))).ToList();
+    }
+
     /// <summary>
     /// Active meters in active properties and zones. Work is not assigned to readers, so the only
     /// narrowing is by zone or by meter id. MeterType is read from its first letter (I or S) and
@@ -172,9 +187,9 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     {
         if (meterIds.Count == 0) return new Dictionary<string, LatestTransactionRow>();
         var sql = $"""
-            SELECT MeterId, TransactionId, Status, StatusNote, MeterCondition, ReceivedAtUtc
+            SELECT MeterId, TransactionId, Status, StatusNote, MeterCondition, ConditionKind, ReceivedAtUtc
             FROM (
-                SELECT t.MeterId, t.TransactionId, t.Status, t.StatusNote, t.MeterCondition, t.ReceivedAtUtc,
+                SELECT t.MeterId, t.TransactionId, t.Status, t.StatusNote, t.MeterCondition, ISNULL(t.ConditionKind, t.MeterCondition) AS ConditionKind, t.ReceivedAtUtc,
                        ROW_NUMBER() OVER (PARTITION BY t.MeterId ORDER BY t.ReceivedAtUtc DESC, t.CapturedAtUtc DESC) AS rn
                 FROM mr.ReadingTransaction t
                 WHERE t.PeriodCode = @periodCode AND t.Status <> 'SUPERSEDED'
@@ -190,7 +205,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     public async Task<IReadOnlyList<TransactionRow>> GetReaderTransactionsAsync(string readerId, string periodCode, CancellationToken ct)
     {
         const string sql = """
-            SELECT t.TransactionId, t.MeterId, t.MeterCondition, t.ReasonCode, t.NewReading, t.Consumption,
+            SELECT t.TransactionId, t.MeterId, t.MeterCondition, ISNULL(t.ConditionKind, t.MeterCondition) AS ConditionKind, t.ReasonCode, t.NewReading, t.Consumption,
                    t.CapturedAtUtc, t.ReceivedAtUtc, t.Status, t.StatusNote, CAST(t.ExpectedPhotos AS int) AS ExpectedPhotos,
                    (SELECT COUNT(*) FROM mr.ReadingImage i WHERE i.TransactionId = t.TransactionId) AS PhotosReceived,
                    t.TenantCode, t.SubTenant
@@ -205,7 +220,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     public async Task<IReadOnlyList<TransactionRow>> GetMeterTransactionsAsync(string meterId, string periodCode, CancellationToken ct)
     {
         const string sql = """
-            SELECT t.TransactionId, t.MeterId, t.MeterCondition, t.ReasonCode, t.NewReading, t.Consumption,
+            SELECT t.TransactionId, t.MeterId, t.MeterCondition, ISNULL(t.ConditionKind, t.MeterCondition) AS ConditionKind, t.ReasonCode, t.NewReading, t.Consumption,
                    t.CapturedAtUtc, t.ReceivedAtUtc, t.Status, t.StatusNote, CAST(t.ExpectedPhotos AS int) AS ExpectedPhotos,
                    (SELECT COUNT(*) FROM mr.ReadingImage i WHERE i.TransactionId = t.TransactionId) AS PhotosReceived,
                    t.TenantCode, t.SubTenant
@@ -220,7 +235,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     public async Task<TransactionRow?> GetTransactionAsync(Guid transactionId, CancellationToken ct)
     {
         const string sql = """
-            SELECT t.TransactionId, t.MeterId, t.ReaderId, t.PeriodCode, t.MeterCondition, t.ReasonCode, t.NewReading, t.Consumption,
+            SELECT t.TransactionId, t.MeterId, t.ReaderId, t.PeriodCode, t.MeterCondition, ISNULL(t.ConditionKind, t.MeterCondition) AS ConditionKind, t.ReasonCode, t.NewReading, t.Consumption,
                    t.CapturedAtUtc, t.ReceivedAtUtc, t.Status, t.StatusNote, t.PayloadHash, CAST(t.ExpectedPhotos AS int) AS ExpectedPhotos,
                    (SELECT COUNT(*) FROM mr.ReadingImage i WHERE i.TransactionId = t.TransactionId) AS PhotosReceived,
                    t.TenantCode, t.SubTenant
@@ -243,22 +258,22 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             BEGIN TRANSACTION;
             IF EXISTS (
                 SELECT 1 FROM (
-                    SELECT TOP (1) t.Status, t.MeterCondition
+                    SELECT TOP (1) t.Status, ISNULL(t.ConditionKind, t.MeterCondition) AS Kind
                     FROM mr.ReadingTransaction t WITH (UPDLOCK, HOLDLOCK)
                     WHERE t.PeriodCode = @PeriodCode AND t.MeterId = @MeterId AND t.Status <> 'SUPERSEDED'
                     ORDER BY t.ReceivedAtUtc DESC, t.CapturedAtUtc DESC
                 ) latest
-                WHERE latest.Status <> 'REJECTED_BY_SUPERVISOR' AND latest.MeterCondition <> 'NOT_ACCESSIBLE')
+                WHERE latest.Status <> 'REJECTED_BY_SUPERVISOR' AND latest.Kind <> 'NOT_ACCESSIBLE')
             BEGIN
                 ROLLBACK TRANSACTION;
                 SELECT 0;
                 RETURN;
             END
-            INSERT mr.ReadingTransaction (TransactionId, PeriodCode, MeterId, ReaderId, DeviceId, MeterCondition, ReasonCode, Remarks,
+            INSERT mr.ReadingTransaction (TransactionId, PeriodCode, MeterId, ReaderId, DeviceId, MeterCondition, ConditionKind, ReasonCode, Remarks,
                 NewReading, PreviousReading, Consumption, OldFinalReading, NewMeterNumber, NewOpeningReading, NewCurrentReading,
                 Latitude, Longitude, GpsAccuracyM, CapturedAtUtc, Status, StatusNote, StatusChangedAtUtc, PayloadHash, ExpectedPhotos,
                 PropertyId, PropertyCode, MeterNumber, MeterType, TenantCode, SubTenant)
-            VALUES (@TransactionId, @PeriodCode, @MeterId, @ReaderId, @DeviceId, @MeterCondition, @ReasonCode, @Remarks,
+            VALUES (@TransactionId, @PeriodCode, @MeterId, @ReaderId, @DeviceId, @MeterCondition, @ConditionKind, @ReasonCode, @Remarks,
                 @NewReading, @PreviousReading, @Consumption, @OldFinalReading, @NewMeterNumber, @NewOpeningReading, @NewCurrentReading,
                 @Latitude, @Longitude, @GpsAccuracyM, @CapturedAtUtc, @Status, @StatusNote, SYSUTCDATETIME(), @PayloadHash, @ExpectedPhotos,
                 @PropertyId, @PropertyCode, @MeterNumber, @MeterType, @TenantCode, @SubTenant);

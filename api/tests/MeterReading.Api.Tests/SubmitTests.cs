@@ -60,6 +60,62 @@ public sealed class SubmitTests(ApiFactory factory) : IAsyncLifetime
 
     private static string Code(JsonElement problem) => problem.GetProperty("code").GetString()!;
 
+    private static async Task<object?> Scalar(string sql, Guid id)
+    {
+        await using var c = new SqlConnection(ApiFactory.ConnectionString);
+        await c.OpenAsync();
+        await using var cmd = new SqlCommand(sql, c);
+        cmd.Parameters.AddWithValue("@id", id);
+        return await cmd.ExecuteScalarAsync();
+    }
+
+    [Fact]
+    public async Task FR006_2_the_statuses_come_from_vw_MR_MeterStatus_in_its_order()
+    {
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Dev-User", Rashid);
+        var sync = await client.GetFromJsonAsync<JsonElement>("/api/v1/sync/meters?zone=597");
+        var statuses = sync.GetProperty("statuses").EnumerateArray()
+            .Select(s => (s.GetProperty("code").GetString(), s.GetProperty("name").GetString(), s.GetProperty("kind").GetString())).ToList();
+        Assert.Equal([("O.K", "Working", "WORKING"), ("DMG", "Damaged", "DAMAGED"), ("FWW", "Under water", "SUBMERSED"),
+                      ("FLT", "Can't reach", "NOT_ACCESSIBLE"), ("CHG", "New meter fitted", "METER_REPLACED")], statuses);
+    }
+
+    [Fact]
+    public async Task FR006_2_the_StatusCode_picked_is_stored_as_MeterCondition_and_its_kind_sets_the_rules()
+    {
+        var id = Guid.NewGuid();
+        var body = Reading("BC0011", "DAMAGED", reason: "GLASS_BROKEN", note: "Glass cracked", id: id);
+        var json = JsonSerializer.SerializeToElement(body);
+        var request = JsonSerializer.Deserialize<Dictionary<string, object?>>(json.GetRawText())!;
+        request["condition"] = "WORKING"; // the code decides, not what the phone thought
+        request["statusCode"] = "DMG";
+        var (status, _) = await Post(request);
+        Assert.Equal(HttpStatusCode.Created, status);
+        Assert.Equal("DMG", await Scalar("SELECT MeterCondition FROM mr.ReadingTransaction WHERE TransactionId = @id", id));
+        Assert.Equal("DAMAGED", await Scalar("SELECT ConditionKind FROM mr.ReadingTransaction WHERE TransactionId = @id", id));
+    }
+
+    [Fact]
+    public async Task FR006_2_a_status_code_not_in_the_view_is_refused()
+    {
+        var json = JsonSerializer.SerializeToElement(Reading("BC0003", reading: 30_500));
+        var request = JsonSerializer.Deserialize<Dictionary<string, object?>>(json.GetRawText())!;
+        request["statusCode"] = "XYZ";
+        var (status, problem) = await Post(request);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, status);
+        Assert.Equal("INVALID_LOV_CODE", Code(problem));
+    }
+
+    [Fact]
+    public async Task FR006_2_an_app_that_sends_only_the_kind_gets_PMS_code_stored()
+    {
+        var id = Guid.NewGuid();
+        var (status, _) = await Post(Reading("BC0003", reading: 30_500, id: id));
+        Assert.Equal(HttpStatusCode.Created, status);
+        Assert.Equal("O.K", await Scalar("SELECT MeterCondition FROM mr.ReadingTransaction WHERE TransactionId = @id", id));
+    }
+
     [Fact]
     public async Task Normal_reading_is_accepted_and_shows_as_done()
     {
