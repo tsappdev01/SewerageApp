@@ -118,6 +118,16 @@ public class FinalizePairingTests
     }
 
     [Fact]
+    public void FR037_10_a_reading_without_a_tenant_takes_the_propertys_only_tenant()
+    {
+        var one = new List<TenantRow> { new() { PropertyCode = "P", TenantCode = "T1" } };
+        var two = new List<TenantRow> { new() { PropertyCode = "P", TenantCode = "T1" }, new() { PropertyCode = "P", TenantCode = "T2" } };
+        Assert.Equal("T2", FinalizeService.TenantFor(" T2 ", two));
+        Assert.Equal("T1", FinalizeService.TenantFor(null, one));
+        Assert.Null(FinalizeService.TenantFor(null, two));
+    }
+
+    [Fact]
     public void FR037_5_no_float_value_or_rate_factor_means_no_amount()
     {
         Assert.Equal(0m, FinalizeService.Amount(100, null, 1.5m));
@@ -198,6 +208,11 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal("2026-10", body.GetProperty("periodCode").GetString());
         Assert.Equal(("2026-10-01", "2026-10-31"), (body.GetProperty("fromDate").GetString(), body.GetProperty("endDate").GetString()));
+        // FR-037.10: picked from the views for the property's tenant (1497: T-0203; dev BaanCode "B" + code, TranCode "TR"),
+        // although these seeded readings kept neither.
+        var first = body.GetProperty("rows")[0];
+        Assert.Equal(("T-0203", "BT-0203", "TR"),
+            (first.GetProperty("tenantCode").GetString(), first.GetProperty("baanCode").GetString(), first.GetProperty("tranCode").GetString()));
         Assert.Equal(2, body.GetProperty("rows").GetArrayLength());
         Assert.Equal(
             [("0", 0m, 0m, 0m, "1497-I", 7450m, 8440m, 990m, true), ("1497-S", 2010m, 2300m, 290m, "0", 0m, 0m, 0m, true)],

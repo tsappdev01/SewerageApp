@@ -107,6 +107,7 @@ public sealed class FinalizeReadingRow
     public DateTime? ReadingDate { get; init; }
     public string? TranCode { get; init; }
     public string? BaanCode { get; init; }
+    public string? TenantCode { get; init; }
 }
 
 /// <summary>A row of mr.IrrigationNoCharge (db/020, FR-037.7).</summary>

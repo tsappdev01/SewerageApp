@@ -6,7 +6,7 @@ namespace MeterReading.Api.Domain;
 /// <summary>One meter of the property as it goes into mr.MaintainFinalizedMeter.</summary>
 public sealed record FinalizeMeter(
     string MeterId, string Number, string Type, decimal Previous, decimal Current, decimal Consumption, Guid? TransactionId,
-    decimal? FloatValue = null, decimal? RateFactor = null, bool NoCharge = false, string? TranCode = null, string? BaanCode = null)
+    decimal? FloatValue = null, decimal? RateFactor = null, bool NoCharge = false, string? TranCode = null, string? BaanCode = null, string? TenantCode = null)
 {
     /// <summary>FR-037.5: what the consumption costs; 0 when not charged (FR-037.7).</summary>
     public decimal Amount => NoCharge ? 0m : FinalizeService.Amount(Consumption, FloatValue, RateFactor);
@@ -30,6 +30,8 @@ public sealed record FinalizedPair(FinalizeMeter? Sewerage, FinalizeMeter? Irrig
     public string? TranCode => Sewerage?.TranCode ?? Irrigation?.TranCode;
     /// <summary>FR-037.10: the tenant's BaanCode kept with the row's readings (sewerage first).</summary>
     public string? BaanCode => Sewerage?.BaanCode ?? Irrigation?.BaanCode;
+    /// <summary>FR-037.10: the tenant the row's readings were taken for (sewerage first).</summary>
+    public string? TenantCode => Sewerage?.TenantCode ?? Irrigation?.TenantCode;
     /// <summary>FR-037.7: the irrigation side is not charged.</summary>
     public bool IrrigationNoCharge => Irrigation?.NoCharge ?? false;
 }
@@ -60,6 +62,15 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
 
     /// <summary>FR-037.10: the last day of the billing month.</summary>
     public static DateOnly EndDate(string periodCode) => FromDate(periodCode).AddMonths(1).AddDays(-1);
+
+    /// <summary>
+    /// FR-037.10: the tenant of a reading; a reading without one (stored before tenants were checked) takes the
+    /// property's tenant when it has exactly one.
+    /// </summary>
+    public static string? TenantFor(string? readingTenant, IReadOnlyList<TenantRow> tenants) =>
+        !string.IsNullOrWhiteSpace(readingTenant) ? readingTenant.Trim()
+        : tenants.Select(t => t.TenantCode).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1 ? tenants[0].TenantCode
+        : null;
 
     /// <summary>The cap of the irrigation minimum (FR-037.9).</summary>
     public const decimal IrrigationMinimumCap = 500m;
@@ -128,18 +139,30 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
         var readings = await repo.GetFinalizeReadingsAsync(period.PeriodCode, ids, ct);
         var source = await readers.SourceRowsAsync(ids, ct);
         var noCharge = await repo.GetIrrigationNoChargeAsync(meters[0].PropertyCode, ct);
+
+        // FR-037.10: tenant, BaanCode (vw_MR_Tenant) and TranCode (vw_MR_Property) as the views have them now,
+        // for the tenant the reading was taken for. A reading without a tenant (stored before FR-006.12) takes
+        // the property's only tenant. What the reading kept is used only when the views no longer have it.
+        var tenants = await repo.GetTenantsAsync([meters[0].PropertyCode], ct);
+        var tranCodes = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tenantCode in readings.Values.Select(r => TenantFor(r.TenantCode, tenants)).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase))
+            tranCodes[tenantCode] = await repo.GetTranCodeAsync(meters[0].PropertyCode, tenantCode, ct);
+
         var rows = Pair(meters.Select(m =>
         {
             readings.TryGetValue(m.Id, out var t);
             source.TryGetValue(m.Id, out var s);
+            var tenantCode = TenantFor(t?.TenantCode, tenants);
+            var tenant = tenants.FirstOrDefault(x => string.Equals(x.TenantCode, tenantCode, StringComparison.OrdinalIgnoreCase));
             return new FinalizeMeter(m.Id, m.Number, m.Type,
                 t?.PreviousReading ?? m.PreviousReading ?? 0m,
                 t?.CurrentReading ?? 0m,
                 t?.Consumption ?? 0m,
                 t?.TransactionId,
                 s?.FloatValue, s?.RateFactor,
-                TranCode: t?.TranCode,
-                BaanCode: t?.BaanCode,
+                TranCode: (tenantCode is null ? null : tranCodes.GetValueOrDefault(tenantCode)) ?? t?.TranCode,
+                BaanCode: tenant?.BaanCode ?? t?.BaanCode,
+                TenantCode: tenantCode,
                 NoCharge: m.Type == "IRRIGATION" && IsNoCharge(t?.ReadingDate is { } d ? (DateOnly?)DateOnly.FromDateTime(d) : null, noCharge));
         }));
         var code = meters[0].PropertyCode;
@@ -154,5 +177,5 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
     private static FinalizedMeterDto ToDto(FinalizedPair p) => new(
         p.Sewerage?.Number ?? "0", p.Sewerage?.Previous ?? 0m, p.Sewerage?.Current ?? 0m, p.Sewerage?.Consumption ?? 0m,
         p.Irrigation?.Number ?? "0", p.Irrigation?.Previous ?? 0m, p.Irrigation?.Current ?? 0m, p.Irrigation?.Consumption ?? 0m,
-        p.SewerageAmount, p.IrrigationAmount, p.SewerageVat, p.IrrigationVat, p.TotalAmount, p.IrrigationNoCharge, p.TenPercentAmount, p.IrrigationAmountCalculated, p.TranCode, p.BaanCode);
+        p.SewerageAmount, p.IrrigationAmount, p.SewerageVat, p.IrrigationVat, p.TotalAmount, p.IrrigationNoCharge, p.TenPercentAmount, p.IrrigationAmountCalculated, p.TranCode, p.BaanCode, p.TenantCode);
 }

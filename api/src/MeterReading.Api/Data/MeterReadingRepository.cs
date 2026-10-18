@@ -213,9 +213,9 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     {
         if (meterIds.Count == 0) return new Dictionary<string, FinalizeReadingRow>();
         var sql = $"""
-            SELECT MeterId, TransactionId, PropertyId, PreviousReading, CurrentReading, Consumption, ReadingDate, TranCode, BaanCode
+            SELECT MeterId, TransactionId, PropertyId, PreviousReading, CurrentReading, Consumption, ReadingDate, TranCode, BaanCode, TenantCode
             FROM (
-                SELECT t.MeterId, t.TransactionId, t.PropertyId, t.PreviousReading, t.TranCode, t.BaanCode,
+                SELECT t.MeterId, t.TransactionId, t.PropertyId, t.PreviousReading, t.TranCode, t.BaanCode, t.TenantCode,
                        COALESCE(t.NewReading, t.NewCurrentReading) AS CurrentReading, t.Consumption,
                        CAST(CAST(t.CapturedAtUtc AT TIME ZONE 'UTC' AT TIME ZONE 'Arabian Standard Time' AS date) AS datetime2) AS ReadingDate,
                        ROW_NUMBER() OVER (PARTITION BY t.MeterId ORDER BY t.ReceivedAtUtc DESC, t.CapturedAtUtc DESC) AS rn
@@ -273,14 +273,14 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                 SewerageTransactionId, IrrigationTransactionId, FinalizedByReaderId, DeviceId, FinalizedAtUtc, IsCurrent,
                 SewerageAmount, IrrigationAmount, FloatValueSewerage, RateFactorSewerage, FloatValueIrrigation, RateFactorIrrigation,
                 SewerageVat, IrrigationVat, TotalAmount, IrrigationNoCharge, TenPercentAmount, IrrigationAmountCalculated,
-                TranCode, BaanCode, FromDate, EndDate)
+                TranCode, BaanCode, TenantCode, FromDate, EndDate)
             VALUES (@PeriodCode, @PropertyId, @PropertyCode,
                 @MeterNumberSewerage, @PrevReadingSewerage, @CurrentReadingSewerage, @ConsumptionSewerage,
                 @MeterNumberIrrigation, @PrevReadingIrrigation, @CurrentReadingIrrigation, @ConsumptionIrrigation,
                 @SewerageTransactionId, @IrrigationTransactionId, @ReaderId, @DeviceId, @At, 1,
                 @SewerageAmount, @IrrigationAmount, @FloatValueSewerage, @RateFactorSewerage, @FloatValueIrrigation, @RateFactorIrrigation,
                 @SewerageVat, @IrrigationVat, @TotalAmount, @IrrigationNoCharge, @TenPercentAmount, @IrrigationAmountCalculated,
-                @TranCode, @BaanCode, @FromDate, @EndDate);
+                @TranCode, @BaanCode, @TenantCode, @FromDate, @EndDate);
             """;
         await using var c = await db.OpenMeterReadingAsync(ct);
         await using var tx = await c.BeginTransactionAsync(ct);
@@ -295,7 +295,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             CurrentReadingIrrigation = r.Irrigation?.Current ?? 0m, ConsumptionIrrigation = r.Irrigation?.Consumption ?? 0m,
             SewerageTransactionId = r.Sewerage?.TransactionId, IrrigationTransactionId = r.Irrigation?.TransactionId,
             ReaderId = readerId, DeviceId = deviceId, At = at,
-            r.SewerageAmount, r.IrrigationAmount, r.SewerageVat, r.IrrigationVat, r.TotalAmount, r.IrrigationNoCharge, r.TenPercentAmount, r.IrrigationAmountCalculated, r.TranCode, r.BaanCode,
+            r.SewerageAmount, r.IrrigationAmount, r.SewerageVat, r.IrrigationVat, r.TotalAmount, r.IrrigationNoCharge, r.TenPercentAmount, r.IrrigationAmountCalculated, r.TranCode, r.BaanCode, r.TenantCode,
             FromDate = Domain.FinalizeService.FromDate(periodCode).ToDateTime(TimeOnly.MinValue),
             EndDate = Domain.FinalizeService.EndDate(periodCode).ToDateTime(TimeOnly.MinValue),
             FloatValueSewerage = r.Sewerage?.FloatValue, RateFactorSewerage = r.Sewerage?.RateFactor,

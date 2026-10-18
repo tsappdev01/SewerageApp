@@ -3,8 +3,10 @@
   - mr.ReadingTransaction.TranCode: the TranCode (vw_MR_Property, db/021) of the property's row for the
     tenant the reader checked, kept with each reading.
   - mr.ReadingTransaction.BaanCode: the BaanCode (vw_MR_Tenant, db/023) of the tenant the reader checked.
-  - mr.MaintainFinalizedMeter: TranCode and BaanCode (from the row's readings), and FromDate / EndDate, the first and
+  - mr.MaintainFinalizedMeter: TenantCode, TranCode and BaanCode, and FromDate / EndDate, the first and
     last day of the billing month (PeriodCode 2026-09: 2026-09-01 to 2026-09-30). Spec FR-037.10.
+    When finalizing, BaanCode is looked up in vw_MR_Tenant and TranCode in vw_MR_Property for the row's
+    PropertyCode and TenantCode (the reading's tenant), so they are the views' current values.
   Run in MRDB after 020. Re-runnable.
 */
 IF COL_LENGTH(N'mr.ReadingTransaction', N'TranCode') IS NULL
@@ -15,6 +17,9 @@ IF COL_LENGTH(N'mr.ReadingTransaction', N'BaanCode') IS NULL
 GO
 IF COL_LENGTH(N'mr.MaintainFinalizedMeter', N'BaanCode') IS NULL
     ALTER TABLE mr.MaintainFinalizedMeter ADD BaanCode varchar(30) NULL;
+GO
+IF COL_LENGTH(N'mr.MaintainFinalizedMeter', N'TenantCode') IS NULL
+    ALTER TABLE mr.MaintainFinalizedMeter ADD TenantCode varchar(30) NULL;
 GO
 IF COL_LENGTH(N'mr.MaintainFinalizedMeter', N'TranCode') IS NULL
     ALTER TABLE mr.MaintainFinalizedMeter ADD TranCode varchar(30) NULL;
