@@ -12,11 +12,11 @@ public static class ReadingEndpoints
         var api = app.MapGroup("/api/v1").RequireAuthorization(ReaderEndpoints.Policy).WithTags("Meter reader");
         api.MapPost("/readings", Submit)
             .WithSummary("Send one reading. 201 when stored, 200 when the same TransactionId was already stored (safe to retry).");
-        api.MapPost("/properties/{propertyCode}/finalize", Finalize)
+        api.MapPost("/properties/{propertyCode}/finalize", FinalizeProperty)
             .WithSummary("FR-037: once every meter of the property is read, write its readings to mr.MaintainFinalizedMeter. Again: a new set replaces it.");
     }
 
-    private static async Task<IResult> Finalize(string propertyCode, CurrentReader current, FinalizeService service, CancellationToken ct)
+    private static async Task<IResult> FinalizeProperty(string propertyCode, CurrentReader current, FinalizeService service, CancellationToken ct)
     {
         if (propertyCode.Length is 0 or > 50) return Problems.Invalid("Property code must be 1 to 50 characters.");
         var (reader, problem) = await current.ResolveAsync(ct);

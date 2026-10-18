@@ -62,7 +62,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         await cmd.ExecuteNonQueryAsync();
     }
 
-    private async Task<(HttpStatusCode Status, JsonElement Body)> Finalize(string property)
+    private async Task<(HttpStatusCode Status, JsonElement Body)> FinalizeProperty(string property)
     {
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Dev-User", Rashid);
@@ -91,7 +91,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
     public async Task FR037_1_all_meters_read_writes_one_row_per_meter_number()
     {
         // 1497: 1497-I (7450 -> 8440) and 1497-S (2010 -> 2300), both accepted; different numbers, so a row each.
-        var (status, body) = await Finalize("1497");
+        var (status, body) = await FinalizeProperty("1497");
 
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal("2026-10", body.GetProperty("periodCode").GetString());
@@ -104,7 +104,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
     [Fact]
     public async Task FR037_2_a_property_with_meters_still_to_read_is_refused()
     {
-        var (status, body) = await Finalize("1101");
+        var (status, body) = await FinalizeProperty("1101");
 
         Assert.Equal(HttpStatusCode.Conflict, status);
         Assert.Equal("PROPERTY_NOT_COMPLETE", body.GetProperty("code").GetString());
@@ -116,7 +116,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
     public async Task FR037_2_not_accessible_counts_as_read_with_no_current_reading()
     {
         // 3010: 3010-I accepted (15600 -> 16610), 3010-S not accessible (previous 4480, no reading).
-        var (status, _) = await Finalize("3010");
+        var (status, _) = await FinalizeProperty("3010");
 
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(
@@ -127,8 +127,8 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
     [Fact]
     public async Task FR037_4_finalizing_again_keeps_the_earlier_rows_as_not_current()
     {
-        Assert.Equal(HttpStatusCode.OK, (await Finalize("1497")).Status);
-        Assert.Equal(HttpStatusCode.OK, (await Finalize("1497")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await FinalizeProperty("1497")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await FinalizeProperty("1497")).Status);
 
         var rows = await Rows("1497");
         Assert.Equal(4, rows.Count);
@@ -138,7 +138,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
     [Fact]
     public async Task Unknown_property_is_404()
     {
-        var (status, body) = await Finalize("NO-SUCH");
+        var (status, body) = await FinalizeProperty("NO-SUCH");
         Assert.Equal(HttpStatusCode.NotFound, status);
         Assert.Equal("PROPERTY_NOT_FOUND", body.GetProperty("code").GetString());
     }
