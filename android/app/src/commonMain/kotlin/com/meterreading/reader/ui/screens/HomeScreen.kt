@@ -62,14 +62,17 @@ fun HomeScreen(
     // Fresh meter states each time Home opens (another reader may have read some).
     LaunchedEffect(Unit) { repo.refresh() }
 
-    // The download icon: the latest meter list (and inspection plan) from the server, now.
+    // The download icon: the latest meter list (and inspection plan) from the server, now. It runs until the
+    // list is in: the download itself cannot be cancelled (leaving Home or the phone locking does not stop it),
+    // and a try that times out is made again, up to 3 times (the server keeps loading the list meanwhile).
     val scope = rememberCoroutineScope()
     var downloading by remember { mutableStateOf(false) }
     val downloadFailed = stringResource(Res.string.list_download_failed)
     val download: () -> Unit = {
         downloading = true
         scope.launch {
-            val ok = repo.refresh()
+            var ok = repo.refresh()
+            repeat(2) { if (!ok && !repo.signInNeeded.value) { kotlinx.coroutines.delay(3_000); ok = repo.refresh() } }
             AppGraph.inspections?.refreshPlan()
             downloading = false
             Messages.show(
