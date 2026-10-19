@@ -1,0 +1,4 @@
+Waiting phone 0102286b9011270f, check code JRAM86: approving for rashid@dip.example
+Result DeviceId AndroidId CheckCode Label BoundReaderLogin Model
+------ -------- --------- --------- ----- ---------------- -----
+Registered 3CA01B1B-6681-4B7C-A875-B57CA16D1B7E 0102286b9011270f JRAM86 E2E emulator rashid@dip.example Google sdk_gphone64_x86_64
