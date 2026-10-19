@@ -75,6 +75,11 @@
     <string name="which_meter">Which meter?</string>
     <string name="meter_to_read">To read</string>
     <string name="meter_typed">Typed %1$s</string>
+    <string name="meter_n_of">Meter %1$d of %2$d at this property</string>
+    <string name="change_meter">Change meter</string>
+    <string name="choose_meter">Which meter are you reading?</string>
+    <string name="meter_reading_now">Reading now</string>
+    <string name="close">Close</string>
     <string name="use_keyboard">Type with phone keyboard</string>
     <string name="use_keypad">Use the big keypad</string>
     <string name="reading_now">Reading now</string>

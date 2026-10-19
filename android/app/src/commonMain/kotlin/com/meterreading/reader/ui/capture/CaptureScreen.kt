@@ -108,10 +108,14 @@ private class MeterSwitchState(
 
 private val LocalMeterSwitch = staticCompositionLocalOf<MeterSwitchState?> { null }
 
-/** Sewerage | Irrigation: which meter of this property is being read. Each says whether it has a number yet. */
+/**
+ * Which meter of this property is being read. Two meters (one Sewerage, one Irrigation): two big tabs.
+ * More than two: the meter being read, written out in full with "meter 2 of 5", and a Change meter button
+ * that lists them all one per line, so a number is never typed into the wrong meter (DIP, Oct 2026).
+ */
 @Composable
 private fun MeterTypeSwitch(s: MeterSwitchState) {
-    val sameType = s.options.groupingBy { it.type }.eachCount()
+    if (s.options.size > 2) { MeterPicker(s); return }
     Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(Res.string.which_meter), style = MaterialTheme.typography.titleMedium, color = AppColors.Ink)
         Row(
@@ -125,7 +129,6 @@ private fun MeterTypeSwitch(s: MeterSwitchState) {
             s.options.forEach { m ->
                 val on = m.id == s.activeId
                 val fg = if (on) Color.White else AppColors.Ink
-                val label = stringResource(meterTypeLabel(m.type)) + if ((sameType[m.type] ?: 0) > 1) " ${m.number}" else ""
                 val typed = s.typed(m.id)
                 Column(
                     Modifier
@@ -141,8 +144,9 @@ private fun MeterTypeSwitch(s: MeterSwitchState) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(if (on) Icons.Rounded.CheckCircle else meterTypeIcon(m.type), null, tint = fg, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(label, color = fg, fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(stringResource(meterTypeLabel(m.type)), color = fg, fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1)
                     }
+                    Text(m.number, color = fg, fontFamily = NumberFont, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         typed?.let { stringResource(Res.string.meter_typed, formatReading(it)) } ?: stringResource(Res.string.meter_to_read),
                         color = fg, style = MaterialTheme.typography.bodyMedium,
@@ -150,6 +154,67 @@ private fun MeterTypeSwitch(s: MeterSwitchState) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MeterPicker(s: MeterSwitchState) {
+    var open by remember { mutableStateOf(false) }
+    val index = s.options.indexOfFirst { it.id == s.activeId }.coerceAtLeast(0)
+    val active = s.options[index]
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 8.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(AppColors.PendingTint)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        MeterTypeIcon(active.type, size = 40.dp)
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(Res.string.meter_n_of, index + 1, s.options.size), color = AppColors.SubInk, style = MaterialTheme.typography.bodyMedium)
+            Text("${stringResource(meterTypeLabel(active.type))} ${active.number}", fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 2)
+        }
+        OutlinedButton(onClick = { open = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(Res.string.change_meter)) }
+    }
+    if (open) {
+        AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text(stringResource(Res.string.choose_meter)) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    s.options.forEach { m ->
+                        val on = m.id == s.activeId
+                        val typed = s.typed(m.id)
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 64.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .border(if (on) 3.dp else 1.dp, if (on) AppColors.Navy else AppColors.Line, RoundedCornerShape(14.dp))
+                                .selectable(selected = on, role = Role.RadioButton) { s.pick(m.id); open = false }
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            MeterTypeIcon(m.type, size = 36.dp)
+                            Column(Modifier.weight(1f)) {
+                                Text("${stringResource(meterTypeLabel(m.type))} ${m.number}", fontWeight = FontWeight.Bold)
+                                Text(
+                                    typed?.let { stringResource(Res.string.meter_typed, formatReading(it)) } ?: stringResource(Res.string.meter_to_read),
+                                    color = AppColors.SubInk,
+                                )
+                            }
+                            if (on) Icon(Icons.Rounded.CheckCircle, stringResource(Res.string.meter_reading_now), tint = AppColors.Navy)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { open = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(Res.string.close)) } },
+        )
     }
 }
 

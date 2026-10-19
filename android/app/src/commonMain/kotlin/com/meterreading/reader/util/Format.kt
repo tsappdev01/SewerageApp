@@ -14,12 +14,8 @@ import kotlin.math.roundToLong
 private val MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 private val WEEKDAYS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
-/** Readings always use Western digits with thousands separators: 52,500. */
-fun formatReading(value: Long): String {
-    val digits = abs(value).toString()
-    val grouped = digits.reversed().chunked(3).joinToString(",").reversed()
-    return if (value < 0) "-$grouped" else grouped
-}
+/** Readings are plain Western digits with no separators, as on the meter: 52500 (DIP, Oct 2026). */
+fun formatReading(value: Long): String = value.toString()
 
 /** Left-pads to the register size, the way the meter's wheels show it: 00120. */
 fun registerDigits(value: Long, digits: Int): String = value.toString().padStart(digits, '0').takeLast(digits)

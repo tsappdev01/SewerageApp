@@ -46,10 +46,10 @@ class EndToEndTest {
         // Sewerage, last 99,950). The reader can switch between them; each shows its own last reading.
         // Sewerage is the one selected first.
         phone.waitText("Which meter?")
-        phone.waitContaining("99,950")
+        phone.waitContaining("99950")
         phone.shot("10_switch_sewerage_first")
         phone.tap("Irrigation")
-        phone.waitContaining("30,110")
+        phone.waitContaining("30110")
         phone.shot("11_switch_irrigation")
         // Irrigation is read and sent, typed with the phone's keyboard. Tenant T-0102 (FR-006.12).
         readMeter(number = "31050", tenantCode = "T-0102", prefix = "1", keyboard = true)

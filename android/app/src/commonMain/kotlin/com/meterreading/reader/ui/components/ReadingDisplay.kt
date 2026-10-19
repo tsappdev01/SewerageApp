@@ -19,7 +19,7 @@ import com.meterreading.reader.util.formatReading
 enum class ReadingStyle { Current, Previous }
 
 /**
- * A reading as a plain number, without the meter's leading zeros ("2,867", not "00002867"). Right-aligned
+ * A reading as a plain number, without the meter's leading zeros ("2867", not "00002867" or "2,867"). Right-aligned
  * like a calculator: while typing, each digit comes in from the right. [digits] empty shows "0" in grey.
  */
 @Composable

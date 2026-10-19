@@ -242,4 +242,16 @@ class MeterReadingScreenshots {
         compose.onNodeWithText("Finalize property").performClick()
         shot("17_finalize_confirm")
     }
+
+    /** A property with several Sewerage and Irrigation meters (1499-W1 has 7): the meter being read, and Change meter. */
+    @Test fun s18_several_meters() {
+        show { CaptureScreen("BC0007", onNextMeter = {}, onHome = {}, onExit = {}) }
+        shot("18_several_meters")
+    }
+
+    @Test fun s19_several_meters_choose() {
+        show { CaptureScreen("BC0007", onNextMeter = {}, onHome = {}, onExit = {}) }
+        compose.onNodeWithText("Change meter").performClick()
+        shot("19_several_meters_choose")
+    }
 }
