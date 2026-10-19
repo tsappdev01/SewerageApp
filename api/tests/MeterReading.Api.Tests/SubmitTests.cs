@@ -25,16 +25,36 @@ public sealed class SubmitTests(ApiFactory factory) : IAsyncLifetime
     private const string Anil = "anil@dip.example";
     private readonly List<Guid> _created = [];
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    /// <summary>Live readings before the test: a new reading supersedes them, so they are put back afterwards.</summary>
+    private readonly List<(Guid Id, string Status, string? Note)> _live = [];
+
+    public async Task InitializeAsync()
+    {
+        await using var c = new SqlConnection(ApiFactory.ConnectionString);
+        await c.OpenAsync();
+        await using var cmd = new SqlCommand("SELECT TransactionId, Status, StatusNote FROM mr.ReadingTransaction WHERE Status <> 'SUPERSEDED'", c);
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync()) _live.Add((r.GetGuid(0), r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2)));
+    }
 
     public async Task DisposeAsync()
     {
         if (_created.Count == 0) return;
         await using var c = new SqlConnection(ApiFactory.ConnectionString);
         await c.OpenAsync();
-        await using var cmd = new SqlCommand("DELETE FROM mr.ReadingTransaction WHERE TransactionId IN (SELECT CAST([value] AS uniqueidentifier) FROM OPENJSON(@ids))", c);
-        cmd.Parameters.AddWithValue("@ids", JsonSerializer.Serialize(_created));
-        await cmd.ExecuteNonQueryAsync();
+        await using (var cmd = new SqlCommand("DELETE FROM mr.ReadingTransaction WHERE TransactionId IN (SELECT CAST([value] AS uniqueidentifier) FROM OPENJSON(@ids))", c))
+        {
+            cmd.Parameters.AddWithValue("@ids", JsonSerializer.Serialize(_created));
+            await cmd.ExecuteNonQueryAsync();
+        }
+        foreach (var (id, status, note) in _live)
+        {
+            await using var cmd = new SqlCommand("UPDATE mr.ReadingTransaction SET Status = @status, StatusNote = @note WHERE TransactionId = @id AND Status = 'SUPERSEDED'", c);
+            cmd.Parameters.AddWithValue("@id", id);
+            cmd.Parameters.AddWithValue("@status", status);
+            cmd.Parameters.AddWithValue("@note", (object?)note ?? DBNull.Value);
+            await cmd.ExecuteNonQueryAsync();
+        }
     }
 
     private object Reading(string meterId, string condition = "WORKING", decimal? reading = null, string? reason = null, string? note = null,

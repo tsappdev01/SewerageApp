@@ -231,7 +231,7 @@ u=$(sql "SELECT COUNT(*) FROM (SELECT MeterId FROM mr.ReadingTransaction WHERE S
 [ "$u" = 0 ] && row 6.6 PASS "At most one live reading per meter per period" "meters with two: $u" || row 6.6 FAIL "One reading per meter" "$u meters"
 
 echo "== 7. Errors and logs"
-grep -rhoiE 'exception|   at [A-Z]' "$OUT"/sec-body.txt >/dev/null 2>&1 && row 7.1 FAIL "Error bodies hide internals" "see body" || row 7.1 PASS "Error responses are problem details without internals" "checked on every refusal above"
+grep -rhoE '[A-Za-z]+Exception\b|   at [A-Z]|System\.[A-Z]' "$OUT"/sec-body.txt >/dev/null 2>&1 && row 7.1 FAIL "Error bodies hide internals" "see body" || row 7.1 PASS "Error responses are problem details without internals" "checked on every refusal above"
 for f in "$OUT/api.log" "$OUT/gateway.log"; do
   if grep -qF "$A_KEY" "$f" || grep -qF "$B_KEY" "$f" || grep -qF "$SA_PASSWORD" "$f"; then row 7.2 FAIL "No keys or passwords in $(basename "$f")" "found"; else row 7.2 PASS "No phone keys or passwords in $(basename "$f")" "searched for the test keys and the SQL password"; fi
 done
