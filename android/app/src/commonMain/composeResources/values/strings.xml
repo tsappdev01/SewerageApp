@@ -80,6 +80,10 @@
     <string name="choose_meter">Which meter are you reading?</string>
     <string name="meter_reading_now">Reading now</string>
     <string name="close">Close</string>
+    <string name="read_again_title">Read %1$s again?</string>
+    <string name="read_again_text">This meter is already read this month. The new reading replaces it.</string>
+    <string name="read_again_yes">Read again</string>
+    <string name="read_again_no">Not now</string>
     <string name="use_keyboard">Type with phone keyboard</string>
     <string name="use_keypad">Use the big keypad</string>
     <string name="reading_now">Reading now</string>

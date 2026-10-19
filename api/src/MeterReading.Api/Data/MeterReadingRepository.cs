@@ -5,6 +5,9 @@ using Microsoft.Extensions.Options;
 namespace MeterReading.Api.Data;
 
 /// <summary>Narrows the meter list. Empty means all active meters.</summary>
+/// <summary>What happened to a new reading: stored (replacing any earlier one), or refused because the earlier one is billed.</summary>
+public enum StoreResult { Stored, AlreadyBilled }
+
 public sealed record MeterFilter(IReadOnlyCollection<string>? ZoneCodes = null, IReadOnlyCollection<string>? MeterIds = null);
 
 /// <summary>
@@ -401,28 +404,27 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     }
 
     /// <summary>
-    /// Inserts the reading unless the meter already has a live reading this period that is done or
-    /// being checked (ALREADY_READ). The check and insert run under a range lock on the meter's rows,
-    /// so two phones submitting at once cannot both succeed. Returns false when already read.
+    /// Inserts the reading as the meter's reading for the period. A meter can be read more than once a month
+    /// (DIP, Oct 2026): the earlier live readings become SUPERSEDED (kept, never deleted) and the new one counts.
+    /// Refused only when the earlier reading was already copied to PMS for billing, since that copy cannot be
+    /// taken back from here. Runs under a range lock on the meter's rows, so two phones at once cannot both win.
     /// </summary>
-    public async Task<bool> InsertTransactionUnlessReadAsync(NewTransactionRow row, CancellationToken ct)
+    public async Task<StoreResult> InsertTransactionReplacingAsync(NewTransactionRow row, CancellationToken ct)
     {
         const string sql = """
             SET XACT_ABORT ON;
             BEGIN TRANSACTION;
             IF EXISTS (
-                SELECT 1 FROM (
-                    SELECT TOP (1) t.Status, ISNULL(t.ConditionKind, t.MeterCondition) AS Kind
-                    FROM mr.ReadingTransaction t WITH (UPDLOCK, HOLDLOCK)
-                    WHERE t.PeriodCode = @PeriodCode AND t.MeterId = @MeterId AND t.Status <> 'SUPERSEDED'
-                    ORDER BY t.ReceivedAtUtc DESC, t.CapturedAtUtc DESC
-                ) latest
-                WHERE latest.Status <> 'REJECTED_BY_SUPERVISOR' AND latest.Kind <> 'NOT_ACCESSIBLE')
+                SELECT 1 FROM mr.ReadingTransaction t WITH (UPDLOCK, HOLDLOCK)
+                WHERE t.PeriodCode = @PeriodCode AND t.MeterId = @MeterId AND t.Status <> 'SUPERSEDED' AND t.PmsCopiedAtUtc IS NOT NULL)
             BEGIN
                 ROLLBACK TRANSACTION;
-                SELECT 0;
+                SELECT 2;
                 RETURN;
             END
+            UPDATE mr.ReadingTransaction WITH (UPDLOCK, HOLDLOCK)
+            SET Status = 'SUPERSEDED', StatusNote = CONCAT('Replaced by a later reading ', @TransactionId), StatusChangedAtUtc = SYSUTCDATETIME()
+            WHERE PeriodCode = @PeriodCode AND MeterId = @MeterId AND Status <> 'SUPERSEDED';
             INSERT mr.ReadingTransaction (TransactionId, PeriodCode, MeterId, ReaderId, DeviceId, MeterCondition, ConditionKind, ReasonCode, Remarks,
                 NewReading, PreviousReading, Consumption, OldFinalReading, NewMeterNumber, NewOpeningReading, NewCurrentReading,
                 Latitude, Longitude, GpsAccuracyM, CapturedAtUtc, Status, StatusNote, StatusChangedAtUtc, PayloadHash, ExpectedPhotos,
@@ -435,7 +437,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             SELECT 1;
             """;
         await using var c = await db.OpenMeterReadingAsync(ct);
-        return await c.ExecuteScalarAsync<int>(Cmd(sql, row, ct)) == 1;
+        return await c.ExecuteScalarAsync<int>(Cmd(sql, row, ct)) == 1 ? StoreResult.Stored : StoreResult.AlreadyBilled;
     }
 
     public async Task<ImageRow?> GetImageAsync(Guid imageId, CancellationToken ct)

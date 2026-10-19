@@ -84,7 +84,7 @@ POST /api/v1/readings
 Checks run in the order of spec §7.2. A refusal stores nothing and returns a problem `code`:
 `VALIDATION_FAILED`, `INVALID_LOV_CODE`, `TRANSACTION_ID_REUSED`, `NO_OPEN_PERIOD`,
 `CAPTURE_TIME_INVALID`, `METER_NOT_FOUND`, `NO_TENANT`, `TENANT_NOT_CONFIRMED`, `TENANT_CHANGED`,
-`MANDATORY_FIELD_MISSING`, `READING_EXCEEDS_REGISTER`, `ALREADY_READ`. A stored reading is `ACCEPTED`, or `EXCEPTION` for the supervisor with reasons
+`MANDATORY_FIELD_MISSING`, `READING_EXCEEDS_REGISTER`, `ALREADY_BILLED`. A stored reading is `ACCEPTED`, or `EXCEPTION` for the supervisor with reasons
 (`LOWER_THAN_PREVIOUS`, `HIGH_CONSUMPTION`, `ROLLOVER_OUT_OF_RANGE`, `DAMAGED_METER`,
 `METER_REPLACEMENT`, `METER_REMOVAL`). A meter can be read again only after the supervisor
 rejects its reading or when it was not accessible; the check runs under a lock, so two phones

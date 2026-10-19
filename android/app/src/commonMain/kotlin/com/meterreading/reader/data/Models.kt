@@ -19,6 +19,9 @@ enum class ReadingState {
     PENDING, QUEUED, SENT, CHECKING, READ_AGAIN, REVISIT;
 
     val canCapture: Boolean get() = this == PENDING || this == READ_AGAIN || this == REVISIT
+
+    /** Done this month but may be read again; the new reading replaces it on the server (DIP, Oct 2026). */
+    val canReadAgain: Boolean get() = this == SENT || this == CHECKING
 }
 
 /** A current tenant of a property (vw_MR_Tenant). */

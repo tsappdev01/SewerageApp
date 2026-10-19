@@ -136,9 +136,9 @@ public sealed class SubmitService(MeterReadingRepository repo, ReaderService rea
             SubTenant = Trimmed(r.SubTenant, 100),
         };
 
-        // ALREADY_READ is checked under a lock on the meter's rows, so two phones cannot both read it.
-        var stored = await repo.InsertTransactionUnlessReadAsync(row, ct);
-        if (!stored) return SubmitOutcome.Reject(409, "ALREADY_READ", "This meter was already read this period.");
+        // A new reading replaces the meter's earlier reading this period, unless that one is already billed.
+        if (await repo.InsertTransactionReplacingAsync(row, ct) == StoreResult.AlreadyBilled)
+            return SubmitOutcome.Reject(409, "ALREADY_BILLED", "This meter's reading was already sent for billing. Ask the office to change it.");
         return new SubmitOutcome(ToResponse(await repo.GetTransactionAsync(r.TransactionId, ct) ?? throw new InvalidOperationException("Inserted row not found.")), Created: true);
     }
 

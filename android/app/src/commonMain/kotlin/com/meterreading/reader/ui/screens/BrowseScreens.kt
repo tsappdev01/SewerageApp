@@ -169,6 +169,8 @@ fun MetersScreen(propertyCode: String, onMeter: (String) -> Unit, onBack: () -> 
     val meters by repo.meters.collectAsStateWithLifecycle()
     val list = remember(meters, propertyCode) { repo.metersAt(propertyCode, meters) }
     val next = list.firstOrNull { it.state.canCapture }
+    var again by remember { mutableStateOf<Meter?>(null) }
+    again?.let { m -> ReadAgainDialog(m, onYes = { again = null; onMeter(m.id) }, onNo = { again = null }) }
     Column(Modifier.fillMaxSize()) {
         AppTopBar(propertyCode, stringResource(Res.string.speak_meters), onBack)
         LazyColumn(
@@ -176,7 +178,7 @@ fun MetersScreen(propertyCode: String, onMeter: (String) -> Unit, onBack: () -> 
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(list, key = { it.id }) { m -> MeterCard(m, query = "", highlighted = m == next, onClick = { onMeter(m.id) }) }
+            items(list, key = { it.id }) { m -> MeterCard(m, query = "", highlighted = m == next, onClick = { onMeter(m.id) }, onReadAgain = { again = m }) }
         }
         if (list.isNotEmpty()) FinalizeBar(propertyCode, list)
     }
@@ -231,9 +233,30 @@ private fun FinalizeBar(propertyCode: String, meters: List<Meter>) {
     }
 }
 
+/** A meter already read this month can be read again; the reader is asked first, as the new reading replaces it. */
 @Composable
-fun MeterCard(m: Meter, query: String, highlighted: Boolean, onClick: () -> Unit) {
-    ListCard(onClick = if (m.state.canCapture) onClick else null, finished = !m.state.canCapture, highlighted = highlighted) {
+fun ReadAgainDialog(m: Meter, onYes: () -> Unit, onNo: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onNo,
+        title = { Text(stringResource(Res.string.read_again_title, m.number)) },
+        text = { Text(stringResource(Res.string.read_again_text), style = MaterialTheme.typography.bodyLarge) },
+        confirmButton = {
+            Button(onClick = onYes, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Navy), modifier = Modifier.heightIn(min = 52.dp)) {
+                Text(stringResource(Res.string.read_again_yes))
+            }
+        },
+        dismissButton = { TextButton(onClick = onNo, modifier = Modifier.heightIn(min = 52.dp)) { Text(stringResource(Res.string.read_again_no)) } },
+    )
+}
+
+@Composable
+fun MeterCard(m: Meter, query: String, highlighted: Boolean, onClick: () -> Unit, onReadAgain: (() -> Unit)? = null) {
+    val tap = when {
+        m.state.canCapture -> onClick
+        m.state.canReadAgain -> onReadAgain
+        else -> null
+    }
+    ListCard(onClick = tap, finished = !m.state.canCapture, highlighted = highlighted) {
         MeterTypeIcon(m.type, size = 52.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             HighlightedText(m.number, query, MaterialTheme.typography.titleLarge.copy(fontFamily = NumberFont, fontSize = 24.sp))

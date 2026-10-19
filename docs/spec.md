@@ -529,7 +529,7 @@ audit entry.
 | 4 | Payload schema and field formats | `VALIDATION_FAILED` (422, field errors) |
 | 5 | Period exists and is open | `PERIOD_CLOSED` |
 | 6 | Meter was assigned to the caller **at `CapturedAt`** (supports offline reassignment races) | `METER_NOT_ASSIGNED` |
-| 7 | Assignment not already Submitted/Exception/Completed by another accepted reading | `ALREADY_READ` (409) |
+| 7 | A meter can be read more than once a period: the new reading replaces the earlier one, which is kept as `SUPERSEDED`. Refused only when the earlier reading was already copied to PMS for billing (DIP, Oct 2026) | `ALREADY_BILLED` (409) |
 | 8 | `CapturedAt` not more than `ClockSkewToleranceMinutes` (5) in the future and not older than `MaxQueueAgeDays` (7) | `CAPTURE_TIME_INVALID` |
 | 9 | Mandatory fields and minimum image roles for the status (§6.1); LOV codes active | `MANDATORY_FIELD_MISSING`, `INVALID_LOV_CODE` |
 | 10 | Reading digits ≤ register size | `READING_EXCEEDS_REGISTER` |
@@ -1087,7 +1087,7 @@ is hidden (`/me` answers `canInspect: false`).
 | CAPTURE_TIME_INVALID | 422 | Clock skew or too old | Show "contact supervisor" |
 | PERIOD_CLOSED | 422 | Period not open | Show "contact supervisor" |
 | METER_NOT_ASSIGNED | 403 | Not assigned to caller at capture time | Remove locally; inform user |
-| ALREADY_READ | 409 | Another reading already accepted | Inform user |
+| ALREADY_BILLED | 409 | The meter's reading this period was already copied to PMS for billing; a new one cannot replace it | Inform user; the office changes it |
 | TRANSACTION_ID_REUSED | 409 | Same ID, different payload | Log as defect; re-capture with new ID |
 | DEVICE_REVOKED | 403 | Device revoked | Wipe per FR-002.3 |
 | DEVICE_NOT_REGISTERED | 403 | Unknown device or wrong key | Keep the queue; ask the supervisor to register the phone |

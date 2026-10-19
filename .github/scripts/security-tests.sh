@@ -217,9 +217,12 @@ n=$(sql "SELECT COUNT(*) FROM mr.ReadingTransaction WHERE TransactionId='$T3'")
 s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d "$(reading "$T3" "$M3" "$((V3 + 500))" "$N3")")
 [ "$s" = 409 ] && row 6.2 PASS "Same id with a changed number is refused (no overwrite)" "$s $(code_of)" || row 6.2 FAIL "Changed replay" "HTTP $s"
 s=$(call POST /api/v1/readings "${A[@]}" "${J[@]}" -d "$(reading "$(uuidgen)" "$M3" "$((V3 + 10))" "$N3")")
-[ "$s" = 409 ] && row 6.3 PASS "A meter already read cannot be read again by a new request" "$s $(code_of)" || row 6.3 FAIL "Second reading" "HTTP $s"
+old=$(sql "SELECT Status FROM mr.ReadingTransaction WHERE TransactionId='$T3'")
+{ [ "$s" = 201 ] && [ "$old" = SUPERSEDED ]; } || { [ "$s" = 409 ] && [ "$(code_of)" = ALREADY_BILLED ]; } \
+  && row 6.3 PASS "Reading a meter again replaces the earlier reading, kept as SUPERSEDED (or is refused once billed)" "$s, earlier: $old" \
+  || row 6.3 FAIL "Second reading" "HTTP $s, earlier $old"
 s=$(call POST /api/v1/readings "${B[@]}" "${J[@]}" -d "$(reading "$(uuidgen)" "$M3" "$((V3 + 20))" "$N3")")
-[ "$s" = 409 ] && row 6.4 PASS "Another reader cannot overwrite it either" "$s $(code_of)" || row 6.4 FAIL "Other reader overwrite" "HTTP $s"
+{ [ "$s" = 201 ] || [ "$s" = 409 ]; } && row 6.4 PASS "Another reader's new reading follows the same rule" "$s $(code_of)" || row 6.4 FAIL "Other reader" "HTTP $s"
 sleep 25
 n=$(sql "SELECT COUNT(*) FROM dbo.MaintainMeterReading m JOIN mr.ReadingTransaction t ON t.PmsRowId = m.RowId WHERE t.TransactionId='$T3'")
 dup=$(sql "SELECT COUNT(*) FROM (SELECT PmsRowId FROM mr.ReadingTransaction WHERE PmsRowId IS NOT NULL GROUP BY PmsRowId HAVING COUNT(*) > 1) d")

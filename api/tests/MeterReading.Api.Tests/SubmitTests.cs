@@ -155,12 +155,34 @@ public sealed class SubmitTests(ApiFactory factory) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task A_meter_cannot_be_read_twice()
+    public async Task A_meter_read_again_this_month_keeps_the_new_reading_and_supersedes_the_old()
     {
-        await Post(Reading("BC0003", reading: 30_500));
-        var (status, body) = await Post(Reading("BC0003", reading: 30_510), Anil);
+        var first = Guid.NewGuid();
+        await Post(Reading("BC0003", reading: 30_500, id: first));
+        var second = Guid.NewGuid();
+        var (status, body) = await Post(Reading("BC0003", reading: 30_510, id: second), Anil);
+        Assert.Equal(HttpStatusCode.Created, status);
+        Assert.Equal("ACCEPTED", body.GetProperty("status").GetString());
+        Assert.Equal("SUPERSEDED", await Scalar("SELECT Status FROM mr.ReadingTransaction WHERE TransactionId = @id", first));
+        Assert.Equal("ACCEPTED", await Scalar("SELECT Status FROM mr.ReadingTransaction WHERE TransactionId = @id", second));
+    }
+
+    [Fact]
+    public async Task A_reading_already_copied_for_billing_is_not_replaced()
+    {
+        var first = Guid.NewGuid();
+        await Post(Reading("BC0003", reading: 30_500, id: first));
+        await using (var c = new SqlConnection(ApiFactory.ConnectionString))
+        {
+            await c.OpenAsync();
+            await using var cmd = new SqlCommand("UPDATE mr.ReadingTransaction SET PmsCopiedAtUtc = SYSUTCDATETIME() WHERE TransactionId = @id", c);
+            cmd.Parameters.AddWithValue("@id", first);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        var (status, body) = await Post(Reading("BC0003", reading: 30_510));
         Assert.Equal(HttpStatusCode.Conflict, status);
-        Assert.Equal("ALREADY_READ", Code(body));
+        Assert.Equal("ALREADY_BILLED", Code(body));
+        Assert.Equal("ACCEPTED", await Scalar("SELECT Status FROM mr.ReadingTransaction WHERE TransactionId = @id", first));
     }
 
     [Fact]

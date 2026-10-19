@@ -67,7 +67,7 @@ the phone acts on the code.
 |---|---|---|
 | Same reading sent twice stores it once | 6.1, app test (retries), db check 8 | Pass |
 | Same id with a changed number cannot overwrite | 6.2 | Pass: 409 |
-| A read meter cannot be read again, by anyone | 6.3, 6.4 | Pass: 409 `ALREADY_READ` |
+| Reading a meter again replaces the earlier reading (kept as SUPERSEDED); refused once billed | 6.3, 6.4 | Pass: 201, or 409 `ALREADY_BILLED` |
 | No duplicate rows in `MaintainMeterReading` | 6.5, db check 9 | Pass |
 
 ## 7. Files

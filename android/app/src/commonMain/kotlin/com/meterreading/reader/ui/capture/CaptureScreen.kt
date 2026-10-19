@@ -64,7 +64,8 @@ fun CaptureScreen(meterId: String, onNextMeter: (String) -> Unit, onHome: () -> 
     // meter when it has one still to read (MeterSwitch sorts Sewerage first).
     var activeId by rememberSaveable(meterId) {
         val all = AppGraph.repository.meters.value
-        mutableStateOf(all.firstOrNull { it.id == meterId }?.let { MeterSwitch.options(all, it).first().id } ?: meterId)
+        // A meter opened to be read again (already done) opens on itself.
+        mutableStateOf(all.firstOrNull { it.id == meterId }?.takeIf { it.state.canCapture }?.let { MeterSwitch.options(all, it).first().id } ?: meterId)
     }
     val meters by AppGraph.repository.meters.collectAsState()
     val first: CaptureViewModel = viewModel(key = "capture-$activeId") { CaptureViewModel(AppGraph.repository, activeId) }
