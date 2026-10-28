@@ -33,6 +33,7 @@ import com.meterreading.reader.ui.theme.NumberFont
 import kotlinx.coroutines.launch
 import com.meterreading.reader.util.formatReading
 import com.meterreading.reader.util.formatTime
+import com.meterreading.reader.util.fill
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -134,6 +135,15 @@ fun SummaryScreen(onBack: () -> Unit) {
     var sending by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val noSignal = stringResource(Res.string.no_signal_now)
+    // FR-037.13: Finalize month = supervisor PIN, then a confirmation, then close (after sending what waits here).
+    val periodClosed by repo.periodClosed.collectAsStateWithLifecycle()
+    var askPin by remember { mutableStateOf(false) }
+    var askConfirm by remember { mutableStateOf(false) }
+    var closing by remember { mutableStateOf(false) }
+    val doneText = stringResource(Res.string.finalize_month_done)
+    val alreadyText = stringResource(Res.string.finalize_month_already)
+    val waitingText = stringResource(Res.string.finalize_month_waiting)
+    val closeNoSignal = stringResource(Res.string.finalize_month_no_signal)
 
     Column(Modifier.fillMaxSize()) {
         AppTopBar(stringResource(Res.string.summary_title), stringResource(Res.string.speak_summary), onBack)
@@ -144,6 +154,9 @@ fun SummaryScreen(onBack: () -> Unit) {
                 .padding(horizontal = 16.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            if (periodClosed) {
+                Banner(stringResource(Res.string.period_closed), Icons.Rounded.Lock, AppColors.Taupe, AppColors.TaupeTint)
+            }
             if (photosWaiting > 0) {
                 Banner(stringResource(Res.string.summary_photos_waiting, photosWaiting), Icons.Rounded.PhotoCamera, AppColors.Queued, AppColors.QueuedTint)
             }
@@ -188,6 +201,16 @@ fun SummaryScreen(onBack: () -> Unit) {
             r.lastUpload?.let {
                 Text(stringResource(Res.string.summary_last_upload, formatTime(it)), color = AppColors.SubInk)
             }
+            if (!periodClosed) {
+                // Secondary: "Upload now" stays the screen's one primary button.
+                BigButton(
+                    text = if (closing) stringResource(Res.string.finalize_month_working) else stringResource(Res.string.finalize_month),
+                    onClick = { askPin = true },
+                    enabled = !closing && !sending,
+                    icon = Icons.Rounded.Lock,
+                    kind = BigButtonKind.Secondary,
+                )
+            }
         }
         if (!r.allUploaded || photosWaiting > 0) {
             BigButton(
@@ -204,6 +227,37 @@ fun SummaryScreen(onBack: () -> Unit) {
                 modifier = Modifier.padding(16.dp),
             )
         }
+    }
+
+    if (askPin) {
+        SupervisorPinDialog(onVerified = { askPin = false; askConfirm = true }, onDismiss = { askPin = false })
+    }
+    if (askConfirm) {
+        AlertDialog(
+            onDismissRequest = { askConfirm = false },
+            title = { Text(stringResource(Res.string.finalize_month_title)) },
+            text = { Text(stringResource(Res.string.finalize_month_body, r.read, r.checking, r.notRead)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        askConfirm = false
+                        closing = true
+                        scope.launch {
+                            val message = when (val result = repo.closeMonth()) {
+                                is CloseMonthResult.Done -> (if (result.alreadyClosed) alreadyText else doneText).fill(result.periodCode)
+                                is CloseMonthResult.StillWaiting -> waitingText.fill(result.items)
+                                CloseMonthResult.NoSignal -> closeNoSignal
+                                is CloseMonthResult.Refused -> result.message
+                            }
+                            Messages.show(message)
+                            closing = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Navy),
+                ) { Text(stringResource(Res.string.finalize_month_ok)) }
+            },
+            dismissButton = { TextButton(onClick = { askConfirm = false }) { Text(stringResource(Res.string.pin_cancel)) } },
+        )
     }
 }
 

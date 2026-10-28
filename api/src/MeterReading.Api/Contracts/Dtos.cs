@@ -146,6 +146,9 @@ public sealed record SubmitReadingResponse(
     IReadOnlyList<string> Exceptions);
 
 /// <summary>A stored photo (spec FR-009).</summary>
+/// <summary>FR-037.13: the month closed from the phone. <c>AlreadyClosed</c> when it was closed before.</summary>
+public sealed record ClosePeriodResponse(string PeriodCode, bool AlreadyClosed);
+
 public sealed record ImageUploadResponse(Guid ImageId, Guid TransactionId, string Role, int SizeBytes, string Sha256);
 
 /// <summary>A row of mr.MaintainFinalizedMeter (FR-037.3): an empty side is meter number "0" and 0s.</summary>

@@ -62,6 +62,7 @@ Errors are RFC 9457 problem details with a `code` (e.g. `READER_NOT_FOUND`, `NO_
 | `GET /sync/meters?zone=` | Zones, properties and meters to read, with last reading, expected range and state (`PENDING`, `SENT`, `CHECKING`, `READ_AGAIN`, `REVISIT`) |
 | `GET /properties/search?q=&zone=&done=&type=` | Find a Property: matches code, name or meter number, ignoring case, spaces and dashes |
 | `POST /properties/{code}/finalize` | Spec FR-037: once every meter of the property is read and stored, writes its readings for the open period to `mr.MaintainFinalizedMeter`, one row per meter number (sewerage and irrigation side by side, `0` on an empty side). Again: a new set, the earlier one kept with `IsCurrent = 0`. Codes: `PROPERTY_NOT_COMPLETE`, `PROPERTY_NOT_FOUND`, `FINALIZE_OFF` (db/017 not run) |
+| `POST /periods/current/close` | Spec FR-037.13: "Finalize month" on My summary (behind the supervisor PIN) closes the open billing month for every reader, like `ops/close_reading_period.sql`, kept with the reader and phone. Unread meters and exceptions do not stop it; no billing rows are written. Safe to repeat (`alreadyClosed`). Code: `NO_OPEN_PERIOD`, `FINALIZE_OFF` (db/024 not run) |
 | `GET /readings/mine?period=` | The reader's submissions |
 | `GET /summary?period=&zone=` | Reconciliation: meters, read, accepted, being checked, read again, visit again, not read, read by you, per zone |
 | `GET /meters/{id}` | One active meter (id = barcode) with history when the history view exists |

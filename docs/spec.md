@@ -660,6 +660,7 @@ readings per hour, last sync per reader/device.
 | FR-037.12 | Each finalized row also has `VATCode` = `SSD`, `ChargeType1` = `sew`, `ChargeType2` = `Irri` (fixed values, DIP 2026-10-18) and `CompanyName`, the tenant's company in `vw_MR_Tenant` when finalizing (db/025). |
 | FR-037.11 | When the last property of the period is finalized, posting is complete and the period is **closed** (`mr.ReadingPeriodStatus`, db/024; PMS's view is never written to). While closed, phones still see the period but cannot send readings (`PERIOD_CLOSED`: readings wait on the phone) and nothing can be finalized, until IT opens it again (`db/ops/reopen_reading_period.sql`); `db/ops/close_reading_period.sql` closes it by hand. Home says the period is closed. |
 | FR-037.4 | Finalizing again (after a meter was read again) writes a new set; the earlier rows stay with `IsCurrent = 0`. Each row keeps who finalized it, from which phone, when, and the readings it came from. |
+| FR-037.13 | **Finalize month (DIP 2026-10-28).** My summary has a **Finalize month** button behind the supervisor PIN. It sends what waits on the phone first (nothing is closed if anything is left), asks for confirmation (read, being checked and not-read counts) and calls `POST /api/v1/periods/current/close`, which closes the open period for every reader as `db/ops/close_reading_period.sql` does (`mr.ReadingPeriodStatus`, ChangedBy = reader and phone, Note "Finalize month from the app"). Meters still unread and readings being checked do not stop it; no billing rows are written. Safe to repeat (`alreadyClosed`). IT opens it again with `db/ops/reopen_reading_period.sql`. |
 
 ## 9. Offline operation and synchronisation
 
@@ -825,6 +826,7 @@ published with each build and is the contract for the Android client.
 | `POST /readings` | Submit one reading (JSON, with `photoCount`). Returns `{transactionId, meterId, status, state, consumption, exceptions[]}` with 201 (new) or 200 (idempotent repeat) |
 | `PUT /readings/{transactionId}/images/{imageId}?role=&capturedAtUtc=` | Upload one photo after its reading: body `image/jpeg`, header `X-Content-SHA256`. 201 new, 200 repeat. Decided 2026-10-04 instead of one multipart request, so a reading is never held up by its photos |
 | `POST /properties/{propertyCode}/finalize` | FR-037: write the property's readings to `mr.MaintainFinalizedMeter`. 200 with the rows written |
+| `POST /periods/current/close` | FR-037.13: close the open billing month ("Finalize month"). 200 `{ periodCode, alreadyClosed }` |
 | `GET /readings/mine?period=&status=&page=` | Own submissions |
 | `GET /readings/{transactionId}` | One own submission and its outcome |
 

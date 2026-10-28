@@ -201,6 +201,15 @@
     <string name="summary_not_uploaded">%1$d readings are still on this phone</string>
     <string name="summary_photos_waiting">%1$d photos are still on this phone</string>
     <string name="summary_last_upload">Last upload %1$s</string>
+    <string name="finalize_month">Finalize month</string>
+    <string name="finalize_month_title">Finalize this month?</string>
+    <string name="finalize_month_body">%1$d meters read, %2$d being checked, %3$d not read yet. Readings on this phone are sent first. Then the month is closed for every reader: no more readings can be sent for it until the office opens it again.</string>
+    <string name="finalize_month_ok">Finalize</string>
+    <string name="finalize_month_working">Finalizing…</string>
+    <string name="finalize_month_done">Month %1$s is closed.</string>
+    <string name="finalize_month_already">Month %1$s was already closed.</string>
+    <string name="finalize_month_waiting">%1$d items could not be sent from this phone. Nothing was closed. Try again with signal.</string>
+    <string name="finalize_month_no_signal">No signal. Nothing was closed. Try again with signal.</string>
     <string name="summary_chart">%1$d meters: %2$d accepted, %3$d being checked, %4$d read again, %5$d visit again, %6$d waiting to upload, %7$d not read</string>
     <string name="upload_now">Upload now (%1$d)</string>
     <string name="no_signal_now">No signal now. It will send by itself later.</string>

@@ -65,6 +65,19 @@ abstract class MeterRepository {
     open suspend fun finalizeProperty(propertyCode: String): FinalizeResult =
         FinalizeResult.Done(metersAt(propertyCode, meters.value).map { it.number }.distinct().size)
 
+    /**
+     * FR-037.13: "Finalize month". Sends what waits on the phone first; only when nothing is left does it ask
+     * the server to close the open month for every reader. Sample data has no server: it says the month closed.
+     */
+    open suspend fun closeMonth(): CloseMonthResult {
+        sendQueued()
+        if (hasWaiting()) return CloseMonthResult.StillWaiting(waitingItems())
+        return CloseMonthResult.Done("demo", alreadyClosed = false)
+    }
+
+    /** Readings and photos still on the phone. */
+    fun waitingItems(): Int = photosWaiting.value + readings.value.count { it.state == ReadingState.QUEUED }
+
     /** Sends readings and photos saved on the phone. Returns how many items were sent. */
     abstract suspend fun sendQueued(): Int
 
