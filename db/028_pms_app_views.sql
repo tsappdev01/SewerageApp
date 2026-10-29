@@ -94,21 +94,21 @@ GO
 
 CREATE OR ALTER VIEW mr.vw_MR_Meter
 AS
-WITH openPeriod AS (
-    SELECT TOP (1) CONVERT(char(7), CAST(StartDate AS date), 126) AS PeriodCode
+WITH openPeriod AS (       -- month as a number (2026-9 -> 202609): PMS's codes have no leading zero, so text order is wrong
+    SELECT TOP (1) YEAR(StartDate) * 100 + MONTH(StartDate) AS MonthKey
     FROM dbo.vw_MR_ReadingPeriod WHERE Status = 'OPEN' ORDER BY StartDate DESC
 ),
 appReadings AS (           -- uploaded readings of earlier months: the latest per meter per month
-    SELECT t.MeterId, t.PeriodCode,
+    SELECT t.MeterId, (CAST(LEFT(t.PeriodCode, 4) AS int) * 100 + CAST(SUBSTRING(t.PeriodCode, 6, 2) AS int)) AS MonthKey,
            COALESCE(t.NewCurrentReading, t.NewReading) AS Reading, t.Consumption,
            ROW_NUMBER() OVER (PARTITION BY t.MeterId, t.PeriodCode ORDER BY t.CapturedAtUtc DESC, t.ReceivedAtUtc DESC) AS inMonth
     FROM mr.ReadingTransaction t
     WHERE COALESCE(t.NewCurrentReading, t.NewReading) IS NOT NULL
       AND t.Status <> 'SUPERSEDED'
-      AND t.PeriodCode < (SELECT PeriodCode FROM openPeriod)
+      AND (CAST(LEFT(t.PeriodCode, 4) AS int) * 100 + CAST(SUBSTRING(t.PeriodCode, 6, 2) AS int)) < (SELECT MonthKey FROM openPeriod)
 ),
 appMonths AS (             -- months numbered newest first (1 = latest)
-    SELECT *, ROW_NUMBER() OVER (PARTITION BY MeterId ORDER BY PeriodCode DESC) AS rn
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY MeterId ORDER BY MonthKey DESC) AS rn
     FROM appReadings WHERE inMonth = 1
 ),
 appAgg AS (
