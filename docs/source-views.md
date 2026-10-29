@@ -10,6 +10,10 @@ column. Default schema: `dbo` (`SourceViews:Schema` in `appsettings.json`).
 Run `db/001_check_source_views.sql` in that database after any change to the views. Result 1
 lists missing columns and wrong types; result 2 lists data problems and notes, with a count.
 
+> **DIP 2026-10-29: moving to PropertyManagementSystem.** The app's tables and views move from MRDB into
+> PropertyManagementSystem, schema `mr` (`mr.vw_MR_*` over PMS's `dbo.vw_MR_*`, made by `db/028`; the API
+> uses `SourceViews:Schema = mr`). Until the switch (docs/move-to-pms.md) the MRDB wrappers below are what runs.
+
 ## Conventions
 
 - Keep the column names below; aliases in the view are fine.

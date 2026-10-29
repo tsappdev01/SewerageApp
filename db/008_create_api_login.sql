@@ -25,7 +25,7 @@ DECLARE @AllowPmsCopy bit = 0;                            -- 1 only when PmsTran
 
 DECLARE @Login sysname = ISNULL(@WindowsLogin, N'mr_api');
 
-IF DB_NAME() <> N'MRDB'
+IF DB_NAME() NOT IN (N'MRDB', N'PropertyManagementSystem')
     PRINT N'Note: running in ' + DB_NAME() + N', not MRDB. Run it in the database that holds schema mr.';
 
 IF SUSER_ID(@Login) IS NULL

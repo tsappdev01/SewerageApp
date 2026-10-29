@@ -8,6 +8,13 @@
 
   Not for development databases: db/dev/000 makes its own stand-in.
 */
+IF DB_NAME() = N'PropertyManagementSystem'
+BEGIN
+    -- In PMS this would replace PMS's own view with one that reads itself.
+    RAISERROR(N'MRDB only: this makes MRDB''s wrapper view over PMS''s view of the same name. In PropertyManagementSystem run db/028_pms_app_views.sql instead.', 16, 1) WITH NOWAIT;
+    SET NOEXEC ON;
+END
+GO
 IF DB_ID(N'PropertyManagementSystem') IS NULL
 BEGIN
     RAISERROR(N'Database PropertyManagementSystem not found on this server.', 16, 1);
@@ -24,4 +31,6 @@ SELECT PropertyId, PropertyCode, PropertyName, ZoneCode, RouteSequence, Latitude
        TenantCode, CompanyName, TranCode
 FROM PropertyManagementSystem.dbo.vw_MR_Property;');
 PRINT N'dbo.vw_MR_Property updated with TranCode.';
+GO
+SET NOEXEC OFF;
 GO

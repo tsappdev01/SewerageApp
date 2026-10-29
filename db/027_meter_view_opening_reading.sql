@@ -16,6 +16,13 @@
   vw_MR_Meter (granted at the end; change [mr_api] if the user has another name). Run in MRDB after 026.
   Re-runnable.
 */
+IF DB_NAME() = N'PropertyManagementSystem'
+BEGIN
+    -- In PMS this would replace PMS's own view with one that reads itself.
+    RAISERROR(N'MRDB only: this makes MRDB''s wrapper view over PMS''s view of the same name. In PropertyManagementSystem run db/028_pms_app_views.sql instead.', 16, 1) WITH NOWAIT;
+    SET NOEXEC ON;
+END
+GO
 CREATE OR ALTER VIEW dbo.vw_MR_Meter_Base
 AS
 SELECT b.Barcode                          AS MeterId,
@@ -78,4 +85,6 @@ GO
 
 IF DATABASE_PRINCIPAL_ID(N'mr_api') IS NOT NULL
     GRANT SELECT ON dbo.vw_MR_Meter TO [mr_api];
+GO
+SET NOEXEC OFF;
 GO

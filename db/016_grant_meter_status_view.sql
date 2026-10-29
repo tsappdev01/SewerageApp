@@ -5,6 +5,13 @@
   Grants in MRDB (the wrapper view) and in PropertyManagementSystem (the view it reads; ownership
   chaining between databases is off). Run by a DBA in MRDB. Re-runnable.
 */
+IF DB_NAME() = N'PropertyManagementSystem'
+BEGIN
+    -- In PMS this would replace PMS's own view with one that reads itself.
+    RAISERROR(N'MRDB only: this makes MRDB''s wrapper view over PMS''s view of the same name. In PropertyManagementSystem run db/028_pms_app_views.sql instead.', 16, 1) WITH NOWAIT;
+    SET NOEXEC ON;
+END
+GO
 SET NOCOUNT ON;
 DECLARE @Login sysname = N'mr_api';                      -- or the IIS app pool's Windows login, as in db/008
 DECLARE @ViewsDb sysname = N'PropertyManagementSystem';  -- where the real vw_MR_MeterStatus lives
@@ -33,3 +40,5 @@ BEGIN
     EXEC @run @sql, N'@login sysname', @login = @Login;
     PRINT N'SELECT on ' + @ViewsDb + N'.dbo.vw_MR_MeterStatus granted to ' + @Login + N'.';
 END
+SET NOEXEC OFF;
+GO
