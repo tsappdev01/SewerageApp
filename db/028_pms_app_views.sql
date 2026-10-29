@@ -23,9 +23,10 @@
   in PMS's views.
 */
 SET NOCOUNT ON;
-IF DB_NAME() <> N'PropertyManagementSystem'
+DECLARE @db sysname = DB_NAME();
+IF @db <> N'PropertyManagementSystem'
 BEGIN
-    RAISERROR(N'Run this in PropertyManagementSystem (now in %s).', 16, 1, DB_NAME()) WITH NOWAIT;
+    RAISERROR(N'Run this in PropertyManagementSystem (now in %s).', 16, 1, @db) WITH NOWAIT;
     SET NOEXEC ON;
 END
 GO
