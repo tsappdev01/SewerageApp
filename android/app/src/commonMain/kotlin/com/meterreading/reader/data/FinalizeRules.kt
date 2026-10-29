@@ -12,6 +12,16 @@ object FinalizeRules {
     fun left(meters: List<Meter>): Int = meters.count { !isRead(it.state) }
 }
 
+/** FR-037.13: what "Finalize month" did. */
+sealed interface CloseMonthResult {
+    /** The month [periodCode] is closed ([alreadyClosed]: it was closed before). */
+    data class Done(val periodCode: String, val alreadyClosed: Boolean) : CloseMonthResult
+    /** [items] readings or photos could not be sent first: nothing was closed. */
+    data class StillWaiting(val items: Int) : CloseMonthResult
+    data object NoSignal : CloseMonthResult
+    data class Refused(val message: String) : CloseMonthResult
+}
+
 sealed interface FinalizeResult {
     /** Written: [rows] rows of mr.MaintainFinalizedMeter. */
     data class Done(val rows: Int) : FinalizeResult

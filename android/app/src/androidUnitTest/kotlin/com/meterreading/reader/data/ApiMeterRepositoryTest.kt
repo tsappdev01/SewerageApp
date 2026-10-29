@@ -102,6 +102,28 @@ class ApiMeterRepositoryTest {
     }
 
     @Test
+    fun `FR-037_13 finalize month closes the open month and the phone shows it closed`() {
+        signIn(); takeRequests(3)
+        enqueue(200, """{"periodCode":"2026-10","alreadyClosed":false}""")
+        enqueue(200, sync.replace("\"status\":\"OPEN\"", "\"status\":\"CLOSED\""))
+        enqueue(200, mine)
+        val result = runBlocking { repo.closeMonth() }
+        assertEquals(CloseMonthResult.Done("2026-10", alreadyClosed = false), result)
+        assertTrue(repo.periodClosed.value)
+        val close = server.takeRequest()
+        assertEquals("POST", close.method)
+        assertEquals("/api/v1/periods/current/close", close.path)
+    }
+
+    @Test
+    fun `FR-037_13 finalize month without signal closes nothing`() {
+        signIn(); takeRequests(3)
+        offline = true
+        assertEquals(CloseMonthResult.NoSignal, runBlocking { repo.closeMonth() })
+        assertEquals(false, repo.periodClosed.value)
+    }
+
+    @Test
     fun `sign in shows the server's reason when refused`() {
         enqueue(409, """{"title":"More than one active reader has this sign-in name.","status":409,"code":"LOGIN_NOT_UNIQUE"}""")
         val result = runBlocking { repo.signIn("shared@dip.example") }

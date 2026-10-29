@@ -108,6 +108,12 @@ class ApiClient(
             json.decodeFromString(FinalizedPropertyDto.serializer(), it)
         }
 
+    /** FR-037.13: closes the open billing month for every reader ("Finalize month", behind the supervisor PIN). */
+    suspend fun closePeriod(): ClosePeriodDto =
+        send(HttpMethod.Post, "/api/v1/periods/current/close", {}) {
+            json.decodeFromString(ClosePeriodDto.serializer(), it)
+        }
+
     /** One photo of a stored reading (FR-009). The server checks the bytes against [sha256Hex]. */
     suspend fun uploadPhoto(
         transactionId: String,

@@ -318,6 +318,33 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FR037_13_finalize_month_closes_the_open_period_with_meters_still_unread()
+    {
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Dev-User", Rashid);
+
+        // Meters are still unread in the dev data: the month closes anyway (DIP 2026-10-28).
+        var close = await client.PostAsync("/api/v1/periods/current/close", null);
+        Assert.Equal(HttpStatusCode.OK, close.StatusCode);
+        var body = await close.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("2026-10", body.GetProperty("periodCode").GetString());
+        Assert.False(body.GetProperty("alreadyClosed").GetBoolean());
+
+        var sync = await client.GetFromJsonAsync<JsonElement>("/api/v1/sync/meters?zone=597");
+        Assert.Equal("CLOSED", sync.GetProperty("period").GetProperty("status").GetString());
+        var again = await (await client.PostAsync("/api/v1/periods/current/close", null)).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(again.GetProperty("alreadyClosed").GetBoolean());   // safe to repeat
+
+        await using var c = new SqlConnection(ApiFactory.ConnectionString);
+        await c.OpenAsync();
+        await using var cmd = new SqlCommand("SELECT ChangedBy, Note FROM mr.ReadingPeriodStatus WHERE PeriodCode = '2026-10'", c);
+        await using var r = await cmd.ExecuteReaderAsync();
+        Assert.True(await r.ReadAsync());
+        Assert.False(string.IsNullOrEmpty(r.GetString(0)));
+        Assert.Equal("Finalize month from the app", r.GetString(1));
+    }
+
+    [Fact]
     public async Task Unknown_property_is_404()
     {
         var (status, body) = await FinalizeProperty("NO-SUCH");

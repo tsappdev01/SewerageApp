@@ -182,6 +182,10 @@ data class FinalizedMeterDto(
     val chargeType2: String? = null,
 )
 
+/** FR-037.13: "Finalize month" closed [periodCode]; [alreadyClosed] when it was closed before. */
+@Serializable
+data class ClosePeriodDto(val periodCode: String, val alreadyClosed: Boolean = false)
+
 /** What "Finalize property" wrote (FR-037). */
 @Serializable
 data class FinalizedPropertyDto(

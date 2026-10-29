@@ -74,6 +74,11 @@ One row per meter.
 | FloatValue | number | Pricing (spec FR-037.5): amount = consumption × FloatValue × 1.2 × (RateFactor / 100). UAT: 220. Added 2026-10-18 (db/018). |
 | RateFactor | number | Percent, see FloatValue. UAT: 1.50. |
 
+**DIP 2026-10-28 (db/026, db/027):** on UAT and Production `vw_MR_Meter` is built in MRDB on `vw_MR_Meter_Base`
+(PMS `MaintainPropertyMeter`). Its OpeningReading, LastConsumption and AvgConsumption come from the meter's latest
+uploaded reading of a month before the open one in `mr.ReadingTransaction`, else from `mr.MeterOpeningReading`
+(PMS history, last 2 years; AvgConsumption = average of the 3 months before the latest), else 0.
+
 ## 5. `vw_MR_ReadingPeriod`
 
 | Column | Read as | Notes |

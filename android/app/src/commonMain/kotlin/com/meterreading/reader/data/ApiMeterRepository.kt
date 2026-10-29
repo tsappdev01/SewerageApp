@@ -256,6 +256,25 @@ class ApiMeterRepository(
         FinalizeResult.Refused(e.title)
     }
 
+    override suspend fun closeMonth(): CloseMonthResult {
+        // Everything on the phone goes up first: a month closed with readings still here would refuse them.
+        if (hasWaiting()) sendQueued()
+        if (hasWaiting()) return if (online.value) CloseMonthResult.StillWaiting(waitingItems()) else CloseMonthResult.NoSignal
+        return try {
+            val result = api.closePeriod()
+            online.value = true
+            _periodClosed.value = true
+            refresh()
+            CloseMonthResult.Done(result.periodCode, result.alreadyClosed)
+        } catch (e: IOException) {
+            online.value = false
+            CloseMonthResult.NoSignal
+        } catch (e: ApiException) {
+            if (e.needsSignIn) { signInReason = e.title; signInNeeded.value = true }
+            CloseMonthResult.Refused(e.title)
+        }
+    }
+
     override suspend fun sendQueued(): Int {
         var sent = 0
         lock.withLock {
