@@ -100,42 +100,60 @@ WITH openPeriod AS (       -- month as a number (2026-9 -> 202609): PMS's codes 
     SELECT TOP (1) YEAR(StartDate) * 100 + MONTH(StartDate) AS MonthKey
     FROM dbo.vw_MR_ReadingPeriod WHERE Status = 'OPEN' ORDER BY StartDate DESC
 ),
-appReadings AS (           -- uploaded readings of earlier months: the latest per meter per month
-    SELECT t.MeterId, (CAST(LEFT(t.PeriodCode, 4) AS int) * 100 + CAST(SUBSTRING(t.PeriodCode, 6, 2) AS int)) AS MonthKey,
-           COALESCE(t.NewCurrentReading, t.NewReading) AS Reading, t.Consumption,
-           ROW_NUMBER() OVER (PARTITION BY t.MeterId, t.PeriodCode ORDER BY t.CapturedAtUtc DESC, t.ReceivedAtUtc DESC) AS inMonth
-    FROM mr.ReadingTransaction t
-    WHERE COALESCE(t.NewCurrentReading, t.NewReading) IS NOT NULL
-      AND t.Status <> 'SUPERSEDED'
-      AND (CAST(LEFT(t.PeriodCode, 4) AS int) * 100 + CAST(SUBSTRING(t.PeriodCode, 6, 2) AS int)) < (SELECT MonthKey FROM openPeriod)
+billed AS (                -- each meter of each finalized (billed) month before the open one, sewerage and irrigation side
+    SELECT f.PropertyCode, 'S' AS Type, f.MeterNumberSewerage AS MeterNumber, f.CurrentReadingSewerage AS Reading,
+           f.ConsumptionSewerage AS Consumption,
+           CAST(LEFT(f.PeriodCode, 4) AS int) * 100 + CAST(SUBSTRING(f.PeriodCode, 6, 2) AS int) AS MonthKey
+    FROM mr.MaintainFinalizedMeter f
+    WHERE f.IsCurrent = 1 AND f.MeterNumberSewerage <> '0' AND f.SewerageTransactionId IS NOT NULL
+      AND NOT (f.CurrentReadingSewerage = 0 AND f.PrevReadingSewerage > 0)   -- not accessible: no reading that month
+    UNION ALL
+    SELECT f.PropertyCode, 'I', f.MeterNumberIrrigation, f.CurrentReadingIrrigation, f.ConsumptionIrrigation,
+           CAST(LEFT(f.PeriodCode, 4) AS int) * 100 + CAST(SUBSTRING(f.PeriodCode, 6, 2) AS int)
+    FROM mr.MaintainFinalizedMeter f
+    WHERE f.IsCurrent = 1 AND f.MeterNumberIrrigation <> '0' AND f.IrrigationTransactionId IS NOT NULL
+      AND NOT (f.CurrentReadingIrrigation = 0 AND f.PrevReadingIrrigation > 0)
 ),
-appMonths AS (             -- months numbered newest first (1 = latest)
-    SELECT *, ROW_NUMBER() OVER (PARTITION BY MeterId ORDER BY MonthKey DESC) AS rn
-    FROM appReadings WHERE inMonth = 1
+billedKey AS (
+    SELECT LTRIM(RTRIM(PropertyCode)) AS PropertyCode, Type,
+           CASE WHEN LTRIM(RTRIM(MeterNumber)) NOT LIKE '%[^0-9]%' AND LTRIM(RTRIM(MeterNumber)) <> ''
+                THEN CAST(CAST(LTRIM(RTRIM(MeterNumber)) AS bigint) AS varchar(30)) ELSE LTRIM(RTRIM(MeterNumber)) END AS MeterKey,
+           Reading, Consumption, MonthKey,
+           ROW_NUMBER() OVER (PARTITION BY LTRIM(RTRIM(PropertyCode)), Type, LTRIM(RTRIM(MeterNumber)) ORDER BY MonthKey DESC) AS rn
+    FROM billed
+    WHERE MonthKey < (SELECT MonthKey FROM openPeriod)
 ),
-appAgg AS (
-    SELECT MeterId,
+billedAgg AS (             -- the last billed month; average = |mean of the last 3 billed months|, a whole number (as PMS's)
+    SELECT PropertyCode, Type, MeterKey,
            MAX(CASE WHEN rn = 1 THEN Reading END)     AS OpeningReading,
            MAX(CASE WHEN rn = 1 THEN Consumption END) AS LastConsumption,
-           CAST(AVG(CASE WHEN rn BETWEEN 2 AND 4 THEN CAST(Consumption AS decimal(18,2)) END) AS decimal(18,2)) AS AvgConsumption
-    FROM appMonths WHERE rn <= 4
-    GROUP BY MeterId
+           CAST(ROUND(ABS(AVG(CONVERT(numeric(18,2), Consumption))), 0) AS int) AS AvgConsumption
+    FROM billedKey WHERE rn <= 3
+    GROUP BY PropertyCode, Type, MeterKey
+),
+base AS (
+    SELECT b.*,
+           LTRIM(RTRIM(CAST(b.PropertyCode AS varchar(50)))) COLLATE DATABASE_DEFAULT AS PropertyKey,
+           LEFT(LTRIM(CAST(b.MeterType AS varchar(20))), 1) COLLATE DATABASE_DEFAULT AS TypeKey,
+           (CASE WHEN LTRIM(RTRIM(CAST(b.MeterNumber AS varchar(30)))) NOT LIKE '%[^0-9]%' AND LTRIM(RTRIM(CAST(b.MeterNumber AS varchar(30)))) <> ''
+                 THEN CAST(CAST(LTRIM(RTRIM(CAST(b.MeterNumber AS varchar(30)))) AS bigint) AS varchar(30))
+                 ELSE LTRIM(RTRIM(CAST(b.MeterNumber AS varchar(30)))) END) COLLATE DATABASE_DEFAULT AS MeterKey
+    FROM mr.vw_MR_Meter_Base b
 )
+-- 1st the last billed month (mr.MaintainFinalizedMeter), 2nd PMS's history (mr.MeterOpeningReading), else 0.
 SELECT b.MeterId, b.MeterNumber, b.PropertyCode, b.MeterType, b.RegisterDigits, b.DecimalDigits,
        CAST(COALESCE(a.OpeningReading,  o.LastReading,     0) AS decimal(18,4)) AS OpeningReading,
        CAST(COALESCE(a.LastConsumption, o.LastConsumption, 0) AS decimal(18,4)) AS LastConsumption,
        CAST(COALESCE(a.AvgConsumption,  o.AvgConsumption,  0) AS decimal(18,4)) AS AvgConsumption,
        b.InstallDate, b.SerialNumber, b.RouteSequence, b.Status, b.FloatValue, b.RateFactor
-FROM mr.vw_MR_Meter_Base b
-LEFT JOIN appAgg a
-       ON a.MeterId = CAST(b.MeterId AS varchar(50)) COLLATE DATABASE_DEFAULT
-LEFT JOIN mr.MeterOpeningReading o
-       ON o.PropertyCode = LTRIM(RTRIM(CAST(b.PropertyCode AS varchar(50)))) COLLATE DATABASE_DEFAULT
-      AND o.Type = LEFT(LTRIM(CAST(b.MeterType AS varchar(20))), 1) COLLATE DATABASE_DEFAULT
-      AND (CASE WHEN o.MeterNumber NOT LIKE '%[^0-9]%' THEN CAST(CAST(o.MeterNumber AS bigint) AS varchar(30)) ELSE o.MeterNumber END)
-        = (CASE WHEN LTRIM(RTRIM(CAST(b.MeterNumber AS varchar(30)))) NOT LIKE '%[^0-9]%' AND LTRIM(RTRIM(CAST(b.MeterNumber AS varchar(30)))) <> ''
-                THEN CAST(CAST(LTRIM(RTRIM(CAST(b.MeterNumber AS varchar(30)))) AS bigint) AS varchar(30))
-                ELSE LTRIM(RTRIM(CAST(b.MeterNumber AS varchar(30)))) END) COLLATE DATABASE_DEFAULT;
+FROM base b
+LEFT JOIN billedAgg a
+       ON a.PropertyCode COLLATE DATABASE_DEFAULT = b.PropertyKey AND a.Type = b.TypeKey AND a.MeterKey COLLATE DATABASE_DEFAULT = b.MeterKey
+OUTER APPLY (SELECT TOP (1) o.LastReading, o.LastConsumption, o.AvgConsumption
+             FROM mr.MeterOpeningReading o
+             WHERE o.PropertyCode = b.PropertyKey AND o.Type = b.TypeKey
+               AND (CASE WHEN o.MeterNumber NOT LIKE '%[^0-9]%' AND o.MeterNumber <> '' THEN CAST(CAST(o.MeterNumber AS bigint) AS varchar(30)) ELSE o.MeterNumber END) = b.MeterKey
+             ORDER BY o.ReadingDate DESC) o;
 GO
 
 -- The API's user: read and write its own schema, which also lets it read the views above.

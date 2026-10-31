@@ -31,48 +31,34 @@ GO
 CREATE OR ALTER PROCEDURE mr.usp_FillMeterOpeningReading
 AS
 BEGIN
+    -- DIP 2026-10-31: per property and meter (S = sewerage, I = irrigation) the latest PMS reading, its
+    -- consumption, and AvgConsumption = |mean of the latest 3 readings|, a whole number (DIP's query).
     SET NOCOUNT ON;
-    DECLARE @From date = DATEADD(year, -2, CAST(GETDATE() AS date));   -- last 2 years
 
-    ;WITH raw AS (
-        SELECT t_plot, t_metr_1 AS Meter, t_date, t_curr_1 AS Reading, t_cons_1 AS Consumption, 'S' AS Type
+    ;WITH s AS (
+        SELECT t_date AS ReadingDate, LTRIM(RTRIM(t_plot)) AS PropertyCode, LTRIM(RTRIM(t_metr_1)) AS MeterNumber,
+               t_curr_1 AS Reading, t_cons_1 AS Consumption, 'S' AS Type,
+               ROW_NUMBER() OVER (PARTITION BY LTRIM(RTRIM(t_plot)), LTRIM(RTRIM(t_metr_1)) ORDER BY t_date DESC) AS rn,
+               CAST(ROUND(ABS(AVG(CONVERT(numeric(18,2), t_cons_1))
+                   OVER (PARTITION BY LTRIM(RTRIM(t_plot)), LTRIM(RTRIM(t_metr_1)) ORDER BY t_date DESC
+                         ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING)), 0) AS int) AS AvgConsumption
         FROM PropertyManagementSystem.dbo.tgcpms315110
-        WHERE LTRIM(RTRIM(ISNULL(t_metr_1, ''))) <> '' AND t_date >= @From
-        UNION ALL
-        SELECT t_plot, t_metr_2, t_date, t_curr_2, t_cons_2, 'I'
+        WHERE LTRIM(RTRIM(ISNULL(t_metr_1, ''))) <> '' AND LTRIM(RTRIM(ISNULL(t_plot, ''))) <> ''
+    ),
+    i AS (
+        SELECT t_date AS ReadingDate, LTRIM(RTRIM(t_plot)) AS PropertyCode, LTRIM(RTRIM(t_metr_2)) AS MeterNumber,
+               t_curr_2 AS Reading, t_cons_2 AS Consumption, 'I' AS Type,
+               ROW_NUMBER() OVER (PARTITION BY LTRIM(RTRIM(t_plot)), LTRIM(RTRIM(t_metr_2)) ORDER BY t_date DESC) AS rn,
+               CAST(ROUND(ABS(AVG(CONVERT(numeric(18,2), t_cons_2))
+                   OVER (PARTITION BY LTRIM(RTRIM(t_plot)), LTRIM(RTRIM(t_metr_2)) ORDER BY t_date DESC
+                         ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING)), 0) AS int) AS AvgConsumption
         FROM PropertyManagementSystem.dbo.tgcpms315110
-        WHERE LTRIM(RTRIM(ISNULL(t_metr_2, ''))) <> '' AND t_date >= @From
-    ),
-    src AS (
-        SELECT LTRIM(RTRIM(t_plot)) COLLATE DATABASE_DEFAULT AS PropertyCode,
-               LTRIM(RTRIM(Meter))  COLLATE DATABASE_DEFAULT AS MeterNumber,   -- as written, e.g. '0001'
-               -- grouping key only: '001', '0001' and '1' are the same meter
-               (CASE WHEN LTRIM(RTRIM(Meter)) NOT LIKE '%[^0-9]%'
-                     THEN CAST(CAST(LTRIM(RTRIM(Meter)) AS bigint) AS varchar(30))
-                     ELSE LTRIM(RTRIM(Meter)) END) COLLATE DATABASE_DEFAULT AS MeterKey,
-               Type, t_date AS ReadingDate, Reading, Consumption
-        FROM raw
-    ),
-    monthly AS (   -- one reading per meter per month: the latest in that month
-        SELECT *, ROW_NUMBER() OVER (PARTITION BY PropertyCode, Type, MeterKey, YEAR(ReadingDate), MONTH(ReadingDate)
-                                     ORDER BY ReadingDate DESC, Reading DESC) AS inMonth
-        FROM src
-    ),
-    r AS (         -- months numbered newest first (1 = latest)
-        SELECT *, ROW_NUMBER() OVER (PARTITION BY PropertyCode, Type, MeterKey ORDER BY ReadingDate DESC) AS rn
-        FROM monthly WHERE inMonth = 1
+        WHERE LTRIM(RTRIM(ISNULL(t_metr_2, ''))) <> '' AND LTRIM(RTRIM(ISNULL(t_plot, ''))) <> ''
     )
-    SELECT PropertyCode,
-           MAX(CASE WHEN rn = 1 THEN MeterNumber END)  AS MeterNumber,   -- as on the latest reading
-           Type,
-           MAX(CASE WHEN rn = 1 THEN ReadingDate END)  AS ReadingDate,
-           MAX(CASE WHEN rn = 1 THEN Reading END)      AS LastReading,
-           MAX(CASE WHEN rn = 1 THEN Consumption END)  AS LastConsumption,
-           CAST(AVG(CASE WHEN rn BETWEEN 2 AND 4 THEN CAST(Consumption AS decimal(18,2)) END) AS decimal(18,2)) AS AvgConsumption
+    SELECT PropertyCode COLLATE DATABASE_DEFAULT AS PropertyCode, MeterNumber COLLATE DATABASE_DEFAULT AS MeterNumber, Type,
+           ReadingDate, Reading AS LastReading, Consumption AS LastConsumption, AvgConsumption
     INTO #fill
-    FROM r
-    WHERE rn <= 4
-    GROUP BY PropertyCode, Type, MeterKey;
+    FROM (SELECT * FROM s WHERE rn = 1 UNION ALL SELECT * FROM i WHERE rn = 1) x;
 
     BEGIN TRAN;
     DELETE FROM mr.MeterOpeningReading;
