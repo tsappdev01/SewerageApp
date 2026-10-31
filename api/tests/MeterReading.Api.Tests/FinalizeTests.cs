@@ -156,7 +156,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
     {
         await using var c = new SqlConnection(ApiFactory.ConnectionString);
         await c.OpenAsync();
-        await using var cmd = new SqlCommand("DELETE FROM mr.MaintainFinalizedMeter WHERE PeriodCode = '2026-10' OR PropertyCode IN ('1497', '3010', '1101'); DELETE i FROM dbo.MaintainFinalizedInvoices i WHERE NOT EXISTS (SELECT 1 FROM mr.MaintainFinalizedMeter f WHERE f.InvNo = i.InvNo); DELETE FROM mr.IrrigationNoCharge WHERE PropertyCode = '3010'; DELETE FROM mr.ReadingPeriodStatus WHERE PeriodCode = '2026-10'; DELETE FROM mr.PropertySubTenant WHERE PropertyCode = '1497'", c);
+        await using var cmd = new SqlCommand("DELETE FROM mr.MaintainFinalizedMeter WHERE PeriodCode = '2026-10' OR PropertyCode IN ('1497', '3010', '1101'); DELETE i FROM dbo.MaintainFinalizedInvoices i WHERE NOT EXISTS (SELECT 1 FROM mr.MaintainFinalizedMeter f WHERE f.InvNo = i.InvNo); DELETE FROM mr.IrrigationNoCharge WHERE PropertyCode = '3010'; DELETE FROM mr.ReadingPeriodStatus WHERE PeriodCode = '2026-10'; DELETE FROM mr.PropertySubTenant WHERE PropertyCode = '1497'; DELETE FROM mr.InvoiceReportLog WHERE PeriodCode = '2026-10'", c);
         await cmd.ExecuteNonQueryAsync();
     }
 
@@ -452,6 +452,19 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         Assert.Equal(finalized, body.GetProperty("invoicesMade").GetInt32());
         Assert.True(body.GetProperty("notComplete").GetInt32() > 0);
         Assert.Equal(2, (await Invoices("1497")).Single().Rows);
+        // FR-037.18: the Invoice Generation Report is built and logged; switched off by default, so not mailed.
+        Assert.Equal("DISABLED", body.GetProperty("invoiceReport").GetString());
+        await using (var log = new SqlConnection(ApiFactory.ConnectionString))
+        {
+            await log.OpenAsync();
+            await using var q = new SqlCommand(
+                "SELECT TOP (1) TotalInvoices, Successful, Failed, ValidationOk, DispatchStatus, InvoiceAmount, MeterRowsAmount FROM mr.InvoiceReportLog WHERE PeriodCode = '2026-10' ORDER BY LogId DESC", log);
+            await using var lr = await q.ExecuteReaderAsync();
+            Assert.True(await lr.ReadAsync());
+            Assert.Equal((finalized, finalized, 0), (lr.GetInt32(0), lr.GetInt32(1), lr.GetInt32(2)));
+            Assert.Equal("DISABLED", lr.GetString(4));
+            Assert.Equal(lr.GetDecimal(6), lr.GetDecimal(5));
+        }
 
         var sync = await client.GetFromJsonAsync<JsonElement>("/api/v1/sync/meters?zone=597");
         Assert.Equal("CLOSED", sync.GetProperty("period").GetProperty("status").GetString());
@@ -465,6 +478,26 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         Assert.True(await r.ReadAsync());
         Assert.False(string.IsNullOrEmpty(r.GetString(0)));
         Assert.Equal("Finalize month from the app", r.GetString(1));
+    }
+
+    [Fact]
+    public async Task FR037_18_the_invoice_report_finds_an_invoice_that_does_not_match_its_meter_rows()
+    {
+        var invNo = (await FinalizeProperty("1497")).Body.GetProperty("invNo").GetInt64();
+        await using var c = new SqlConnection(ApiFactory.ConnectionString);
+        await c.OpenAsync();
+        await using (var tamper = new SqlCommand("UPDATE dbo.MaintainFinalizedInvoices SET InvAmount = InvAmount + 1 WHERE InvNo = @n", c))
+        {
+            tamper.Parameters.AddWithValue("@n", invNo);
+            await tamper.ExecuteNonQueryAsync();
+        }
+        await using var cmd = new SqlCommand("EXEC mr.usp_SendInvoiceReport @PeriodCode = '2026-10', @RequestedBy = 'test'", c);
+        await using var r = await cmd.ExecuteReaderAsync();
+        Assert.True(await r.ReadAsync());
+        Assert.Equal("DISABLED", r.GetString(r.GetOrdinal("DispatchStatus")));
+        Assert.Equal(1, r.GetInt32(r.GetOrdinal("Failed")));
+        Assert.False(r.GetBoolean(r.GetOrdinal("ValidationOk")));
+        Assert.Contains("differs", r.GetString(r.GetOrdinal("ValidationNote")));
     }
 
     [Fact]

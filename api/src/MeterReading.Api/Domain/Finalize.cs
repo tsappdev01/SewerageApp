@@ -45,7 +45,7 @@ public sealed record FinalizedPair(FinalizeMeter? Sewerage, FinalizeMeter? Irrig
 /// FR-037: "Finalize property". Once every meter of the property is read this period, its readings
 /// are written to mr.MaintainFinalizedMeter, one row per meter number (FR-037.3).
 /// </summary>
-public sealed class FinalizeService(MeterReadingRepository repo, ReaderService readers)
+public sealed class FinalizeService(MeterReadingRepository repo, ReaderService readers, ILogger<FinalizeService> logger)
 {
     /// <summary>FR-037.11: the words phones show for PERIOD_CLOSED.</summary>
     public static string PeriodClosedTitle(string periodCode) =>
@@ -142,7 +142,12 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
         // FR-037.11: the last property of the period finalized: posting is complete, the period closes.
         var properties = set.Properties.Select(p => p.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var closed = PostingComplete(properties.Length, await repo.CountFinalizedPropertiesAsync(period.PeriodCode, properties, ct));
-        if (closed) await repo.ClosePeriodAsync(period.PeriodCode, reader.ReaderId, "Posting complete: every property finalized", ct);
+        if (closed)
+        {
+            await repo.ClosePeriodAsync(period.PeriodCode, reader.ReaderId, "Posting complete: every property finalized", ct);
+            // FR-037.18: every invoice of the month is made: the Invoice Generation Report goes out (db/034).
+            await repo.SendInvoiceReportAsync(period.PeriodCode, reader.ReaderId, logger, ct);
+        }
         return new(done with { PeriodClosed = closed });
     }
 

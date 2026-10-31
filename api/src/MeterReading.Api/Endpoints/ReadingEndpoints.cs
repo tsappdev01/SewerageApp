@@ -40,8 +40,10 @@ public static class ReadingEndpoints
             loggers.CreateLogger(Audit.Category).LogInformation(
                 "Period {PeriodCode} finalized and closed from the app by {ClosedBy}: {Finalized} properties finalized, {Invoices} invoices, {NotComplete} not complete, {InUse} invoice in use",
                 period.PeriodCode, by, month.Finalized, month.Invoices, month.NotComplete, month.InvoiceInUse);
+            // FR-037.18: the Invoice Generation Report by Database Mail (db/034); logged, never undoes the closing.
+            var report = await repo.SendInvoiceReportAsync(period.PeriodCode, by, loggers.CreateLogger(Audit.Category), ct);
             return Results.Ok(new ClosePeriodResponse(period.PeriodCode, AlreadyClosed: false, month.Finalized, month.Invoices,
-                month.AlreadyFinalized, month.NotComplete, month.InvoiceInUse));
+                month.AlreadyFinalized, month.NotComplete, month.InvoiceInUse, report));
         }
         catch (Microsoft.Data.SqlClient.SqlException e) when (e.Number == 208) // mr.ReadingPeriodStatus missing: db/024 not run
         {

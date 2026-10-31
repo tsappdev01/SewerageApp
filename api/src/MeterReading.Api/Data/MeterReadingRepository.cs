@@ -97,6 +97,31 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         return new HashSet<string>(await c.QueryAsync<string>(Cmd(sql, new { periodCode }, ct)), StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// FR-037.18 (db/034): sends the month's Invoice Generation Report by Database Mail and logs it in
+    /// mr.InvoiceReportLog. Never throws: finalizing is already done, a report that cannot go out is only logged.
+    /// Returns the dispatch status (QUEUED, DISABLED, FAILED), or null without db/034.
+    /// </summary>
+    public async Task<string?> SendInvoiceReportAsync(string periodCode, string requestedBy, ILogger logger, CancellationToken ct)
+    {
+        try
+        {
+            await using var c = await db.OpenMeterReadingAsync(ct);
+            if (await c.ExecuteScalarAsync<int?>(new CommandDefinition("SELECT OBJECT_ID(N'mr.usp_SendInvoiceReport', N'P')", cancellationToken: ct)) is null)
+                return null;
+            var status = await c.QueryFirstOrDefaultAsync<string>(new CommandDefinition(
+                "EXEC mr.usp_SendInvoiceReport @PeriodCode = @periodCode, @RequestedBy = @requestedBy",
+                new { periodCode, requestedBy = requestedBy[..Math.Min(requestedBy.Length, 128)] },
+                commandTimeout: 120, cancellationToken: ct));
+            return status;
+        }
+        catch (Exception e) when (e is Microsoft.Data.SqlClient.SqlException or InvalidOperationException or TimeoutException)
+        {
+            logger.LogWarning(e, "Invoice report for {PeriodCode} not sent", periodCode);
+            return "FAILED";
+        }
+    }
+
     /// <summary>FR-037.11: closes the period for the app (mr.ReadingPeriodStatus, db/024).</summary>
     public async Task ClosePeriodAsync(string periodCode, string changedBy, string note, CancellationToken ct)
     {

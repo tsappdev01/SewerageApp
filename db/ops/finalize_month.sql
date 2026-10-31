@@ -31,6 +31,8 @@ DECLARE @Refinalize   bit         = 0;            -- 1: finalize again propertie
 DECLARE @OnlyProperty varchar(30) = NULL;         -- e.g. '597-646' for one property; NULL for all.
 DECLARE @ForPeriod    char(7)     = NULL;         -- e.g. '2026-09' to finalize an earlier month after the next one opened;
                                                   -- NULL: the open month. Never closes an earlier month.
+DECLARE @SendReport   bit         = 0;            -- 1: send the Invoice Generation Report (db/034) even when the month is not closed.
+                                                  -- It is sent anyway when this closes the month.
 DECLARE @FinalizedBy  varchar(50) = LEFT(N'office:' + SUSER_SNAME(), 50);
 
 /* 1. The month: the open one as the API takes it (the newest OPEN row; code yyyy-MM from StartDate), or @ForPeriod.
@@ -338,8 +340,10 @@ WHERE i.InvNo IN (SELECT InvNo FROM @inv);
 DECLARE @All int = (SELECT COUNT(*) FROM #p);
 DECLARE @Done int = (SELECT COUNT(DISTINCT f.PropertyCode) FROM mr.MaintainFinalizedMeter f
                      WHERE f.PeriodCode = @Period AND f.IsCurrent = 1 AND f.PropertyCode IN (SELECT PropertyCode FROM #p));
+DECLARE @ClosedNow bit = 0;
 IF @ForPeriod IS NULL AND (@Close = 1 OR (@All > 0 AND @Done >= @All))
 BEGIN
+    SET @ClosedNow = 1;
     MERGE mr.ReadingPeriodStatus WITH (HOLDLOCK) AS t
     USING (SELECT @Period AS PeriodCode) AS s ON t.PeriodCode = s.PeriodCode
     WHEN MATCHED THEN UPDATE SET Status = 'CLOSED', ChangedAtUtc = SYSUTCDATETIME(), ChangedBy = @FinalizedBy,
@@ -354,3 +358,7 @@ ELSE IF @ForPeriod IS NULL
 ELSE
     PRINT CONCAT(N'Earlier month ', @Period, N': ', @Done, N' of ', @All, N' properties finalized.');
 COMMIT TRANSACTION;
+
+/* 11. The Invoice Generation Report by Database Mail (db/034, FR-037.18), after the month is closed or when asked. */
+IF OBJECT_ID(N'mr.usp_SendInvoiceReport', N'P') IS NOT NULL AND (@ClosedNow = 1 OR @SendReport = 1)
+    EXEC mr.usp_SendInvoiceReport @PeriodCode = @Period, @RequestedBy = @FinalizedBy;
