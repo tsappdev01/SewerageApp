@@ -154,6 +154,7 @@ class ApiMeterRepository(
             Property(
                 it.code, it.name ?: it.code, it.zoneCode, it.routeSequence ?: Int.MAX_VALUE, it.tenantCode, it.companyName,
                 it.tenants.map { t -> Tenant(t.code, t.companyName) },
+                subTenant = it.subTenant?.trim()?.ifEmpty { null },
             )
         }
         _meters.value = sync.meters.map { m ->

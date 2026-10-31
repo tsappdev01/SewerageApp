@@ -39,6 +39,8 @@ data class Property(
     val companyName: String? = null,
     /** Current tenants; the reader checks one before saving a reading (FR-006.12). Empty: none on record. */
     val tenants: List<Tenant> = emptyList(),
+    /** The office's sub-tenant name; the reading's sub-tenant starts with it. */
+    val subTenant: String? = null,
 ) {
     /** What the reader sees under the code: the company when there is one, else the property name. */
     val displayName: String get() = companyName?.takeIf { it.isNotBlank() } ?: name

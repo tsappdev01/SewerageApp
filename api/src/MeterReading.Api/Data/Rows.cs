@@ -108,6 +108,8 @@ public sealed class FinalizeReadingRow
     public string? TranCode { get; init; }
     public string? BaanCode { get; init; }
     public string? TenantCode { get; init; }
+    /// <summary>The sub-tenant sent with the reading (pre-filled from mr.PropertySubTenant).</summary>
+    public string? SubTenant { get; init; }
 }
 
 /// <summary>A row of mr.IrrigationNoCharge (db/020, FR-037.7).</summary>

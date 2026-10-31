@@ -60,6 +60,7 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
         }
         var tenants = source.Tenants;
         var averages = source.Averages;
+        var subTenants = await repo.GetSubTenantsAsync(ct);
         // Reading states are always live (mr.ReadingTransaction).
         var latest = await repo.GetLatestTransactionsAsync(periodCode, rows.Select(r => r.MeterId).ToArray(), ct);
 
@@ -93,7 +94,8 @@ public sealed class ReaderService(MeterReadingRepository repo, IOptions<ReadingR
         var properties = ordered
             .DistinctBy(r => r.PropertyCode)
             .Select(r => new PropertyDto(r.PropertyCode, r.PropertyName, r.ZoneCode, r.PropertyRoute, r.Latitude, r.Longitude, r.TenantCode, r.CompanyName,
-                tenants[r.PropertyCode].Select(t => new TenantDto(t.TenantCode, t.CompanyName)).ToList()))
+                tenants[r.PropertyCode].Select(t => new TenantDto(t.TenantCode, t.CompanyName)).ToList(),
+                subTenants.GetValueOrDefault(r.PropertyCode)))
             .ToList();
         var zones = ordered.DistinctBy(r => r.ZoneCode).Select(r => new ZoneDto(r.ZoneCode, r.ZoneName)).ToList();
         return new MeterSet(meters, properties, zones);

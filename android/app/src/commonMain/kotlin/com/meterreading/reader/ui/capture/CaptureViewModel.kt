@@ -57,8 +57,8 @@ class CaptureViewModel(private val repo: MeterRepository, meterId: String) : Vie
     var tenantCode by mutableStateOf(property.tenants.singleOrNull()?.code)
     val tenantProblem: TenantRules.Problem? get() = TenantRules.problem(property, tenantCode)
 
-    /** Optional: typed on the check screen when the premises has a sub-tenant. */
-    var subTenant by mutableStateOf("")
+    /** Optional: the office's name for the property's sub-tenant when it has one (the reader can change it). */
+    var subTenant by mutableStateOf(property.subTenant.orEmpty())
     var readerConfirmedWarning by mutableStateOf(false)
 
     var sending by mutableStateOf(false)

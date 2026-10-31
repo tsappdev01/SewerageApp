@@ -156,7 +156,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
     {
         await using var c = new SqlConnection(ApiFactory.ConnectionString);
         await c.OpenAsync();
-        await using var cmd = new SqlCommand("DELETE FROM mr.MaintainFinalizedMeter WHERE PropertyCode IN ('1497', '3010', '1101'); DELETE FROM mr.IrrigationNoCharge WHERE PropertyCode = '3010'; DELETE FROM mr.ReadingPeriodStatus WHERE PeriodCode = '2026-10'", c);
+        await using var cmd = new SqlCommand("DELETE FROM mr.MaintainFinalizedMeter WHERE PropertyCode IN ('1497', '3010', '1101'); DELETE FROM mr.IrrigationNoCharge WHERE PropertyCode = '3010'; DELETE FROM mr.ReadingPeriodStatus WHERE PeriodCode = '2026-10'; DELETE FROM mr.PropertySubTenant WHERE PropertyCode = '1497'", c);
         await cmd.ExecuteNonQueryAsync();
     }
 
@@ -230,6 +230,44 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         // 290 -> 1148.40 (+57.42 VAT).
         Assert.Equal([(0m, 3920.40m, 4116.42m), (1148.40m, 0m, 1205.82m)], await Amounts("1497"));
         Assert.Equal(1148.40m, body.GetProperty("rows")[1].GetProperty("sewerageAmount").GetDecimal());
+    }
+
+    [Fact]
+    public async Task The_office_sub_tenant_is_offered_in_the_sync_and_kept_on_the_finalized_rows()
+    {
+        await using (var c = new SqlConnection(ApiFactory.ConnectionString))
+        {
+            await c.OpenAsync();
+            await using var cmd = new SqlCommand("INSERT mr.PropertySubTenant (PropertyCode, SubTenantName) VALUES ('1497', N'Oasis Sub Store')", c);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Dev-User", Rashid);
+        var sync = await client.GetFromJsonAsync<JsonElement>("/api/v1/sync/meters");
+        var properties = sync.GetProperty("properties").EnumerateArray().ToList();
+        Assert.Equal("Oasis Sub Store", properties.Single(p => p.GetProperty("code").GetString() == "1497").GetProperty("subTenant").GetString());
+        Assert.All(properties.Where(p => p.GetProperty("code").GetString() != "1497"),
+            p => Assert.True(!p.TryGetProperty("subTenant", out var v) || v.ValueKind == JsonValueKind.Null));
+
+        // The seeded readings of 1497 were sent without a sub-tenant: the rows take the office's name.
+        var (status, body) = await FinalizeProperty("1497");
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal("Oasis Sub Store", body.GetProperty("rows")[0].GetProperty("subTenant").GetString());
+        await using (var c = new SqlConnection(ApiFactory.ConnectionString))
+        {
+            await c.OpenAsync();
+            await using var cmd = new SqlCommand("SELECT COUNT(*) FROM mr.MaintainFinalizedMeter WHERE PropertyCode = '1497' AND IsCurrent = 1 AND SubTenant = N'Oasis Sub Store'", c);
+            Assert.Equal(2, (int)(await cmd.ExecuteScalarAsync())!);
+        }
+    }
+
+    [Fact]
+    public void A_sub_tenant_typed_with_the_reading_comes_before_the_office_name()
+    {
+        var s = new FinalizeMeter("S1", "1", "SEWERAGE", 0, 10, 10, null, SubTenant: "Typed Name");
+        var i = new FinalizeMeter("I1", "1", "IRRIGATION", 0, 10, 10, null, SubTenant: "Office Name");
+        Assert.Equal("Typed Name", FinalizeService.Pair([s, i]).Single().SubTenant);
+        Assert.Equal("Office Name", FinalizeService.Pair([i]).Single().SubTenant);
     }
 
     [Fact]

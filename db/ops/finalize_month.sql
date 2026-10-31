@@ -5,7 +5,8 @@
    side), amounts = consumption x FloatValue x 1.2 x RateFactor/100, VAT 5%, the irrigation minimum
    (10% of sewerage, at most 500), no-charge plots (mr.IrrigationNoCharge), TenantCode / BaanCode / CompanyName
    from vw_MR_Tenant and TranCode from vw_MR_Property as they are now, VATCode SSD, ChargeType1 sew,
-   ChargeType2 Irri, FromDate / EndDate from vw_MR_ReadingPeriod. A property finalized before keeps its rows
+   ChargeType2 Irri, FromDate / EndDate from vw_MR_ReadingPeriod, and the sub-tenant (the reading's,
+   else the office's name in mr.PropertySubTenant, db/030). A property finalized before keeps its rows
    with IsCurrent = 0 when finalized again.
 
    A property is finalized only when every one of its meters has a reading this month (sent, or "can't
@@ -31,6 +32,11 @@ FROM mr.vw_MR_ReadingPeriod WHERE Status = 'OPEN' ORDER BY StartDate DESC;
 IF @Period IS NULL
 BEGIN
     RAISERROR(N'There is no OPEN period in vw_MR_ReadingPeriod.', 16, 1);
+    RETURN;
+END
+IF COL_LENGTH(N'mr.MaintainFinalizedMeter', N'SubTenant') IS NULL
+BEGIN
+    RAISERROR(N'Run db/030_property_sub_tenant.sql first (mr.MaintainFinalizedMeter has no SubTenant column).', 16, 1);
     RETURN;
 END
 IF EXISTS (SELECT 1 FROM mr.ReadingPeriodStatus WHERE PeriodCode = @Period AND Status = 'CLOSED')
@@ -67,7 +73,7 @@ DROP TABLE IF EXISTS #t;
 SELECT x.*
 INTO #t
 FROM (
-    SELECT t.MeterId, t.TransactionId, t.Status, t.PropertyId, t.PreviousReading, t.TenantCode,
+    SELECT t.MeterId, t.TransactionId, t.Status, t.PropertyId, t.PreviousReading, t.TenantCode, t.SubTenant,
            COALESCE(t.NewReading, t.NewCurrentReading) AS CurrentReading, t.Consumption,
            CAST(t.CapturedAtUtc AT TIME ZONE 'UTC' AT TIME ZONE 'Arabian Standard Time' AS date) AS ReadingDate,
            ROW_NUMBER() OVER (PARTITION BY t.MeterId ORDER BY t.ReceivedAtUtc DESC, t.CapturedAtUtc DESC) AS rn
@@ -115,6 +121,8 @@ SELECT m.PropertyCode, m.MeterId, m.MeterNumber, m.MeterType,
        t.TransactionId, t.PropertyId, m.FloatValue, m.RateFactor,
        tc.TenantCode, tn.BaanCode, tn.CompanyName,
        tr.TranCode,
+       -- The sub-tenant sent with the reading, else the office's name for the property (db/030).
+       COALESCE(NULLIF(LTRIM(RTRIM(t.SubTenant)), N''), st.SubTenantName) AS SubTenant,
        CAST(CASE WHEN m.MeterType = 'IRRIGATION' AND nc.PropertyCode IS NOT NULL AND t.ReadingDate > nc.NoChargeAfter
                       AND (nc.ToDate IS NULL OR t.ReadingDate <= nc.ToDate) THEN 1 ELSE 0 END AS bit) AS NoCharge
 FROM #m m
@@ -130,6 +138,7 @@ OUTER APPLY (SELECT TOP (1) NULLIF(LTRIM(RTRIM(CAST(p.TranCode AS varchar(30))))
              WHERE tc.TenantCode IS NOT NULL AND CAST(p.PropertyCode AS varchar(30)) = m.PropertyCode
              ORDER BY CASE WHEN LTRIM(RTRIM(CAST(p.TenantCode AS varchar(30)))) = tc.TenantCode THEN 0 ELSE 1 END) tr
 LEFT JOIN mr.IrrigationNoCharge nc ON nc.PropertyCode = m.PropertyCode
+LEFT JOIN mr.PropertySubTenant st ON st.PropertyCode = m.PropertyCode AND st.IsActive = 1
 ) v;
 
 /* 7. Sewerage and irrigation with the same meter number share a row (FR-037.3). */
@@ -146,7 +155,8 @@ WITH s AS (SELECT *, LTRIM(RTRIM(MeterNumber)) AS NumKey, ROW_NUMBER() OVER (PAR
                 i.FloatValue AS IFloat, i.RateFactor AS IRate, ISNULL(i.Amount, 0) AS IrrigationAmountCalculated,
                 CASE WHEN i.MeterId IS NULL THEN NULL ELSE i.NoCharge END AS INoCharge,
                 COALESCE(s.TranCode, i.TranCode) AS TranCode, COALESCE(s.BaanCode, i.BaanCode) AS BaanCode,
-                COALESCE(s.TenantCode, i.TenantCode) AS TenantCode, COALESCE(s.CompanyName, i.CompanyName) AS CompanyName
+                COALESCE(s.TenantCode, i.TenantCode) AS TenantCode, COALESCE(s.CompanyName, i.CompanyName) AS CompanyName,
+                COALESCE(s.SubTenant, i.SubTenant) AS SubTenant
             FROM s FULL JOIN i ON i.PropertyCode = s.PropertyCode AND i.NumKey = s.NumKey AND i.n = s.n)
 ,
      ten AS (SELECT pr.*, CAST(ROUND(SewerageAmount * 0.10, 2) AS decimal(18,2)) AS TenPercentAmount FROM pr),
@@ -164,7 +174,7 @@ INTO #rows FROM vat;
 /* 8. What it does: the rows, then a line per property. */
 SELECT PropertyCode, ISNULL(SNumber, '0') AS MeterNumberSewerage, SCons AS ConsumptionSewerage, SewerageAmount,
        ISNULL(INumber, '0') AS MeterNumberIrrigation, ICons AS ConsumptionIrrigation, IrrigationAmountCalculated, IrrigationAmount,
-       SewerageVat, IrrigationVat, TotalAmount, TenPercentAmount, TenantCode, BaanCode, TranCode, CompanyName,
+       SewerageVat, IrrigationVat, TotalAmount, TenPercentAmount, TenantCode, BaanCode, TranCode, CompanyName, SubTenant,
        ISNULL(INoCharge, 0) AS IrrigationNoCharge
 FROM #rows ORDER BY PropertyCode, SNumber, INumber;
 
@@ -199,14 +209,14 @@ INSERT mr.MaintainFinalizedMeter (PeriodCode, PropertyId, PropertyCode,
     SewerageTransactionId, IrrigationTransactionId, FinalizedByReaderId, DeviceId, FinalizedAtUtc, IsCurrent,
     SewerageAmount, IrrigationAmount, FloatValueSewerage, RateFactorSewerage, FloatValueIrrigation, RateFactorIrrigation,
     SewerageVat, IrrigationVat, TotalAmount, IrrigationNoCharge, TenPercentAmount, IrrigationAmountCalculated,
-    TranCode, BaanCode, TenantCode, FromDate, EndDate, CompanyName, VATCode, ChargeType1, ChargeType2)
+    TranCode, BaanCode, TenantCode, FromDate, EndDate, CompanyName, VATCode, ChargeType1, ChargeType2, SubTenant)
 SELECT @Period, (SELECT TOP (1) v.PropertyId FROM #mv v WHERE v.PropertyCode = r.PropertyCode AND v.PropertyId IS NOT NULL), r.PropertyCode,
        ISNULL(r.SNumber, '0'), ISNULL(r.SPrev, 0), ISNULL(r.SCur, 0), ISNULL(r.SCons, 0),
        ISNULL(r.INumber, '0'), ISNULL(r.IPrev, 0), ISNULL(r.ICur, 0), ISNULL(r.ICons, 0),
        r.STx, r.ITx, @FinalizedBy, NULL, @At, 1,
        r.SewerageAmount, r.IrrigationAmount, r.SFloat, r.SRate, r.IFloat, r.IRate,
        r.SewerageVat, r.IrrigationVat, r.TotalAmount, ISNULL(r.INoCharge, 0), r.TenPercentAmount, r.IrrigationAmountCalculated,
-       r.TranCode, r.BaanCode, r.TenantCode, @From, @End, r.CompanyName, 'SSD', 'sew', 'Irri'
+       r.TranCode, r.BaanCode, r.TenantCode, @From, @End, r.CompanyName, 'SSD', 'sew', 'Irri', r.SubTenant
 FROM #rows r;
 PRINT CONCAT(@@ROWCOUNT, N' billing rows written.');
 

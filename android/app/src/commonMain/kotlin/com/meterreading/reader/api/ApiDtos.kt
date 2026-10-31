@@ -36,6 +36,8 @@ data class PropertyDto(
     val tenantCode: String? = null,
     val companyName: String? = null,
     val tenants: List<TenantDto> = emptyList(),
+    /** The office's sub-tenant name for the property (mr.PropertySubTenant); pre-fills the reading. */
+    val subTenant: String? = null,
 )
 
 @Serializable

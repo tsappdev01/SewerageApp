@@ -20,7 +20,9 @@ public sealed record TenantDto(string Code, string? CompanyName);
 /// </summary>
 public sealed record PropertyDto(
     string Code, string? Name, string ZoneCode, int? RouteSequence, decimal? Latitude, decimal? Longitude,
-    string? TenantCode = null, string? CompanyName = null, IReadOnlyList<TenantDto>? Tenants = null);
+    string? TenantCode = null, string? CompanyName = null, IReadOnlyList<TenantDto>? Tenants = null,
+    /// <summary>The office's sub-tenant name (mr.PropertySubTenant); the phone pre-fills the reading with it.</summary>
+    string? SubTenant = null);
 
 public sealed record MeterDto(
     /// <summary>The meter's barcode in the source system.</summary>
@@ -156,7 +158,7 @@ public sealed record FinalizedMeterDto(
     string SewerageMeterNumber, decimal SeweragePrevious, decimal SewerageCurrent, decimal SewerageConsumption,
     string IrrigationMeterNumber, decimal IrrigationPrevious, decimal IrrigationCurrent, decimal IrrigationConsumption,
     decimal SewerageAmount = 0, decimal IrrigationAmount = 0, decimal SewerageVat = 0, decimal IrrigationVat = 0, decimal TotalAmount = 0, bool IrrigationNoCharge = false, decimal TenPercentAmount = 0, decimal IrrigationAmountCalculated = 0, string? TranCode = null, string? BaanCode = null, string? TenantCode = null,
-    string? CompanyName = null, string VatCode = "", string ChargeType1 = "", string ChargeType2 = "");
+    string? CompanyName = null, string VatCode = "", string ChargeType1 = "", string ChargeType2 = "", string? SubTenant = null);
 
 /// <summary>What "Finalize property" wrote (FR-037).</summary>
 public sealed record FinalizedPropertyDto(

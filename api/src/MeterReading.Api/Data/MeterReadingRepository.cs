@@ -265,9 +265,9 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     {
         if (meterIds.Count == 0) return new Dictionary<string, FinalizeReadingRow>();
         var sql = $"""
-            SELECT MeterId, TransactionId, PropertyId, PreviousReading, CurrentReading, Consumption, ReadingDate, TranCode, BaanCode, TenantCode
+            SELECT MeterId, TransactionId, PropertyId, PreviousReading, CurrentReading, Consumption, ReadingDate, TranCode, BaanCode, TenantCode, SubTenant
             FROM (
-                SELECT t.MeterId, t.TransactionId, t.PropertyId, t.PreviousReading, t.TranCode, t.BaanCode, t.TenantCode,
+                SELECT t.MeterId, t.TransactionId, t.PropertyId, t.PreviousReading, t.TranCode, t.BaanCode, t.TenantCode, t.SubTenant,
                        COALESCE(t.NewReading, t.NewCurrentReading) AS CurrentReading, t.Consumption,
                        CAST(CAST(t.CapturedAtUtc AT TIME ZONE 'UTC' AT TIME ZONE 'Arabian Standard Time' AS date) AS datetime2) AS ReadingDate,
                        ROW_NUMBER() OVER (PARTITION BY t.MeterId ORDER BY t.ReceivedAtUtc DESC, t.CapturedAtUtc DESC) AS rn
@@ -283,6 +283,25 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     }
 
     /// <summary>FR-037.7: the property's row of mr.IrrigationNoCharge (db/020), or null when its irrigation is charged.</summary>
+    /// <summary>
+    /// The office's sub-tenant name per property (db/030 mr.PropertySubTenant, active rows); empty until the
+    /// script is run. Read live: a change shows on the phones at their next download.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, string>> GetSubTenantsAsync(CancellationToken ct)
+    {
+        const string sql = """
+            IF OBJECT_ID(N'mr.PropertySubTenant', N'U') IS NOT NULL
+                SELECT LTRIM(RTRIM(PropertyCode)) AS PropertyCode, LTRIM(RTRIM(SubTenantName)) AS SubTenantName
+                FROM mr.PropertySubTenant WHERE IsActive = 1 AND LTRIM(RTRIM(SubTenantName)) <> '';
+            ELSE
+                SELECT CAST(NULL AS varchar(30)) AS PropertyCode, CAST(NULL AS nvarchar(100)) AS SubTenantName WHERE 1 = 0;
+            """;
+        await using var c = await db.OpenMeterReadingAsync(ct);
+        var rows = await c.QueryAsync<(string PropertyCode, string SubTenantName)>(Cmd(sql, null, ct));
+        return rows.GroupBy(r => r.PropertyCode, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().SubTenantName, StringComparer.OrdinalIgnoreCase);
+    }
+
     public async Task<IrrigationNoChargeRow?> GetIrrigationNoChargeAsync(string propertyCode, CancellationToken ct)
     {
         const string sql = """
@@ -318,23 +337,29 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             WHERE f.PeriodCode = @periodCode AND f.PropertyCode = @propertyCode AND f.IsCurrent = 1;
             SELECT CAST(SYSUTCDATETIME() AS datetime2(0));
             """;
-        const string insert = """
+        const string insertTemplate = """
             INSERT mr.MaintainFinalizedMeter (PeriodCode, PropertyId, PropertyCode,
                 MeterNumberSewerage, PrevReadingSewerage, CurrentReadingSewerage, ConsumptionSewerage,
                 MeterNumberIrrigation, PrevReadingIrrigation, CurrentReadingIrrigation, ConsumptionIrrigation,
                 SewerageTransactionId, IrrigationTransactionId, FinalizedByReaderId, DeviceId, FinalizedAtUtc, IsCurrent,
                 SewerageAmount, IrrigationAmount, FloatValueSewerage, RateFactorSewerage, FloatValueIrrigation, RateFactorIrrigation,
                 SewerageVat, IrrigationVat, TotalAmount, IrrigationNoCharge, TenPercentAmount, IrrigationAmountCalculated,
-                TranCode, BaanCode, TenantCode, FromDate, EndDate, CompanyName, VATCode, ChargeType1, ChargeType2)
+                TranCode, BaanCode, TenantCode, FromDate, EndDate, CompanyName, VATCode, ChargeType1, ChargeType2{subTenantColumn})
             VALUES (@PeriodCode, @PropertyId, @PropertyCode,
                 @MeterNumberSewerage, @PrevReadingSewerage, @CurrentReadingSewerage, @ConsumptionSewerage,
                 @MeterNumberIrrigation, @PrevReadingIrrigation, @CurrentReadingIrrigation, @ConsumptionIrrigation,
                 @SewerageTransactionId, @IrrigationTransactionId, @ReaderId, @DeviceId, @At, 1,
                 @SewerageAmount, @IrrigationAmount, @FloatValueSewerage, @RateFactorSewerage, @FloatValueIrrigation, @RateFactorIrrigation,
                 @SewerageVat, @IrrigationVat, @TotalAmount, @IrrigationNoCharge, @TenPercentAmount, @IrrigationAmountCalculated,
-                @TranCode, @BaanCode, @TenantCode, @FromDate, @EndDate, @CompanyName, @VatCode, @ChargeType1, @ChargeType2);
+                @TranCode, @BaanCode, @TenantCode, @FromDate, @EndDate, @CompanyName, @VatCode, @ChargeType1, @ChargeType2{subTenantValue});
             """;
         await using var c = await db.OpenMeterReadingAsync(ct);
+        // SubTenant (db/030) is written once the column is there, so finalizing keeps working until the script is run.
+        var hasSubTenant = await c.ExecuteScalarAsync<int?>(new CommandDefinition(
+            "SELECT COL_LENGTH(N'mr.MaintainFinalizedMeter', N'SubTenant')", cancellationToken: ct)) is not null;
+        var insert = insertTemplate
+            .Replace("{subTenantColumn}", hasSubTenant ? ", SubTenant" : "")
+            .Replace("{subTenantValue}", hasSubTenant ? ", @SubTenant" : "");
         await using var tx = await c.BeginTransactionAsync(ct);
         var at = await c.ExecuteScalarAsync<DateTime>(new CommandDefinition(retire, new { periodCode, propertyCode }, tx,
             CommandTimeoutSeconds, cancellationToken: ct));
@@ -347,7 +372,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             CurrentReadingIrrigation = r.Irrigation?.Current ?? 0m, ConsumptionIrrigation = r.Irrigation?.Consumption ?? 0m,
             SewerageTransactionId = r.Sewerage?.TransactionId, IrrigationTransactionId = r.Irrigation?.TransactionId,
             ReaderId = readerId, DeviceId = deviceId, At = at,
-            r.SewerageAmount, r.IrrigationAmount, r.SewerageVat, r.IrrigationVat, r.TotalAmount, r.IrrigationNoCharge, r.TenPercentAmount, r.IrrigationAmountCalculated, r.TranCode, r.BaanCode, r.TenantCode, r.CompanyName,
+            r.SewerageAmount, r.IrrigationAmount, r.SewerageVat, r.IrrigationVat, r.TotalAmount, r.IrrigationNoCharge, r.TenPercentAmount, r.IrrigationAmountCalculated, r.TranCode, r.BaanCode, r.TenantCode, r.CompanyName, r.SubTenant,
             VatCode = Domain.FinalizeService.VatCode, ChargeType1 = Domain.FinalizeService.ChargeTypeSewerage,
             ChargeType2 = Domain.FinalizeService.ChargeTypeIrrigation,
             FromDate = fromDate.ToDateTime(TimeOnly.MinValue),
