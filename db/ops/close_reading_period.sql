@@ -1,5 +1,5 @@
 /*
-  ops/close_reading_period.sql — closes a reading period for the app (spec FR-037.11). Run in MRDB.
+  ops/close_reading_period.sql — closes a reading period for the app (spec FR-037.11). Run in the app's database (PropertyManagementSystem since 2026-10-29).
   Phones then cannot send new readings for it (PERIOD_CLOSED; readings wait on the phone) and no
   property can be finalized. The API also closes it by itself when the last property is finalized.
   To open it again: ops/reopen_reading_period.sql.

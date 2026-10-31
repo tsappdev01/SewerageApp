@@ -1,5 +1,5 @@
 /*
-  ops/reopen_reading_period.sql — opens a closed reading period again (spec FR-037.11). Run in MRDB.
+  ops/reopen_reading_period.sql — opens a closed reading period again (spec FR-037.11). Run in the app's database (PropertyManagementSystem since 2026-10-29).
   Phones can then send readings for it again (readings that waited on the phone go up by themselves)
   and properties can be finalized again. PMS's vw_MR_ReadingPeriod must still show it OPEN.
 */
