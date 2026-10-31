@@ -2,7 +2,7 @@
    e.g. to start clean after testing. Run in PropertyManagementSystem (the app's database).
 
    Deleted:  mr.ReadingTransaction, mr.ReadingImage, mr.ReadingImageData (the reading photos),
-             mr.MaintainFinalizedMeter, and the app's month closings in mr.ReadingPeriodStatus.
+             mr.MaintainFinalizedMeter and its invoice headers (mr.MaintainFinalizedInvoice), and the app's month closings in mr.ReadingPeriodStatus.
    Kept:     phones (mr.Device), sub-tenant names, opening readings from PMS, no-charge plots, field
              inspections, and everything in PMS's own tables.
 
@@ -52,7 +52,9 @@ SELECT i.* INTO mr.ReadingImage' + @suffix + N' FROM mr.ReadingImage i
  WHERE EXISTS (SELECT 1 FROM mr.ReadingTransaction t WHERE t.TransactionId = i.TransactionId AND (@Period IS NULL OR t.PeriodCode = @Period));
 SELECT * INTO mr.ReadingTransaction' + @suffix + N' FROM mr.ReadingTransaction WHERE @Period IS NULL OR PeriodCode = @Period;
 SELECT * INTO mr.MaintainFinalizedMeter' + @suffix + N' FROM mr.MaintainFinalizedMeter WHERE @Period IS NULL OR PeriodCode = @Period;
-SELECT * INTO mr.ReadingPeriodStatus' + @suffix + N' FROM mr.ReadingPeriodStatus WHERE @Period IS NULL OR PeriodCode = @Period;';
+SELECT * INTO mr.ReadingPeriodStatus' + @suffix + N' FROM mr.ReadingPeriodStatus WHERE @Period IS NULL OR PeriodCode = @Period;'
+    + CASE WHEN OBJECT_ID(N'mr.MaintainFinalizedInvoice', N'U') IS NOT NULL THEN N'
+SELECT * INTO mr.MaintainFinalizedInvoice' + @suffix + N' FROM mr.MaintainFinalizedInvoice WHERE @Period IS NULL OR PeriodCode = @Period;' ELSE N'' END;
 
 BEGIN TRANSACTION;
 EXEC sp_executesql @sql, N'@Period char(7)', @Period = @Period;
@@ -64,6 +66,8 @@ DELETE i FROM mr.ReadingImage i
 WHERE EXISTS (SELECT 1 FROM mr.ReadingTransaction t WHERE t.TransactionId = i.TransactionId AND (@Period IS NULL OR t.PeriodCode = @Period));
 DELETE FROM mr.ReadingTransaction WHERE @Period IS NULL OR PeriodCode = @Period;
 DELETE FROM mr.MaintainFinalizedMeter WHERE @Period IS NULL OR PeriodCode = @Period;
+IF OBJECT_ID(N'mr.MaintainFinalizedInvoice', N'U') IS NOT NULL
+    DELETE FROM mr.MaintainFinalizedInvoice WHERE @Period IS NULL OR PeriodCode = @Period;
 DELETE FROM mr.ReadingPeriodStatus WHERE @Period IS NULL OR PeriodCode = @Period;
 COMMIT TRANSACTION;
 

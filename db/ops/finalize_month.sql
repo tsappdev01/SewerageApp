@@ -5,7 +5,8 @@
    side), amounts = consumption x FloatValue x 1.2 x RateFactor/100, VAT 5%, the irrigation minimum
    (10% of sewerage, at most 500), no-charge plots (mr.IrrigationNoCharge), TenantCode / BaanCode / CompanyName
    from vw_MR_Tenant and TranCode from vw_MR_Property as they are now, VATCode SSD, ChargeType1 sew,
-   ChargeType2 Irri, FromDate / EndDate from vw_MR_ReadingPeriod, and the sub-tenant (the reading's,
+   ChargeType2 Irri, FromDate / ToDate from vw_MR_ReadingPeriod, one invoice header per property
+   (mr.MaintainFinalizedInvoice, db/033) whose InvNo the meter rows carry, and the sub-tenant (the reading's,
    else the office's name in mr.PropertySubTenant, db/030). A property finalized before keeps its rows
    with IsCurrent = 0 when finalized again.
 
@@ -53,6 +54,11 @@ END
 IF @Period IS NULL
 BEGIN
     RAISERROR(N'There is no OPEN period in vw_MR_ReadingPeriod.', 16, 1);
+    RETURN;
+END
+IF OBJECT_ID(N'mr.MaintainFinalizedInvoice', N'U') IS NULL
+BEGIN
+    RAISERROR(N'Run db/033_finalized_invoice_header.sql first (the invoice header table).', 16, 1);
     RETURN;
 END
 IF COL_LENGTH(N'mr.MaintainFinalizedMeter', N'SewAmount') IS NULL OR COL_LENGTH(N'mr.MaintainFinalizedMeter', N'DimensionCode') IS NULL
@@ -228,6 +234,38 @@ DECLARE @At datetime2(0) = SYSUTCDATETIME();
 UPDATE f SET IsCurrent = 0
 FROM mr.MaintainFinalizedMeter f WITH (UPDLOCK, HOLDLOCK)
 WHERE f.PeriodCode = @Period AND f.IsCurrent = 1 AND f.PropertyCode IN (SELECT PropertyCode FROM #todo);
+UPDATE i SET IsCurrent = 0
+FROM mr.MaintainFinalizedInvoice i WITH (UPDLOCK, HOLDLOCK)
+WHERE i.PeriodCode = @Period AND i.IsCurrent = 1 AND i.PropertyCode IN (SELECT PropertyCode FROM #todo);
+
+-- Area, Rate and DimensionCode (BaanDimensionCode) from vw_MR_Property, the tenant's row first (db/032).
+DROP TABLE IF EXISTS #pb;
+SELECT d.PropertyCode, pb.Area, pb.Rate, pb.DimensionCode
+INTO #pb
+FROM #todo d
+OUTER APPLY (SELECT TOP (1) TRY_CAST(p.Area AS decimal(18,2)) AS Area, TRY_CAST(p.Rate AS decimal(18,4)) AS Rate,
+                    NULLIF(LTRIM(RTRIM(CAST(p.BaanDimensionCode AS varchar(30)))), '') AS DimensionCode
+             FROM mr.vw_MR_Property p
+             WHERE CAST(p.PropertyCode AS varchar(30)) = d.PropertyCode
+             ORDER BY CASE WHEN LTRIM(RTRIM(CAST(p.TenantCode AS varchar(30)))) =
+                           (SELECT TOP (1) r.TenantCode FROM #rows r WHERE r.PropertyCode = d.PropertyCode AND r.TenantCode IS NOT NULL)
+                           THEN 0 ELSE 1 END) pb;
+
+-- The invoice headers (db/033): one per property with its totals; InvNo comes from the IDENTITY.
+DECLARE @inv TABLE (InvNo bigint, PropertyCode varchar(50));
+INSERT mr.MaintainFinalizedInvoice (PeriodCode, PropertyId, PropertyCode, TranCode, TenantCode, TenantsName, BaanCode, SubTenant,
+    Area, Rate, DimensionCode, FromDate, ToDate, ConsumptionSewerage, ConsumptionIrrigation, SewAmount, IrrAmount,
+    SewerageVat, IrrigationVat, TotalAmount, FinalizedByReaderId, DeviceId, CreatedDate, IsCurrent)
+OUTPUT inserted.InvNo, inserted.PropertyCode INTO @inv
+SELECT @Period, (SELECT TOP (1) v.PropertyId FROM #mv v WHERE v.PropertyCode = r.PropertyCode AND v.PropertyId IS NOT NULL), r.PropertyCode,
+       MAX(r.TranCode), MAX(r.TenantCode), MAX(r.CompanyName), MAX(r.BaanCode), MAX(r.SubTenant),
+       MAX(pb.Area), MAX(pb.Rate), MAX(pb.DimensionCode), @From, @End,
+       SUM(ISNULL(r.SCons, 0)), SUM(ISNULL(r.ICons, 0)), SUM(r.SewerageAmount), SUM(r.IrrigationAmount),
+       SUM(r.SewerageVat), SUM(r.IrrigationVat), SUM(r.TotalAmount), @FinalizedBy, NULL, @At, 1
+FROM #rows r
+LEFT JOIN #pb pb ON pb.PropertyCode = r.PropertyCode
+GROUP BY r.PropertyCode;
+PRINT CONCAT(@@ROWCOUNT, N' invoices written.');
 
 INSERT mr.MaintainFinalizedMeter (PeriodCode, PropertyId, PropertyCode,
     MeterNumberSewerage, PrevReadingSewerage, CurrentReadingSewerage, ConsumptionSewerage,
@@ -236,7 +274,7 @@ INSERT mr.MaintainFinalizedMeter (PeriodCode, PropertyId, PropertyCode,
     SewAmount, IrrAmount, FloatValueSewerage, RateFactorSewerage, FloatValueIrrigation, RateFactorIrrigation,
     SewerageVat, IrrigationVat, TotalAmount, IrrigationNoCharge, TenPercentAmount, IrrigationAmountCalculated,
     TranCode, BaanCode, TenantCode, FromDate, ToDate, TenantsName, VATCode, ChargeType1, ChargeType2, SubTenant,
-    Area, Rate, DimensionCode)
+    Area, Rate, DimensionCode, InvNo)
 SELECT @Period, (SELECT TOP (1) v.PropertyId FROM #mv v WHERE v.PropertyCode = r.PropertyCode AND v.PropertyId IS NOT NULL), r.PropertyCode,
        ISNULL(r.SNumber, '0'), ISNULL(r.SPrev, 0), ISNULL(r.SCur, 0), ISNULL(r.SCons, 0),
        ISNULL(r.INumber, '0'), ISNULL(r.IPrev, 0), ISNULL(r.ICur, 0), ISNULL(r.ICons, 0),
@@ -244,14 +282,10 @@ SELECT @Period, (SELECT TOP (1) v.PropertyId FROM #mv v WHERE v.PropertyCode = r
        r.SewerageAmount, r.IrrigationAmount, r.SFloat, r.SRate, r.IFloat, r.IRate,
        r.SewerageVat, r.IrrigationVat, r.TotalAmount, ISNULL(r.INoCharge, 0), r.TenPercentAmount, r.IrrigationAmountCalculated,
        r.TranCode, r.BaanCode, r.TenantCode, @From, @End, r.CompanyName, 'SSD', 'sew', 'Irri', r.SubTenant,
-       pb.Area, pb.Rate, pb.DimensionCode
+       pb.Area, pb.Rate, pb.DimensionCode, inv.InvNo
 FROM #rows r
--- db/032: Area, Rate and DimensionCode (BaanDimensionCode) from vw_MR_Property, the tenant's row first.
-OUTER APPLY (SELECT TOP (1) TRY_CAST(p.Area AS decimal(18,2)) AS Area, TRY_CAST(p.Rate AS decimal(18,4)) AS Rate,
-                    NULLIF(LTRIM(RTRIM(CAST(p.BaanDimensionCode AS varchar(30)))), '') AS DimensionCode
-             FROM mr.vw_MR_Property p
-             WHERE CAST(p.PropertyCode AS varchar(30)) = r.PropertyCode
-             ORDER BY CASE WHEN LTRIM(RTRIM(CAST(p.TenantCode AS varchar(30)))) = r.TenantCode THEN 0 ELSE 1 END) pb;
+LEFT JOIN #pb pb ON pb.PropertyCode = r.PropertyCode
+JOIN @inv inv ON inv.PropertyCode = r.PropertyCode;
 PRINT CONCAT(@@ROWCOUNT, N' billing rows written.');
 
 /* 10. Close the month: when every property is finalized (FR-037.11), or when asked (@Close = 1). */

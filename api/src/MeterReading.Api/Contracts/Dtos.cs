@@ -167,4 +167,6 @@ public sealed record FinalizedPropertyDto(
     DateOnly FromDate, DateOnly EndDate,
     IReadOnlyList<FinalizedMeterDto> Rows,
     /// <summary>FR-037.11: this was the last property; the period is now closed.</summary>
-    bool PeriodClosed = false);
+    bool PeriodClosed = false,
+    /// <summary>The invoice number of the header (mr.MaintainFinalizedInvoice, db/033).</summary>
+    long? InvNo = null);

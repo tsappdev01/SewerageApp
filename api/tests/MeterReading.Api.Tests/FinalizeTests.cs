@@ -156,7 +156,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
     {
         await using var c = new SqlConnection(ApiFactory.ConnectionString);
         await c.OpenAsync();
-        await using var cmd = new SqlCommand("DELETE FROM mr.MaintainFinalizedMeter WHERE PropertyCode IN ('1497', '3010', '1101'); DELETE FROM mr.IrrigationNoCharge WHERE PropertyCode = '3010'; DELETE FROM mr.ReadingPeriodStatus WHERE PeriodCode = '2026-10'; DELETE FROM mr.PropertySubTenant WHERE PropertyCode = '1497'", c);
+        await using var cmd = new SqlCommand("DELETE FROM mr.MaintainFinalizedMeter WHERE PropertyCode IN ('1497', '3010', '1101'); DELETE FROM mr.MaintainFinalizedInvoice WHERE PropertyCode IN ('1497', '3010', '1101'); DELETE FROM mr.IrrigationNoCharge WHERE PropertyCode = '3010'; DELETE FROM mr.ReadingPeriodStatus WHERE PeriodCode = '2026-10'; DELETE FROM mr.PropertySubTenant WHERE PropertyCode = '1497'", c);
         await cmd.ExecuteNonQueryAsync();
     }
 
@@ -323,6 +323,50 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         var rows = await Rows("1497");
         Assert.Equal(4, rows.Count);
         Assert.Equal([false, false, true, true], rows.Select(r => r.Current));
+        // The earlier invoice stays too, not current; each set of rows keeps its own invoice number.
+        Assert.Equal([(false, 2), (true, 2)], await Invoices("1497"));
+    }
+
+    private static async Task<List<(bool Current, int Rows)>> Invoices(string property)
+    {
+        await using var c = new SqlConnection(ApiFactory.ConnectionString);
+        await c.OpenAsync();
+        await using var cmd = new SqlCommand("""
+            SELECT i.IsCurrent, (SELECT COUNT(*) FROM mr.MaintainFinalizedMeter f WHERE f.InvNo = i.InvNo AND f.IsCurrent = i.IsCurrent)
+            FROM mr.MaintainFinalizedInvoice i WHERE i.PropertyCode = @p ORDER BY i.InvNo
+            """, c);
+        cmd.Parameters.AddWithValue("@p", property);
+        var list = new List<(bool, int)>();
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync()) list.Add((r.GetBoolean(0), r.GetInt32(1)));
+        return list;
+    }
+
+    [Fact]
+    public async Task The_invoice_header_holds_the_totals_and_its_number_links_the_meter_rows()
+    {
+        var (status, body) = await FinalizeProperty("1497");
+        Assert.Equal(HttpStatusCode.OK, status);
+        var invNo = body.GetProperty("invNo").GetInt64();
+
+        await using var c = new SqlConnection(ApiFactory.ConnectionString);
+        await c.OpenAsync();
+        await using var cmd = new SqlCommand("""
+            SELECT i.SewAmount, i.IrrAmount, i.TotalAmount, i.ConsumptionSewerage, i.ConsumptionIrrigation, i.TenantCode, i.BaanCode,
+                   i.TTBaan, i.Status, i.FusionInvoiceNo, i.DimensionCode,
+                   (SELECT COUNT(*) FROM mr.MaintainFinalizedMeter f WHERE f.InvNo = i.InvNo),
+                   (SELECT SUM(f.TotalAmount) FROM mr.MaintainFinalizedMeter f WHERE f.InvNo = i.InvNo)
+            FROM mr.MaintainFinalizedInvoice i WHERE i.InvNo = @n AND i.PropertyCode = '1497' AND i.IsCurrent = 1
+            """, c);
+        cmd.Parameters.AddWithValue("@n", invNo);
+        await using var r = await cmd.ExecuteReaderAsync();
+        Assert.True(await r.ReadAsync());
+        // 1497: sewerage 290 used -> 1148.40, irrigation 990 used -> 3920.40; with VAT 5322.24 (FR037_1).
+        Assert.Equal((1148.40m, 3920.40m, 5322.24m, 290m, 990m), (r.GetDecimal(0), r.GetDecimal(1), r.GetDecimal(2), r.GetDecimal(3), r.GetDecimal(4)));
+        Assert.Equal(("T-0203", "BT-0203", "No", "Ready", 0L, "D1497"),
+            (r.GetString(5), r.GetString(6), r.GetString(7), r.GetString(8), r.GetInt64(9), r.GetString(10)));
+        Assert.Equal(2, r.GetInt32(11));                 // both meter rows carry the invoice number
+        Assert.Equal(r.GetDecimal(2), r.GetDecimal(12)); // and add up to the header's total
     }
 
     [Fact]

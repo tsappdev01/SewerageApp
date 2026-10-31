@@ -327,7 +327,13 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     /// FR-037.4: writes the property's rows (with their FR-037.5 amounts) to mr.MaintainFinalizedMeter in one transaction; an earlier set
     /// for the same period and property is kept with IsCurrent = 0. Returns the time written (UTC).
     /// </summary>
-    public async Task<DateTime> InsertFinalizedAsync(
+    /// <summary>
+    /// Writes a finalized property: the invoice header (mr.MaintainFinalizedInvoice, db/033) with the totals, whose
+    /// IDENTITY InvNo the detail rows (mr.MaintainFinalizedMeter, one per meter number) then carry, in one
+    /// transaction. The earlier invoice of the property and month, and its rows, become IsCurrent = 0.
+    /// Without db/033 only the detail rows are written (InvNo empty).
+    /// </summary>
+    public async Task<(DateTime At, long? InvNo)> InsertFinalizedAsync(
         string periodCode, string propertyCode, long? propertyId, IReadOnlyList<Domain.FinalizedPair> rows,
         string readerId, Guid? deviceId, DateOnly fromDate, DateOnly endDate, CancellationToken ct, PropertyBillingRow? billing = null)
     {
@@ -335,7 +341,20 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             UPDATE f SET IsCurrent = 0
             FROM mr.MaintainFinalizedMeter f WITH (UPDLOCK, HOLDLOCK)
             WHERE f.PeriodCode = @periodCode AND f.PropertyCode = @propertyCode AND f.IsCurrent = 1;
+            IF OBJECT_ID(N'mr.MaintainFinalizedInvoice', N'U') IS NOT NULL
+                UPDATE i SET IsCurrent = 0
+                FROM mr.MaintainFinalizedInvoice i WITH (UPDLOCK, HOLDLOCK)
+                WHERE i.PeriodCode = @periodCode AND i.PropertyCode = @propertyCode AND i.IsCurrent = 1;
             SELECT CAST(SYSUTCDATETIME() AS datetime2(0));
+            """;
+        const string header = """
+            INSERT mr.MaintainFinalizedInvoice (PeriodCode, PropertyId, PropertyCode, TranCode, TenantCode, TenantsName, BaanCode, SubTenant,
+                Area, Rate, DimensionCode, FromDate, ToDate, ConsumptionSewerage, ConsumptionIrrigation, SewAmount, IrrAmount,
+                SewerageVat, IrrigationVat, TotalAmount, FinalizedByReaderId, DeviceId, CreatedDate, IsCurrent)
+            OUTPUT inserted.InvNo
+            VALUES (@PeriodCode, @PropertyId, @PropertyCode, @TranCode, @TenantCode, @TenantsName, @BaanCode, @SubTenant,
+                @Area, @Rate, @DimensionCode, @FromDate, @ToDate, @ConsumptionSewerage, @ConsumptionIrrigation, @SewAmount, @IrrAmount,
+                @SewerageVat, @IrrigationVat, @TotalAmount, @ReaderId, @DeviceId, @At, 1);
             """;
         const string insertTemplate = """
             INSERT mr.MaintainFinalizedMeter (PeriodCode, PropertyId, PropertyCode,
@@ -345,7 +364,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                 SewAmount, IrrAmount, FloatValueSewerage, RateFactorSewerage, FloatValueIrrigation, RateFactorIrrigation,
                 SewerageVat, IrrigationVat, TotalAmount, IrrigationNoCharge, TenPercentAmount, IrrigationAmountCalculated,
                 TranCode, BaanCode, TenantCode, FromDate, ToDate, TenantsName, VATCode, ChargeType1, ChargeType2,
-                Area, Rate, DimensionCode{subTenantColumn})
+                Area, Rate, DimensionCode, InvNo{subTenantColumn})
             VALUES (@PeriodCode, @PropertyId, @PropertyCode,
                 @MeterNumberSewerage, @PrevReadingSewerage, @CurrentReadingSewerage, @ConsumptionSewerage,
                 @MeterNumberIrrigation, @PrevReadingIrrigation, @CurrentReadingIrrigation, @ConsumptionIrrigation,
@@ -353,7 +372,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                 @SewerageAmount, @IrrigationAmount, @FloatValueSewerage, @RateFactorSewerage, @FloatValueIrrigation, @RateFactorIrrigation,
                 @SewerageVat, @IrrigationVat, @TotalAmount, @IrrigationNoCharge, @TenPercentAmount, @IrrigationAmountCalculated,
                 @TranCode, @BaanCode, @TenantCode, @FromDate, @EndDate, @CompanyName, @VatCode, @ChargeType1, @ChargeType2,
-                @Area, @Rate, @DimensionCode{subTenantValue});
+                @Area, @Rate, @DimensionCode, @InvNo{subTenantValue});
             """;
         await using var c = await db.OpenMeterReadingAsync(ct);
         // SubTenant (db/030) is written once the column is there, so finalizing keeps working until the script is run.
@@ -365,6 +384,30 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         await using var tx = await c.BeginTransactionAsync(ct);
         var at = await c.ExecuteScalarAsync<DateTime>(new CommandDefinition(retire, new { periodCode, propertyCode }, tx,
             CommandTimeoutSeconds, cancellationToken: ct));
+        var hasHeader = await c.ExecuteScalarAsync<int?>(new CommandDefinition(
+            "SELECT OBJECT_ID(N'mr.MaintainFinalizedInvoice', N'U')", transaction: tx, cancellationToken: ct)) is not null;
+        long? invNo = null;
+        if (hasHeader)
+        {
+            // The header: the property's totals, and its codes as on the first row that has them (sewerage first).
+            invNo = await c.ExecuteScalarAsync<long>(new CommandDefinition(header, new
+            {
+                PeriodCode = periodCode, PropertyId = propertyId, PropertyCode = propertyCode,
+                TranCode = rows.Select(r => r.TranCode).FirstOrDefault(v => v is not null),
+                TenantCode = rows.Select(r => r.TenantCode).FirstOrDefault(v => v is not null),
+                TenantsName = rows.Select(r => r.CompanyName).FirstOrDefault(v => v is not null),
+                BaanCode = rows.Select(r => r.BaanCode).FirstOrDefault(v => v is not null),
+                SubTenant = rows.Select(r => r.SubTenant).FirstOrDefault(v => v is not null),
+                Area = billing?.Area, Rate = billing?.Rate, DimensionCode = billing?.DimensionCode,
+                FromDate = fromDate.ToDateTime(TimeOnly.MinValue), ToDate = endDate.ToDateTime(TimeOnly.MinValue),
+                ConsumptionSewerage = rows.Sum(r => r.Sewerage?.Consumption ?? 0m),
+                ConsumptionIrrigation = rows.Sum(r => r.Irrigation?.Consumption ?? 0m),
+                SewAmount = rows.Sum(r => r.SewerageAmount), IrrAmount = rows.Sum(r => r.IrrigationAmount),
+                SewerageVat = rows.Sum(r => r.SewerageVat), IrrigationVat = rows.Sum(r => r.IrrigationVat),
+                TotalAmount = rows.Sum(r => r.TotalAmount),
+                ReaderId = readerId, DeviceId = deviceId, At = at,
+            }, tx, CommandTimeoutSeconds, cancellationToken: ct));
+        }
         await c.ExecuteAsync(new CommandDefinition(insert, rows.Select(r => new
         {
             PeriodCode = periodCode, PropertyId = propertyId, PropertyCode = propertyCode,
@@ -379,12 +422,12 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             ChargeType2 = Domain.FinalizeService.ChargeTypeIrrigation,
             FromDate = fromDate.ToDateTime(TimeOnly.MinValue),
             EndDate = endDate.ToDateTime(TimeOnly.MinValue),
-            Area = billing?.Area, Rate = billing?.Rate, DimensionCode = billing?.DimensionCode,
+            Area = billing?.Area, Rate = billing?.Rate, DimensionCode = billing?.DimensionCode, InvNo = invNo,
             FloatValueSewerage = r.Sewerage?.FloatValue, RateFactorSewerage = r.Sewerage?.RateFactor,
             FloatValueIrrigation = r.Irrigation?.FloatValue, RateFactorIrrigation = r.Irrigation?.RateFactor,
         }).ToList(), tx, CommandTimeoutSeconds, cancellationToken: ct));
         await tx.CommitAsync(ct);
-        return at;
+        return (at, invNo);
     }
 
     public async Task<IReadOnlyList<TransactionRow>> GetReaderTransactionsAsync(string readerId, string periodCode, CancellationToken ct)
