@@ -27,7 +27,7 @@ CREATE OR ALTER VIEW dbo.vw_MR_Meter_Base
 AS
 SELECT b.Barcode                          AS MeterId,
        b.MeterNumber,
-       b.PropertyId                       AS PropertyCode,
+       p.PropertyCode                     AS PropertyCode,   -- MaintainPropertyMeter.PropertyId is PMS's number (e.g. 1035), not the code
        b.Type                             AS MeterType,
        10                                 AS RegisterDigits,
        4                                  AS DecimalDigits,
@@ -37,7 +37,9 @@ SELECT b.Barcode                          AS MeterId,
        b.Active                           AS Status,
        b.FloatValue,
        b.RateFactor
-FROM PropertyManagementSystem.dbo.MaintainPropertyMeter b;
+FROM PropertyManagementSystem.dbo.MaintainPropertyMeter b
+-- One row per property: a property with two tenant rows in the view must not list its meters twice (DIP fix, 2026-10-31).
+JOIN (SELECT DISTINCT PropertyId, PropertyCode FROM PropertyManagementSystem.dbo.vw_MR_Property) p ON p.PropertyId = b.PropertyId;
 GO
 
 CREATE OR ALTER VIEW dbo.vw_MR_Meter
