@@ -367,6 +367,16 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
             (r.GetString(5), r.GetString(6), r.GetString(7), r.GetString(8), r.GetInt64(9), r.GetString(10)));
         Assert.Equal(2, r.GetInt32(11));                 // both meter rows carry the invoice number
         Assert.Equal(r.GetDecimal(2), r.GetDecimal(12)); // and add up to the header's total
+        r.Close();
+
+        // DIP's invoice fields: taxable (excl. VAT), VAT, invoice amount (incl. VAT), SIMNo = InvNo, defaults.
+        await using var more = new SqlCommand(
+            "SELECT TaxableAmount, VATAmount, InvAmount, SIMNo, RecAmount, Details FROM mr.MaintainFinalizedInvoice WHERE InvNo = @n", c);
+        more.Parameters.AddWithValue("@n", invNo);
+        await using var m = await more.ExecuteReaderAsync();
+        Assert.True(await m.ReadAsync());
+        Assert.Equal((5068.80m, 253.44m, 5322.24m, invNo, 0m, "sew"),
+            (m.GetDecimal(0), m.GetDecimal(1), m.GetDecimal(2), m.GetInt64(3), m.GetDecimal(4), m.GetString(5)));
     }
 
     [Fact]

@@ -4,7 +4,9 @@
     mr.MaintainFinalizedInvoice  header: one invoice per finalized property and month; InvNo is an IDENTITY
                                  primary key; the totals (consumption, SewAmount, IrrAmount, VAT, TotalAmount)
                                  and the invoice fields (tenant, Baan and Tran codes, Area, Rate, DimensionCode,
-                                 TTBaan 'No', Status 'Ready', FusionInvoiceNo 0).
+                                 TTBaan 'No', Status 'Ready', FusionInvoiceNo 0); TaxableAmount (excl. VAT),
+                                 VATAmount, InvAmount (incl. VAT) and SIMNo (= InvNo) worked out from it;
+                                 RecAmount 0 and Details 'sew' by default.
     mr.MaintainFinalizedMeter    detail: one row per meter number; InvNo is a foreign key to the header.
   Finalizing inserts the header, takes its new InvNo and inserts the detail rows with it, in one transaction.
   Finalizing again marks the earlier invoice and its detail rows IsCurrent = 0 and writes a new invoice.
@@ -46,6 +48,22 @@ CREATE TABLE mr.MaintainFinalizedInvoice (
     CreatedDate            datetime2(0)     NOT NULL CONSTRAINT DF_MaintainFinalizedInvoice_CreatedDate DEFAULT SYSUTCDATETIME(),
     IsCurrent              bit              NOT NULL CONSTRAINT DF_MaintainFinalizedInvoice_IsCurrent DEFAULT 1
 );
+GO
+
+-- DIP 2026-10-31: worked out from the header's own columns, so they always agree with it.
+IF COL_LENGTH(N'mr.MaintainFinalizedInvoice', N'TaxableAmount') IS NULL
+    ALTER TABLE mr.MaintainFinalizedInvoice ADD TaxableAmount AS CAST(SewAmount + IrrAmount AS decimal(18,2)) PERSISTED;     -- excl. VAT
+IF COL_LENGTH(N'mr.MaintainFinalizedInvoice', N'VATAmount') IS NULL
+    ALTER TABLE mr.MaintainFinalizedInvoice ADD VATAmount AS CAST(SewerageVat + IrrigationVat AS decimal(18,2)) PERSISTED;
+IF COL_LENGTH(N'mr.MaintainFinalizedInvoice', N'InvAmount') IS NULL
+    ALTER TABLE mr.MaintainFinalizedInvoice ADD InvAmount AS CAST(SewAmount + IrrAmount + SewerageVat + IrrigationVat AS decimal(18,2)) PERSISTED; -- incl. VAT
+IF COL_LENGTH(N'mr.MaintainFinalizedInvoice', N'SIMNo') IS NULL
+    ALTER TABLE mr.MaintainFinalizedInvoice ADD SIMNo AS InvNo PERSISTED;
+-- Defaults.
+IF COL_LENGTH(N'mr.MaintainFinalizedInvoice', N'RecAmount') IS NULL
+    ALTER TABLE mr.MaintainFinalizedInvoice ADD RecAmount decimal(18,2) NOT NULL CONSTRAINT DF_MaintainFinalizedInvoice_RecAmount DEFAULT 0;
+IF COL_LENGTH(N'mr.MaintainFinalizedInvoice', N'Details') IS NULL
+    ALTER TABLE mr.MaintainFinalizedInvoice ADD Details varchar(50) NOT NULL CONSTRAINT DF_MaintainFinalizedInvoice_Details DEFAULT 'sew';
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MaintainFinalizedInvoice_Period_Property' AND object_id = OBJECT_ID(N'mr.MaintainFinalizedInvoice'))
