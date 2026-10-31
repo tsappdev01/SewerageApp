@@ -1,0 +1,4 @@
+Waiting phone d91c28f28ae07800, check code BTYSSQ: approving for rashid@dip.example
+Result DeviceId AndroidId CheckCode Label BoundReaderLogin Model
+------ -------- --------- --------- ----- ---------------- -----
+Registered DFD9012E-AF22-46B3-8A7A-5E7D7B7869AC d91c28f28ae07800 BTYSSQ E2E emulator rashid@dip.example Google sdk_gphone64_x86_64

@@ -1,0 +1,44 @@
+INSTRUMENTATION_STATUS: class=com.meterreading.reader.e2e.RevokedPhoneTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=1
+INSTRUMENTATION_STATUS: stream=
+com.meterreading.reader.e2e.RevokedPhoneTest:
+INSTRUMENTATION_STATUS: test=FR002_3_a_blocked_phone_cannot_open_the_app
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.meterreading.reader.e2e.RevokedPhoneTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=1
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: "Open" did not appear in 45 s
+	at com.meterreading.reader.e2e.Phone.fail(Phone.kt:141)
+	at com.meterreading.reader.e2e.Phone.waitFor(Phone.kt:63)
+	at com.meterreading.reader.e2e.Phone.waitText(Phone.kt:68)
+	at com.meterreading.reader.e2e.RevokedPhoneTest.FR002_3_a_blocked_phone_cannot_open_the_app(RevokedPhoneTest.kt:24)
+
+INSTRUMENTATION_STATUS: stream=
+Error in FR002_3_a_blocked_phone_cannot_open_the_app(com.meterreading.reader.e2e.RevokedPhoneTest):
+java.lang.AssertionError: "Open" did not appear in 45 s
+	at com.meterreading.reader.e2e.Phone.fail(Phone.kt:141)
+	at com.meterreading.reader.e2e.Phone.waitFor(Phone.kt:63)
+	at com.meterreading.reader.e2e.Phone.waitText(Phone.kt:68)
+	at com.meterreading.reader.e2e.RevokedPhoneTest.FR002_3_a_blocked_phone_cannot_open_the_app(RevokedPhoneTest.kt:24)
+
+INSTRUMENTATION_STATUS: test=FR002_3_a_blocked_phone_cannot_open_the_app
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_RESULT: stream=
+
+Time: 75.255
+There was 1 failure:
+1) FR002_3_a_blocked_phone_cannot_open_the_app(com.meterreading.reader.e2e.RevokedPhoneTest)
+java.lang.AssertionError: "Open" did not appear in 45 s
+	at com.meterreading.reader.e2e.Phone.fail(Phone.kt:141)
+	at com.meterreading.reader.e2e.Phone.waitFor(Phone.kt:63)
+	at com.meterreading.reader.e2e.Phone.waitText(Phone.kt:68)
+	at com.meterreading.reader.e2e.RevokedPhoneTest.FR002_3_a_blocked_phone_cannot_open_the_app(RevokedPhoneTest.kt:24)
+
+FAILURES!!!
+Tests run: 1,  Failures: 1
+
+
+INSTRUMENTATION_CODE: -1
