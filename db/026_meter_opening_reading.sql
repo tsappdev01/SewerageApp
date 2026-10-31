@@ -33,13 +33,14 @@ AS
 BEGIN
     -- DIP 2026-10-31: per property and meter (S = sewerage, I = irrigation) the latest PMS reading, its
     -- consumption, and AvgConsumption = |mean of the latest 3 readings|, a whole number (DIP's query).
+    -- PMS keeps readings as text; a value that is not a number (blank, '-', ...) counts as empty, not an error.
     SET NOCOUNT ON;
 
     ;WITH s AS (
         SELECT t_date AS ReadingDate, LTRIM(RTRIM(t_plot)) AS PropertyCode, LTRIM(RTRIM(t_metr_1)) AS MeterNumber,
-               t_curr_1 AS Reading, t_cons_1 AS Consumption, 'S' AS Type,
+               TRY_CONVERT(numeric(18,2), t_curr_1) AS Reading, TRY_CONVERT(numeric(18,2), t_cons_1) AS Consumption, 'S' AS Type,
                ROW_NUMBER() OVER (PARTITION BY LTRIM(RTRIM(t_plot)), LTRIM(RTRIM(t_metr_1)) ORDER BY t_date DESC) AS rn,
-               CAST(ROUND(ABS(AVG(CONVERT(numeric(18,2), t_cons_1))
+               CAST(ROUND(ABS(AVG(TRY_CONVERT(numeric(18,2), t_cons_1))
                    OVER (PARTITION BY LTRIM(RTRIM(t_plot)), LTRIM(RTRIM(t_metr_1)) ORDER BY t_date DESC
                          ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING)), 0) AS int) AS AvgConsumption
         FROM PropertyManagementSystem.dbo.tgcpms315110
@@ -47,9 +48,9 @@ BEGIN
     ),
     i AS (
         SELECT t_date AS ReadingDate, LTRIM(RTRIM(t_plot)) AS PropertyCode, LTRIM(RTRIM(t_metr_2)) AS MeterNumber,
-               t_curr_2 AS Reading, t_cons_2 AS Consumption, 'I' AS Type,
+               TRY_CONVERT(numeric(18,2), t_curr_2) AS Reading, TRY_CONVERT(numeric(18,2), t_cons_2) AS Consumption, 'I' AS Type,
                ROW_NUMBER() OVER (PARTITION BY LTRIM(RTRIM(t_plot)), LTRIM(RTRIM(t_metr_2)) ORDER BY t_date DESC) AS rn,
-               CAST(ROUND(ABS(AVG(CONVERT(numeric(18,2), t_cons_2))
+               CAST(ROUND(ABS(AVG(TRY_CONVERT(numeric(18,2), t_cons_2))
                    OVER (PARTITION BY LTRIM(RTRIM(t_plot)), LTRIM(RTRIM(t_metr_2)) ORDER BY t_date DESC
                          ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING)), 0) AS int) AS AvgConsumption
         FROM PropertyManagementSystem.dbo.tgcpms315110
