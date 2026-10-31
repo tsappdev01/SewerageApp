@@ -184,7 +184,9 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
         // FR-037.10: FromDate and EndDate are the period's StartDate and EndDate in vw_MR_ReadingPeriod.
         var fromDate = DateOnly.FromDateTime(period.StartDate);
         var endDate = DateOnly.FromDateTime(period.EndDate);
-        var at = await repo.InsertFinalizedAsync(period.PeriodCode, code, propertyId, rows, reader.ReaderId, deviceId, fromDate, endDate, ct);
+        // db/032: Area, Rate and DimensionCode from vw_MR_Property, for the tenant of the rows.
+        var billing = await repo.GetPropertyBillingAsync(code, rows.Select(r => r.TenantCode).FirstOrDefault(t => t is not null), ct);
+        var at = await repo.InsertFinalizedAsync(period.PeriodCode, code, propertyId, rows, reader.ReaderId, deviceId, fromDate, endDate, ct, billing);
 
         // FR-037.11: the last property of the period finalized: posting is complete, the period closes.
         var properties = set.Properties.Select(p => p.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();

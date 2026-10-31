@@ -173,7 +173,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         await using var c = new SqlConnection(ApiFactory.ConnectionString);
         await c.OpenAsync();
         await using var cmd = new SqlCommand(
-            "SELECT SewerageAmount, IrrigationAmount, TotalAmount FROM mr.MaintainFinalizedMeter WHERE PropertyCode = @p AND IsCurrent = 1 ORDER BY FinalizedMeterId", c);
+            "SELECT SewAmount, IrrAmount, TotalAmount FROM mr.MaintainFinalizedMeter WHERE PropertyCode = @p AND IsCurrent = 1 ORDER BY RowId", c);
         cmd.Parameters.AddWithValue("@p", property);
         var list = new List<(decimal, decimal, decimal)>();
         await using var r = await cmd.ExecuteReaderAsync();
@@ -188,7 +188,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         await using var cmd = new SqlCommand("""
             SELECT MeterNumberSewerage, PrevReadingSewerage, CurrentReadingSewerage, ConsumptionSewerage,
                    MeterNumberIrrigation, PrevReadingIrrigation, CurrentReadingIrrigation, ConsumptionIrrigation, IsCurrent
-            FROM mr.MaintainFinalizedMeter WHERE PropertyCode = @p ORDER BY FinalizedMeterId
+            FROM mr.MaintainFinalizedMeter WHERE PropertyCode = @p ORDER BY RowId
             """, c);
         cmd.Parameters.AddWithValue("@p", property);
         var list = new List<(string, decimal, decimal, decimal, string, decimal, decimal, decimal, bool)>();
@@ -217,10 +217,15 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         {
             await c.OpenAsync();
             await using var cmd = new SqlCommand(
-                "SELECT TOP (1) CompanyName, VATCode, ChargeType1, ChargeType2 FROM mr.MaintainFinalizedMeter WHERE PropertyCode = '1497' AND IsCurrent = 1", c);
+                "SELECT TOP (1) TenantsName, VATCode, ChargeType1, ChargeType2, Area, Rate, DimensionCode, TTBaan, Status, FusionInvoiceNo, InvNo " +
+                "FROM mr.MaintainFinalizedMeter WHERE PropertyCode = '1497' AND IsCurrent = 1", c);
             await using var r = await cmd.ExecuteReaderAsync();
             Assert.True(await r.ReadAsync());
             Assert.Equal(("Oasis Cold Store", "SSD", "sew", "Irri"), (r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3)));
+            // db/032: Area, Rate and DimensionCode from vw_MR_Property (dev: an area, "D" + code, rate 0), and PMS's defaults.
+            Assert.True(r.GetDecimal(4) > 0);
+            Assert.Equal((0m, "D1497", "No", "Ready", 0L), (r.GetDecimal(5), r.GetString(6), r.GetString(7), r.GetString(8), r.GetInt64(9)));
+            Assert.True(r.IsDBNull(10)); // InvNo: not set by the app
         }
         Assert.Equal(2, body.GetProperty("rows").GetArrayLength());
         Assert.Equal(

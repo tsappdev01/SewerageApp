@@ -329,7 +329,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     /// </summary>
     public async Task<DateTime> InsertFinalizedAsync(
         string periodCode, string propertyCode, long? propertyId, IReadOnlyList<Domain.FinalizedPair> rows,
-        string readerId, Guid? deviceId, DateOnly fromDate, DateOnly endDate, CancellationToken ct)
+        string readerId, Guid? deviceId, DateOnly fromDate, DateOnly endDate, CancellationToken ct, PropertyBillingRow? billing = null)
     {
         const string retire = """
             UPDATE f SET IsCurrent = 0
@@ -341,17 +341,19 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             INSERT mr.MaintainFinalizedMeter (PeriodCode, PropertyId, PropertyCode,
                 MeterNumberSewerage, PrevReadingSewerage, CurrentReadingSewerage, ConsumptionSewerage,
                 MeterNumberIrrigation, PrevReadingIrrigation, CurrentReadingIrrigation, ConsumptionIrrigation,
-                SewerageTransactionId, IrrigationTransactionId, FinalizedByReaderId, DeviceId, FinalizedAtUtc, IsCurrent,
-                SewerageAmount, IrrigationAmount, FloatValueSewerage, RateFactorSewerage, FloatValueIrrigation, RateFactorIrrigation,
+                SewerageTransactionId, IrrigationTransactionId, FinalizedByReaderId, DeviceId, CreatedDate, IsCurrent,
+                SewAmount, IrrAmount, FloatValueSewerage, RateFactorSewerage, FloatValueIrrigation, RateFactorIrrigation,
                 SewerageVat, IrrigationVat, TotalAmount, IrrigationNoCharge, TenPercentAmount, IrrigationAmountCalculated,
-                TranCode, BaanCode, TenantCode, FromDate, EndDate, CompanyName, VATCode, ChargeType1, ChargeType2{subTenantColumn})
+                TranCode, BaanCode, TenantCode, FromDate, ToDate, TenantsName, VATCode, ChargeType1, ChargeType2,
+                Area, Rate, DimensionCode{subTenantColumn})
             VALUES (@PeriodCode, @PropertyId, @PropertyCode,
                 @MeterNumberSewerage, @PrevReadingSewerage, @CurrentReadingSewerage, @ConsumptionSewerage,
                 @MeterNumberIrrigation, @PrevReadingIrrigation, @CurrentReadingIrrigation, @ConsumptionIrrigation,
                 @SewerageTransactionId, @IrrigationTransactionId, @ReaderId, @DeviceId, @At, 1,
                 @SewerageAmount, @IrrigationAmount, @FloatValueSewerage, @RateFactorSewerage, @FloatValueIrrigation, @RateFactorIrrigation,
                 @SewerageVat, @IrrigationVat, @TotalAmount, @IrrigationNoCharge, @TenPercentAmount, @IrrigationAmountCalculated,
-                @TranCode, @BaanCode, @TenantCode, @FromDate, @EndDate, @CompanyName, @VatCode, @ChargeType1, @ChargeType2{subTenantValue});
+                @TranCode, @BaanCode, @TenantCode, @FromDate, @EndDate, @CompanyName, @VatCode, @ChargeType1, @ChargeType2,
+                @Area, @Rate, @DimensionCode{subTenantValue});
             """;
         await using var c = await db.OpenMeterReadingAsync(ct);
         // SubTenant (db/030) is written once the column is there, so finalizing keeps working until the script is run.
@@ -377,6 +379,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             ChargeType2 = Domain.FinalizeService.ChargeTypeIrrigation,
             FromDate = fromDate.ToDateTime(TimeOnly.MinValue),
             EndDate = endDate.ToDateTime(TimeOnly.MinValue),
+            Area = billing?.Area, Rate = billing?.Rate, DimensionCode = billing?.DimensionCode,
             FloatValueSewerage = r.Sewerage?.FloatValue, RateFactorSewerage = r.Sewerage?.RateFactor,
             FloatValueIrrigation = r.Irrigation?.FloatValue, RateFactorIrrigation = r.Irrigation?.RateFactor,
         }).ToList(), tx, CommandTimeoutSeconds, cancellationToken: ct));
@@ -510,6 +513,23 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
     /// vw_MR_Property.TranCode (db/021) of the property's row for this tenant; without one for the tenant, the
     /// property's first row. Null when the property has none.
     /// </summary>
+    /// <summary>
+    /// db/032: Area, Rate and DimensionCode (BaanDimensionCode) of the property in vw_MR_Property, read when
+    /// finalizing, from the tenant's row when it has one (as <see cref="GetTranCodeAsync"/>).
+    /// </summary>
+    public async Task<PropertyBillingRow?> GetPropertyBillingAsync(string propertyCode, string? tenantCode, CancellationToken ct)
+    {
+        var sql = $"""
+            SELECT TOP (1) TRY_CAST(p.Area AS decimal(18,2)) AS Area, TRY_CAST(p.Rate AS decimal(18,4)) AS Rate,
+                   NULLIF(LTRIM(RTRIM(CAST(p.BaanDimensionCode AS varchar(30)))), '') AS DimensionCode
+            FROM {_v.Property} p
+            WHERE CAST(p.PropertyCode AS varchar(30)) = @propertyCode
+            ORDER BY CASE WHEN LTRIM(RTRIM(CAST(p.TenantCode AS varchar(30)))) = @tenantCode THEN 0 ELSE 1 END
+            """;
+        await using var c = await db.OpenSourceAsync(ct);
+        return await c.QuerySingleOrDefaultAsync<PropertyBillingRow>(Cmd(sql, new { propertyCode, tenantCode }, ct));
+    }
+
     public async Task<string?> GetTranCodeAsync(string propertyCode, string? tenantCode, CancellationToken ct)
     {
         var sql = $"""

@@ -112,6 +112,16 @@ public sealed class FinalizeReadingRow
     public string? SubTenant { get; init; }
 }
 
+/// <summary>What finalizing takes from vw_MR_Property for the billing row (db/032).</summary>
+public sealed class PropertyBillingRow
+{
+    public string? TranCode { get; init; }
+    public decimal? Area { get; init; }
+    public decimal? Rate { get; init; }
+    /// <summary>The view's BaanDimensionCode.</summary>
+    public string? DimensionCode { get; init; }
+}
+
 /// <summary>A row of mr.IrrigationNoCharge (db/020, FR-037.7).</summary>
 public sealed class IrrigationNoChargeRow
 {

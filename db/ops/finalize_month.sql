@@ -55,6 +55,11 @@ BEGIN
     RAISERROR(N'There is no OPEN period in vw_MR_ReadingPeriod.', 16, 1);
     RETURN;
 END
+IF COL_LENGTH(N'mr.MaintainFinalizedMeter', N'SewAmount') IS NULL OR COL_LENGTH(N'mr.MaintainFinalizedMeter', N'DimensionCode') IS NULL
+BEGIN
+    RAISERROR(N'Run db/032_finalized_columns_like_pms.sql first (PMS column names, Area, Rate, DimensionCode).', 16, 1);
+    RETURN;
+END
 IF COL_LENGTH(N'mr.MaintainFinalizedMeter', N'SubTenant') IS NULL
 BEGIN
     RAISERROR(N'Run db/030_property_sub_tenant.sql first (mr.MaintainFinalizedMeter has no SubTenant column).', 16, 1);
@@ -227,18 +232,26 @@ WHERE f.PeriodCode = @Period AND f.IsCurrent = 1 AND f.PropertyCode IN (SELECT P
 INSERT mr.MaintainFinalizedMeter (PeriodCode, PropertyId, PropertyCode,
     MeterNumberSewerage, PrevReadingSewerage, CurrentReadingSewerage, ConsumptionSewerage,
     MeterNumberIrrigation, PrevReadingIrrigation, CurrentReadingIrrigation, ConsumptionIrrigation,
-    SewerageTransactionId, IrrigationTransactionId, FinalizedByReaderId, DeviceId, FinalizedAtUtc, IsCurrent,
-    SewerageAmount, IrrigationAmount, FloatValueSewerage, RateFactorSewerage, FloatValueIrrigation, RateFactorIrrigation,
+    SewerageTransactionId, IrrigationTransactionId, FinalizedByReaderId, DeviceId, CreatedDate, IsCurrent,
+    SewAmount, IrrAmount, FloatValueSewerage, RateFactorSewerage, FloatValueIrrigation, RateFactorIrrigation,
     SewerageVat, IrrigationVat, TotalAmount, IrrigationNoCharge, TenPercentAmount, IrrigationAmountCalculated,
-    TranCode, BaanCode, TenantCode, FromDate, EndDate, CompanyName, VATCode, ChargeType1, ChargeType2, SubTenant)
+    TranCode, BaanCode, TenantCode, FromDate, ToDate, TenantsName, VATCode, ChargeType1, ChargeType2, SubTenant,
+    Area, Rate, DimensionCode)
 SELECT @Period, (SELECT TOP (1) v.PropertyId FROM #mv v WHERE v.PropertyCode = r.PropertyCode AND v.PropertyId IS NOT NULL), r.PropertyCode,
        ISNULL(r.SNumber, '0'), ISNULL(r.SPrev, 0), ISNULL(r.SCur, 0), ISNULL(r.SCons, 0),
        ISNULL(r.INumber, '0'), ISNULL(r.IPrev, 0), ISNULL(r.ICur, 0), ISNULL(r.ICons, 0),
        r.STx, r.ITx, @FinalizedBy, NULL, @At, 1,
        r.SewerageAmount, r.IrrigationAmount, r.SFloat, r.SRate, r.IFloat, r.IRate,
        r.SewerageVat, r.IrrigationVat, r.TotalAmount, ISNULL(r.INoCharge, 0), r.TenPercentAmount, r.IrrigationAmountCalculated,
-       r.TranCode, r.BaanCode, r.TenantCode, @From, @End, r.CompanyName, 'SSD', 'sew', 'Irri', r.SubTenant
-FROM #rows r;
+       r.TranCode, r.BaanCode, r.TenantCode, @From, @End, r.CompanyName, 'SSD', 'sew', 'Irri', r.SubTenant,
+       pb.Area, pb.Rate, pb.DimensionCode
+FROM #rows r
+-- db/032: Area, Rate and DimensionCode (BaanDimensionCode) from vw_MR_Property, the tenant's row first.
+OUTER APPLY (SELECT TOP (1) TRY_CAST(p.Area AS decimal(18,2)) AS Area, TRY_CAST(p.Rate AS decimal(18,4)) AS Rate,
+                    NULLIF(LTRIM(RTRIM(CAST(p.BaanDimensionCode AS varchar(30)))), '') AS DimensionCode
+             FROM mr.vw_MR_Property p
+             WHERE CAST(p.PropertyCode AS varchar(30)) = r.PropertyCode
+             ORDER BY CASE WHEN LTRIM(RTRIM(CAST(p.TenantCode AS varchar(30)))) = r.TenantCode THEN 0 ELSE 1 END) pb;
 PRINT CONCAT(@@ROWCOUNT, N' billing rows written.');
 
 /* 10. Close the month: when every property is finalized (FR-037.11), or when asked (@Close = 1). */
