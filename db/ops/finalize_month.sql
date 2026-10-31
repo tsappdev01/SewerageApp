@@ -13,6 +13,9 @@
    reach"); the others are listed with how many meters are left. When every property is finalized the month
    closes (FR-037.11), as on the phone; set @Close = 1 to close it anyway (as My summary -> Finalize month).
 
+   An earlier month (after the next one opened): set @ForPeriod, e.g. '2026-09'; it is finalized the same way and
+   is never closed or reopened by this script.
+
    Run in PropertyManagementSystem (the app's database). First with @Preview = 1 (the default): it shows what
    it would write and writes nothing. Then with @Preview = 0 to write.
 */
@@ -23,12 +26,30 @@ DECLARE @Preview      bit         = 1;            -- 1: show only. 0: write.
 DECLARE @Close        bit         = 0;            -- 1: close the month afterwards even if some properties are not finalized.
 DECLARE @Refinalize   bit         = 0;            -- 1: finalize again properties already finalized this month.
 DECLARE @OnlyProperty varchar(30) = NULL;         -- e.g. '597-646' for one property; NULL for all.
+DECLARE @ForPeriod    char(7)     = NULL;         -- e.g. '2026-09' to finalize an earlier month after the next one opened;
+                                                  -- NULL: the open month. Never closes an earlier month.
 DECLARE @FinalizedBy  varchar(50) = LEFT(N'office:' + SUSER_SNAME(), 50);
 
-/* 1. The open month, as the API takes it: the newest OPEN row; its code is yyyy-MM from StartDate. */
+/* 1. The month: the open one as the API takes it (the newest OPEN row; code yyyy-MM from StartDate), or @ForPeriod.
+      An earlier month takes its dates from vw_MR_ReadingPeriod when it is still there, else the 1st to the last day. */
 DECLARE @Period char(7), @From date, @End date;
-SELECT TOP (1) @Period = CONVERT(char(7), CAST(StartDate AS date), 126), @From = CAST(StartDate AS date), @End = CAST(EndDate AS date)
-FROM mr.vw_MR_ReadingPeriod WHERE Status = 'OPEN' ORDER BY StartDate DESC;
+IF @ForPeriod IS NULL
+    SELECT TOP (1) @Period = CONVERT(char(7), CAST(StartDate AS date), 126), @From = CAST(StartDate AS date), @End = CAST(EndDate AS date)
+    FROM mr.vw_MR_ReadingPeriod WHERE Status = 'OPEN' ORDER BY StartDate DESC;
+ELSE
+BEGIN
+    IF @ForPeriod NOT LIKE '[12][0-9][0-9][0-9]-[01][0-9]'
+    BEGIN
+        RAISERROR(N'@ForPeriod must look like 2026-09.', 16, 1);
+        RETURN;
+    END
+    SET @Period = @ForPeriod;
+    SELECT TOP (1) @From = CAST(StartDate AS date), @End = CAST(EndDate AS date)
+    FROM mr.vw_MR_ReadingPeriod WHERE CONVERT(char(7), CAST(StartDate AS date), 126) = @Period ORDER BY StartDate DESC;
+    IF @From IS NULL
+        SELECT @From = DATEFROMPARTS(LEFT(@Period, 4), RIGHT(@Period, 2), 1), @End = EOMONTH(DATEFROMPARTS(LEFT(@Period, 4), RIGHT(@Period, 2), 1));
+    SET @Close = 0;
+END
 IF @Period IS NULL
 BEGIN
     RAISERROR(N'There is no OPEN period in vw_MR_ReadingPeriod.', 16, 1);
@@ -39,7 +60,7 @@ BEGIN
     RAISERROR(N'Run db/030_property_sub_tenant.sql first (mr.MaintainFinalizedMeter has no SubTenant column).', 16, 1);
     RETURN;
 END
-IF EXISTS (SELECT 1 FROM mr.ReadingPeriodStatus WHERE PeriodCode = @Period AND Status = 'CLOSED')
+IF @ForPeriod IS NULL AND EXISTS (SELECT 1 FROM mr.ReadingPeriodStatus WHERE PeriodCode = @Period AND Status = 'CLOSED')
 BEGIN
     RAISERROR(N'Period %s is closed. Reopen it first (db/ops/reopen_reading_period.sql).', 16, 1, @Period);
     RETURN;
@@ -224,7 +245,7 @@ PRINT CONCAT(@@ROWCOUNT, N' billing rows written.');
 DECLARE @All int = (SELECT COUNT(*) FROM #p);
 DECLARE @Done int = (SELECT COUNT(DISTINCT f.PropertyCode) FROM mr.MaintainFinalizedMeter f
                      WHERE f.PeriodCode = @Period AND f.IsCurrent = 1 AND f.PropertyCode IN (SELECT PropertyCode FROM #p));
-IF @Close = 1 OR (@All > 0 AND @Done >= @All)
+IF @ForPeriod IS NULL AND (@Close = 1 OR (@All > 0 AND @Done >= @All))
 BEGIN
     MERGE mr.ReadingPeriodStatus WITH (HOLDLOCK) AS t
     USING (SELECT @Period AS PeriodCode) AS s ON t.PeriodCode = s.PeriodCode
@@ -235,6 +256,8 @@ BEGIN
                  CASE WHEN @Done >= @All THEN N'Posting complete: every property finalized (office script)' ELSE N'Finalize month (office script)' END);
     PRINT N'Period ' + @Period + N' is now CLOSED: phones take no new readings until it is reopened (db/ops/reopen_reading_period.sql).';
 END
-ELSE
+ELSE IF @ForPeriod IS NULL
     PRINT CONCAT(N'Period ', @Period, N' stays open: ', @Done, N' of ', @All, N' properties finalized. Set @Close = 1 to close it anyway.');
+ELSE
+    PRINT CONCAT(N'Earlier month ', @Period, N': ', @Done, N' of ', @All, N' properties finalized.');
 COMMIT TRANSACTION;
