@@ -137,6 +137,8 @@ fun SummaryScreen(onBack: () -> Unit) {
     val noSignal = stringResource(Res.string.no_signal_now)
     // FR-037.13: Finalize month = supervisor PIN, then a confirmation, then close (after sending what waits here).
     val periodClosed by repo.periodClosed.collectAsStateWithLifecycle()
+    val periodCode by repo.periodCode.collectAsStateWithLifecycle()
+    val monthLabel = periodCode?.let(FinalizeRules::monthLabel) ?: ""
     var askPin by remember { mutableStateOf(false) }
     var askConfirm by remember { mutableStateOf(false) }
     var closing by remember { mutableStateOf(false) }
@@ -204,7 +206,11 @@ fun SummaryScreen(onBack: () -> Unit) {
             if (!periodClosed) {
                 // Secondary: "Upload now" stays the screen's one primary button.
                 BigButton(
-                    text = if (closing) stringResource(Res.string.finalize_month_working) else stringResource(Res.string.finalize_month),
+                    text = when {
+                        closing -> stringResource(Res.string.finalize_month_working)
+                        monthLabel.isEmpty() -> stringResource(Res.string.finalize_month)
+                        else -> stringResource(Res.string.finalize_month_for, monthLabel)
+                    },
                     onClick = { askPin = true },
                     enabled = !closing && !sending,
                     icon = Icons.Rounded.Lock,
@@ -236,7 +242,7 @@ fun SummaryScreen(onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { askConfirm = false },
             title = { Text(stringResource(Res.string.finalize_month_title)) },
-            text = { Text(stringResource(Res.string.finalize_month_body, r.read, r.checking, r.notRead)) },
+            text = { Text(stringResource(Res.string.finalize_month_body, monthLabel, r.read, r.checking, r.notRead)) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -244,7 +250,9 @@ fun SummaryScreen(onBack: () -> Unit) {
                         closing = true
                         scope.launch {
                             val message = when (val result = repo.closeMonth()) {
-                                is CloseMonthResult.Done -> (if (result.alreadyClosed) alreadyText else doneText).fill(result.periodCode)
+                                is CloseMonthResult.Done ->
+                                    if (result.alreadyClosed) alreadyText.fill(FinalizeRules.monthLabel(result.periodCode))
+                                    else doneText.fill(FinalizeRules.monthLabel(result.periodCode), result.finalized, result.invoices, result.notComplete)
                                 is CloseMonthResult.StillWaiting -> waitingText.fill(result.items)
                                 CloseMonthResult.NoSignal -> closeNoSignal
                                 is CloseMonthResult.Refused -> result.message

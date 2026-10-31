@@ -82,6 +82,8 @@ class ApiMeterRepository(
     override val savedListFrom: StateFlow<Instant?> = _savedListFrom.asStateFlow()
     private val _periodClosed = MutableStateFlow(false)
     override val periodClosed: StateFlow<Boolean> = _periodClosed.asStateFlow()
+    private val _periodCode = MutableStateFlow<String?>(null)
+    override val periodCode: StateFlow<String?> = _periodCode.asStateFlow()
 
     /** The last list from the server, kept so the saved copy can follow readings sent since. */
     private var lastSync: SyncDto? = null
@@ -143,6 +145,7 @@ class ApiMeterRepository(
     /** Puts a list from the server (or its saved copy) on screen, keeping readings still waiting. */
     private fun show(sync: SyncDto, mine: List<ReadingDto>) {
         _periodClosed.value = sync.period.status.equals("CLOSED", ignoreCase = true)
+        _periodCode.value = sync.period.code
         lastSync = sync
         lastMine = mine
         val waiting = queue.associateBy { it.meterId }
@@ -266,7 +269,7 @@ class ApiMeterRepository(
             online.value = true
             _periodClosed.value = true
             refresh()
-            CloseMonthResult.Done(result.periodCode, result.alreadyClosed)
+            CloseMonthResult.Done(result.periodCode, result.alreadyClosed, result.propertiesFinalized, result.invoicesMade, result.notComplete)
         } catch (e: IOException) {
             online.value = false
             CloseMonthResult.NoSignal

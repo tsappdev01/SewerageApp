@@ -28,6 +28,9 @@ abstract class MeterRepository {
     /** FR-037.11: the reading period is closed after posting; readings wait on the phone until it opens. */
     open val periodClosed: StateFlow<Boolean> = MutableStateFlow(false)
 
+    /** The open reading period's code (yyyy-MM), for "Finalize Meter Reading for the Month" (FR-037.17). */
+    open val periodCode: StateFlow<String?> = MutableStateFlow(null)
+
     /** Photos of stored readings still to upload. */
     abstract val photosWaiting: StateFlow<Int>
 

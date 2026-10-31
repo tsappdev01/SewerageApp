@@ -89,6 +89,14 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         return await c.ExecuteScalarAsync<int>(Cmd(sql, new { periodCode, codes = SqlList.Of(propertyCodes) }, ct));
     }
 
+    /// <summary>FR-037.17: the properties already finalized (current rows) in the period.</summary>
+    public async Task<HashSet<string>> GetFinalizedPropertyCodesAsync(string periodCode, CancellationToken ct)
+    {
+        const string sql = "SELECT DISTINCT PropertyCode FROM mr.MaintainFinalizedMeter WHERE PeriodCode = @periodCode AND IsCurrent = 1";
+        await using var c = await db.OpenMeterReadingAsync(ct);
+        return new HashSet<string>(await c.QueryAsync<string>(Cmd(sql, new { periodCode }, ct)), StringComparer.OrdinalIgnoreCase);
+    }
+
     /// <summary>FR-037.11: closes the period for the app (mr.ReadingPeriodStatus, db/024).</summary>
     public async Task ClosePeriodAsync(string periodCode, string changedBy, string note, CancellationToken ct)
     {

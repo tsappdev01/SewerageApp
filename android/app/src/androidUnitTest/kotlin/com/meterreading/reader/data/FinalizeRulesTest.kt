@@ -21,4 +21,9 @@ class FinalizeRulesTest {
                 ),
             ),
         )
+
+    @Test fun `FR037_17 the month is shown as DIP writes it`() {
+        assertEquals("10-2026", FinalizeRules.monthLabel("2026-10"))
+        assertEquals("demo", FinalizeRules.monthLabel("demo"))
+    }
 }

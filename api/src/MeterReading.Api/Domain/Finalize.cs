@@ -136,6 +136,45 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
 
         var set = await readers.LoadAsync(period.PeriodCode, new MeterFilter(), ct);
         var meters = set.Meters.Where(m => string.Equals(m.PropertyCode, propertyCode, StringComparison.OrdinalIgnoreCase)).ToList();
+        var outcome = await FinalizeOneAsync(reader, deviceId, period, meters, null, ct);
+        if (outcome.Result is not { } done) return outcome;
+
+        // FR-037.11: the last property of the period finalized: posting is complete, the period closes.
+        var properties = set.Properties.Select(p => p.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var closed = PostingComplete(properties.Length, await repo.CountFinalizedPropertiesAsync(period.PeriodCode, properties, ct));
+        if (closed) await repo.ClosePeriodAsync(period.PeriodCode, reader.ReaderId, "Posting complete: every property finalized", ct);
+        return new(done with { PeriodClosed = closed });
+    }
+
+    /// <summary>What "Finalize month" did (FR-037.17).</summary>
+    public sealed record MonthOutcome(string PeriodCode, int Finalized, int Invoices, int AlreadyFinalized, int NotComplete, int InvoiceInUse);
+
+    /// <summary>
+    /// FR-037.17: "Finalize month" (behind the supervisor PIN): every property of the open month whose meters are
+    /// all read and that is not finalized yet is finalized as by "Finalize property", each with its invoice
+    /// (FR-037.16). Properties with meters left to read are counted and left. The caller closes the month after.
+    /// </summary>
+    public async Task<MonthOutcome> FinalizeMonthAsync(ReaderRow reader, Guid? deviceId, PeriodRow period, CancellationToken ct)
+    {
+        var set = await readers.LoadAsync(period.PeriodCode, new MeterFilter(), ct);
+        var done = await repo.GetFinalizedPropertyCodesAsync(period.PeriodCode, ct);
+        var subTenants = await repo.GetSubTenantsAsync(ct);
+        int finalized = 0, invoices = 0, already = 0, notComplete = 0, inUse = 0;
+        foreach (var group in set.Meters.GroupBy(m => m.PropertyCode, StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key, StringComparer.Ordinal))
+        {
+            if (done.Contains(group.Key)) { already++; continue; }
+            if (group.Any(m => !IsRead(m.State))) { notComplete++; continue; }
+            var outcome = await FinalizeOneAsync(reader, deviceId, period, group.ToList(), subTenants, ct);
+            if (outcome.Result is { } r) { finalized++; if (r.InvNo is not null) invoices++; }
+            else if (outcome.ErrorCode == "ALREADY_INVOICED") inUse++;
+            else notComplete++;
+        }
+        return new MonthOutcome(period.PeriodCode, finalized, invoices, already, notComplete, inUse);
+    }
+
+    private async Task<Outcome> FinalizeOneAsync(ReaderRow reader, Guid? deviceId, PeriodRow period, List<MeterDto> meters,
+        IReadOnlyDictionary<string, string>? subTenants, CancellationToken ct)
+    {
         if (meters.Count == 0)
             return new(null, StatusCodes.Status404NotFound, "PROPERTY_NOT_FOUND", "There is no active property with this code.");
 
@@ -148,7 +187,7 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
         var readings = await repo.GetFinalizeReadingsAsync(period.PeriodCode, ids, ct);
         var source = await readers.SourceRowsAsync(ids, ct);
         var noCharge = await repo.GetIrrigationNoChargeAsync(meters[0].PropertyCode, ct);
-        var officeSubTenant = (await repo.GetSubTenantsAsync(ct)).GetValueOrDefault(meters[0].PropertyCode);
+        var officeSubTenant = (subTenants ?? await repo.GetSubTenantsAsync(ct)).GetValueOrDefault(meters[0].PropertyCode);
 
         // FR-037.10: BaanCode (vw_MR_Tenant) and TranCode (vw_MR_Property) as the views have them now, read fresh
         // (not from SourceCache), for the tenant the reading was taken for: a BaanCode can change during the month
@@ -192,14 +231,9 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
             return new(null, StatusCodes.Status409Conflict, "ALREADY_INVOICED",
                 $"This property's invoice {invNo} for the month is already in use in PMS. Ask the office to change it.");
 
-        // FR-037.11: the last property of the period finalized: posting is complete, the period closes.
-        var properties = set.Properties.Select(p => p.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        var closed = PostingComplete(properties.Length, await repo.CountFinalizedPropertiesAsync(period.PeriodCode, properties, ct));
-        if (closed) await repo.ClosePeriodAsync(period.PeriodCode, reader.ReaderId, "Posting complete: every property finalized", ct);
-
         return new(new FinalizedPropertyDto(period.PeriodCode, code, propertyId, DateTime.SpecifyKind(at, DateTimeKind.Utc),
             fromDate, endDate,
-            rows.Select(ToDto).ToList(), closed, invNo));
+            rows.Select(ToDto).ToList(), false, invNo));
     }
 
     private static FinalizedMeterDto ToDto(FinalizedPair p) => new(

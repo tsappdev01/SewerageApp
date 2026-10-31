@@ -149,7 +149,12 @@ public sealed record SubmitReadingResponse(
 
 /// <summary>A stored photo (spec FR-009).</summary>
 /// <summary>FR-037.13: the month closed from the phone. <c>AlreadyClosed</c> when it was closed before.</summary>
-public sealed record ClosePeriodResponse(string PeriodCode, bool AlreadyClosed);
+/// <summary>
+/// FR-037.13 / FR-037.17: "Finalize month": the properties finalized now (each with its invoice), those finalized
+/// before, those left with meters to read, and those whose invoice is in use in PMS; then the month is closed.
+/// </summary>
+public sealed record ClosePeriodResponse(string PeriodCode, bool AlreadyClosed,
+    int PropertiesFinalized = 0, int InvoicesMade = 0, int AlreadyFinalized = 0, int NotComplete = 0, int InvoiceInUse = 0);
 
 public sealed record ImageUploadResponse(Guid ImageId, Guid TransactionId, string Role, int SizeBytes, string Sha256);
 

@@ -16,14 +16,16 @@ public static class ReadingEndpoints
         api.MapPost("/properties/{propertyCode}/finalize", FinalizeProperty)
             .WithSummary("FR-037: once every meter of the property is read, write its readings to mr.MaintainFinalizedMeter. Again: a new set replaces it.");
         api.MapPost("/periods/current/close", ClosePeriod)
-            .WithSummary("FR-037.13: Finalize month on the phone (behind the supervisor PIN): closes the open billing month for every reader. Safe to repeat.");
+            .WithSummary("FR-037.13/17: Finalize month on the phone (behind the supervisor PIN): finalizes every fully read property with its invoice, then closes the open billing month for every reader. Safe to repeat.");
     }
 
     /// <summary>
-    /// FR-037.13: closes the open period, as db/ops/close_reading_period.sql does, whatever is still unread or being
-    /// checked (DIP 2026-10-28). No billing rows are written. Kept with the reader and the phone that closed it.
+    /// FR-037.17 (DIP 2026-10-31): first finalizes every property whose meters are all read and that is not finalized
+    /// yet, each with its invoice (FR-037.16), as db/ops/finalize_month.sql does. FR-037.13: then closes the open
+    /// period, whatever is still unread or being checked (DIP 2026-10-28). Kept with the reader and the phone.
     /// </summary>
-    private static async Task<IResult> ClosePeriod(CurrentReader current, MeterReadingRepository repo, ILoggerFactory loggers, CancellationToken ct)
+    private static async Task<IResult> ClosePeriod(CurrentReader current, MeterReadingRepository repo, FinalizeService finalize,
+        ILoggerFactory loggers, CancellationToken ct)
     {
         var (reader, problem) = await current.ResolveAsync(ct);
         if (problem is not null) return problem;
@@ -33,9 +35,13 @@ public static class ReadingEndpoints
             if (period is null) return Problems.NoOpenPeriod();
             if (period.Status == "CLOSED") return Results.Ok(new ClosePeriodResponse(period.PeriodCode, AlreadyClosed: true));
             var by = current.DeviceId is { } device ? $"{reader!.ReaderId} (phone {device})" : reader!.ReaderId;
+            var month = await finalize.FinalizeMonthAsync(reader!, current.DeviceId, period, ct);
             await repo.ClosePeriodAsync(period.PeriodCode, by[..Math.Min(by.Length, 100)], "Finalize month from the app", ct);
-            loggers.CreateLogger(Audit.Category).LogInformation("Period {PeriodCode} closed from the app by {ClosedBy}", period.PeriodCode, by);
-            return Results.Ok(new ClosePeriodResponse(period.PeriodCode, AlreadyClosed: false));
+            loggers.CreateLogger(Audit.Category).LogInformation(
+                "Period {PeriodCode} finalized and closed from the app by {ClosedBy}: {Finalized} properties finalized, {Invoices} invoices, {NotComplete} not complete, {InUse} invoice in use",
+                period.PeriodCode, by, month.Finalized, month.Invoices, month.NotComplete, month.InvoiceInUse);
+            return Results.Ok(new ClosePeriodResponse(period.PeriodCode, AlreadyClosed: false, month.Finalized, month.Invoices,
+                month.AlreadyFinalized, month.NotComplete, month.InvoiceInUse));
         }
         catch (Microsoft.Data.SqlClient.SqlException e) when (e.Number == 208) // mr.ReadingPeriodStatus missing: db/024 not run
         {

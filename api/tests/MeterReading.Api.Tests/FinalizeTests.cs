@@ -156,7 +156,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
     {
         await using var c = new SqlConnection(ApiFactory.ConnectionString);
         await c.OpenAsync();
-        await using var cmd = new SqlCommand("DELETE FROM mr.MaintainFinalizedMeter WHERE PropertyCode IN ('1497', '3010', '1101'); DELETE FROM dbo.MaintainFinalizedInvoices WHERE PropertyCode IN ('1497', '3010', '1101'); DELETE FROM mr.IrrigationNoCharge WHERE PropertyCode = '3010'; DELETE FROM mr.ReadingPeriodStatus WHERE PeriodCode = '2026-10'; DELETE FROM mr.PropertySubTenant WHERE PropertyCode = '1497'", c);
+        await using var cmd = new SqlCommand("DELETE FROM mr.MaintainFinalizedMeter WHERE PeriodCode = '2026-10' OR PropertyCode IN ('1497', '3010', '1101'); DELETE i FROM dbo.MaintainFinalizedInvoices i WHERE NOT EXISTS (SELECT 1 FROM mr.MaintainFinalizedMeter f WHERE f.InvNo = i.InvNo); DELETE FROM mr.IrrigationNoCharge WHERE PropertyCode = '3010'; DELETE FROM mr.ReadingPeriodStatus WHERE PeriodCode = '2026-10'; DELETE FROM mr.PropertySubTenant WHERE PropertyCode = '1497'", c);
         await cmd.ExecuteNonQueryAsync();
     }
 
@@ -435,7 +435,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task FR037_13_finalize_month_closes_the_open_period_with_meters_still_unread()
+    public async Task FR037_13_17_finalize_month_finalizes_the_read_properties_with_invoices_then_closes_with_meters_still_unread()
     {
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Dev-User", Rashid);
@@ -446,6 +446,12 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         var body = await close.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("2026-10", body.GetProperty("periodCode").GetString());
         Assert.False(body.GetProperty("alreadyClosed").GetBoolean());
+        // FR-037.17: every fully read property (1497 among them) is finalized with its invoice; the rest are left.
+        var finalized = body.GetProperty("propertiesFinalized").GetInt32();
+        Assert.True(finalized >= 1);
+        Assert.Equal(finalized, body.GetProperty("invoicesMade").GetInt32());
+        Assert.True(body.GetProperty("notComplete").GetInt32() > 0);
+        Assert.Equal(2, (await Invoices("1497")).Single().Rows);
 
         var sync = await client.GetFromJsonAsync<JsonElement>("/api/v1/sync/meters?zone=597");
         Assert.Equal("CLOSED", sync.GetProperty("period").GetProperty("status").GetString());
