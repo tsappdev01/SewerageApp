@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Dapper;
 using Microsoft.Extensions.Options;
@@ -323,38 +324,64 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         public DateTime? ToDate { get; init; }
     }
 
+    /// <summary>Result of writing a finalized property: when, its invoice number, or that the invoice is already in use.</summary>
+    public sealed record FinalizedWrite(DateTime At, long? InvNo, bool AlreadyInvoiced = false);
+
+    /// <summary>Offset added to the first detail row's RowId to make the invoice's SourceRowId (db/033).</summary>
+    public const long SourceRowIdOffset = 900_000_000_000;
+
     /// <summary>
-    /// FR-037.4: writes the property's rows (with their FR-037.5 amounts) to mr.MaintainFinalizedMeter in one transaction; an earlier set
-    /// for the same period and property is kept with IsCurrent = 0. Returns the time written (UTC).
+    /// FR-037.16 (db/033): writes the property's invoice header into PMS's dbo.MaintainFinalizedInvoices and its
+    /// meter rows into mr.MaintainFinalizedMeter with that InvNo, in one transaction. InvNo is PMS's IDENTITY:
+    /// read back with OUTPUT, never chosen here. Finalizing again in the month updates the same invoice while
+    /// it is untouched (TTBaan 'No', Status 'Ready', nothing from Fusion, nothing received); otherwise nothing
+    /// is written and AlreadyInvoiced is returned. FR-037.4: the earlier meter rows stay with IsCurrent = 0.
+    /// Without dbo.MaintainFinalizedInvoices (not PMS) only the meter rows are written, InvNo empty.
     /// </summary>
-    /// <summary>
-    /// Writes a finalized property: the invoice header (mr.MaintainFinalizedInvoice, db/033) with the totals, whose
-    /// IDENTITY InvNo the detail rows (mr.MaintainFinalizedMeter, one per meter number) then carry, in one
-    /// transaction. The earlier invoice of the property and month, and its rows, become IsCurrent = 0.
-    /// Without db/033 only the detail rows are written (InvNo empty).
-    /// </summary>
-    public async Task<(DateTime At, long? InvNo)> InsertFinalizedAsync(
+    public async Task<FinalizedWrite> InsertFinalizedAsync(
         string periodCode, string propertyCode, long? propertyId, IReadOnlyList<Domain.FinalizedPair> rows,
         string readerId, Guid? deviceId, DateOnly fromDate, DateOnly endDate, CancellationToken ct, PropertyBillingRow? billing = null)
     {
+        const string current = """
+            SELECT TOP (1) f.InvNo
+            FROM mr.MaintainFinalizedMeter f WITH (UPDLOCK, HOLDLOCK)
+            WHERE f.PeriodCode = @periodCode AND f.PropertyCode = @propertyCode AND f.IsCurrent = 1
+            ORDER BY CASE WHEN f.InvNo IS NULL THEN 1 ELSE 0 END, f.RowId DESC;
+            """;
         const string retire = """
             UPDATE f SET IsCurrent = 0
             FROM mr.MaintainFinalizedMeter f WITH (UPDLOCK, HOLDLOCK)
             WHERE f.PeriodCode = @periodCode AND f.PropertyCode = @propertyCode AND f.IsCurrent = 1;
-            IF OBJECT_ID(N'mr.MaintainFinalizedInvoice', N'U') IS NOT NULL
-                UPDATE i SET IsCurrent = 0
-                FROM mr.MaintainFinalizedInvoice i WITH (UPDLOCK, HOLDLOCK)
-                WHERE i.PeriodCode = @periodCode AND i.PropertyCode = @propertyCode AND i.IsCurrent = 1;
             SELECT CAST(SYSUTCDATETIME() AS datetime2(0));
             """;
-        const string header = """
-            INSERT mr.MaintainFinalizedInvoice (PeriodCode, PropertyId, PropertyCode, TranCode, TenantCode, TenantsName, BaanCode, SubTenant,
-                Area, Rate, DimensionCode, FromDate, ToDate, ConsumptionSewerage, ConsumptionIrrigation, SewAmount, IrrAmount,
-                SewerageVat, IrrigationVat, TotalAmount, FinalizedByReaderId, DeviceId, CreatedDate, IsCurrent)
+        // 0: no such invoice (make a new one); 1: updated; 2: in use, leave it.
+        const string updateHeader = """
+            DECLARE @state int = 0;
+            IF EXISTS (SELECT 1 FROM dbo.MaintainFinalizedInvoices WITH (UPDLOCK, HOLDLOCK) WHERE InvNo = @InvNo)
+            BEGIN
+                UPDATE dbo.MaintainFinalizedInvoices
+                SET TranCode = @TranCode, TenantsName = @TenantsName, Area = @Area, Rate = @Rate, FromDate = @FromDate,
+                    ToDate = @ToDate, InvAmount = @InvAmount, BaanCode = @BaanCode, DimensionCode = @DimensionCode,
+                    VATCode = @VATCode, VATAmount = @VATAmount, TaxableAmount = @TaxableAmount, UserName = @UserName
+                WHERE InvNo = @InvNo AND TTBaan = 'No' AND Status = 'Ready' AND ISNULL(RecAmount, 0) = 0
+                  AND FusionPosted IS NULL AND ISNULL(FusionReferenceNumber, '') = '' AND ISNULL(ReceiptNumber, '') = '';
+                SET @state = CASE WHEN @@ROWCOUNT = 1 THEN 1 ELSE 2 END;
+            END
+            SELECT @state;
+            """;
+        const string insertHeader = """
+            INSERT dbo.MaintainFinalizedInvoices (TranCode, TenantsName, PropertyCode, Area, Rate, FromDate, ToDate,
+                InvAmount, RecAmount, BaanCode, DimensionCode, TTBaan, Status, Details, VATCode, VATAmount, TaxableAmount, UserName)
             OUTPUT inserted.InvNo
-            VALUES (@PeriodCode, @PropertyId, @PropertyCode, @TranCode, @TenantCode, @TenantsName, @BaanCode, @SubTenant,
-                @Area, @Rate, @DimensionCode, @FromDate, @ToDate, @ConsumptionSewerage, @ConsumptionIrrigation, @SewAmount, @IrrAmount,
-                @SewerageVat, @IrrigationVat, @TotalAmount, @ReaderId, @DeviceId, @At, 1);
+            VALUES (@TranCode, @TenantsName, @PropertyCode, @Area, @Rate, @FromDate, @ToDate,
+                @InvAmount, 0, @BaanCode, @DimensionCode, 'No', 'Ready', 'sew', @VATCode, @VATAmount, @TaxableAmount, @UserName);
+            """;
+        // SIMNo = InvNo; SourceRowId = offset + the first detail row's RowId, kept once set.
+        const string finishHeader = """
+            UPDATE dbo.MaintainFinalizedInvoices
+            SET SIMNo = CAST(InvNo AS varchar(20)),
+                SourceRowId = ISNULL(SourceRowId, @Offset + (SELECT MIN(f.RowId) FROM mr.MaintainFinalizedMeter f WHERE f.InvNo = @InvNo))
+            WHERE InvNo = @InvNo;
             """;
         const string insertTemplate = """
             INSERT mr.MaintainFinalizedMeter (PeriodCode, PropertyId, PropertyCode,
@@ -378,36 +405,47 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
         // SubTenant (db/030) is written once the column is there, so finalizing keeps working until the script is run.
         var hasSubTenant = await c.ExecuteScalarAsync<int?>(new CommandDefinition(
             "SELECT COL_LENGTH(N'mr.MaintainFinalizedMeter', N'SubTenant')", cancellationToken: ct)) is not null;
+        // The invoice header is written where PMS's table is (PropertyManagementSystem; db/dev/030 in development).
+        var hasHeader = await c.ExecuteScalarAsync<int?>(new CommandDefinition(
+            "SELECT CASE WHEN OBJECT_ID(N'dbo.MaintainFinalizedInvoices', N'U') IS NOT NULL AND COL_LENGTH(N'mr.MaintainFinalizedMeter', N'InvNo') IS NOT NULL THEN 1 END",
+            cancellationToken: ct)) is not null;
         var insert = insertTemplate
             .Replace("{subTenantColumn}", hasSubTenant ? ", SubTenant" : "")
             .Replace("{subTenantValue}", hasSubTenant ? ", @SubTenant" : "");
         await using var tx = await c.BeginTransactionAsync(ct);
-        var at = await c.ExecuteScalarAsync<DateTime>(new CommandDefinition(retire, new { periodCode, propertyCode }, tx,
-            CommandTimeoutSeconds, cancellationToken: ct));
-        var hasHeader = await c.ExecuteScalarAsync<int?>(new CommandDefinition(
-            "SELECT OBJECT_ID(N'mr.MaintainFinalizedInvoice', N'U')", transaction: tx, cancellationToken: ct)) is not null;
         long? invNo = null;
         if (hasHeader)
         {
+            var earlier = await c.ExecuteScalarAsync<long?>(new CommandDefinition(current, new { periodCode, propertyCode }, tx,
+                CommandTimeoutSeconds, cancellationToken: ct));
             // The header: the property's totals, and its codes as on the first row that has them (sewerage first).
-            invNo = await c.ExecuteScalarAsync<long>(new CommandDefinition(header, new
+            var taxable = rows.Sum(r => r.SewerageAmount + r.IrrigationAmount);
+            var vat = rows.Sum(r => r.SewerageVat + r.IrrigationVat);
+            var head = new
             {
-                PeriodCode = periodCode, PropertyId = propertyId, PropertyCode = propertyCode,
+                InvNo = earlier, PropertyCode = propertyCode,
                 TranCode = rows.Select(r => r.TranCode).FirstOrDefault(v => v is not null),
-                TenantCode = rows.Select(r => r.TenantCode).FirstOrDefault(v => v is not null),
                 TenantsName = rows.Select(r => r.CompanyName).FirstOrDefault(v => v is not null),
                 BaanCode = rows.Select(r => r.BaanCode).FirstOrDefault(v => v is not null),
-                SubTenant = rows.Select(r => r.SubTenant).FirstOrDefault(v => v is not null),
-                Area = billing?.Area, Rate = billing?.Rate, DimensionCode = billing?.DimensionCode,
+                Area = billing?.Area?.ToString("0.##", CultureInfo.InvariantCulture),
+                Rate = billing?.Rate?.ToString("0.####", CultureInfo.InvariantCulture),
+                DimensionCode = billing?.DimensionCode,
                 FromDate = fromDate.ToDateTime(TimeOnly.MinValue), ToDate = endDate.ToDateTime(TimeOnly.MinValue),
-                ConsumptionSewerage = rows.Sum(r => r.Sewerage?.Consumption ?? 0m),
-                ConsumptionIrrigation = rows.Sum(r => r.Irrigation?.Consumption ?? 0m),
-                SewAmount = rows.Sum(r => r.SewerageAmount), IrrAmount = rows.Sum(r => r.IrrigationAmount),
-                SewerageVat = rows.Sum(r => r.SewerageVat), IrrigationVat = rows.Sum(r => r.IrrigationVat),
-                TotalAmount = rows.Sum(r => r.TotalAmount),
-                ReaderId = readerId, DeviceId = deviceId, At = at,
-            }, tx, CommandTimeoutSeconds, cancellationToken: ct));
+                InvAmount = taxable + vat, TaxableAmount = taxable, VATAmount = vat,
+                VATCode = Domain.FinalizeService.VatCode, UserName = readerId,
+            };
+            var state = earlier is null ? 0 : await c.ExecuteScalarAsync<int>(new CommandDefinition(updateHeader, head, tx,
+                CommandTimeoutSeconds, cancellationToken: ct));
+            if (state == 2)
+            {
+                await tx.RollbackAsync(ct);
+                return new FinalizedWrite(default, earlier, AlreadyInvoiced: true);
+            }
+            invNo = state == 1 ? earlier : await c.ExecuteScalarAsync<long>(new CommandDefinition(insertHeader, head, tx,
+                CommandTimeoutSeconds, cancellationToken: ct));
         }
+        var at = await c.ExecuteScalarAsync<DateTime>(new CommandDefinition(retire, new { periodCode, propertyCode }, tx,
+            CommandTimeoutSeconds, cancellationToken: ct));
         await c.ExecuteAsync(new CommandDefinition(insert, rows.Select(r => new
         {
             PeriodCode = periodCode, PropertyId = propertyId, PropertyCode = propertyCode,
@@ -426,8 +464,11 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
             FloatValueSewerage = r.Sewerage?.FloatValue, RateFactorSewerage = r.Sewerage?.RateFactor,
             FloatValueIrrigation = r.Irrigation?.FloatValue, RateFactorIrrigation = r.Irrigation?.RateFactor,
         }).ToList(), tx, CommandTimeoutSeconds, cancellationToken: ct));
+        if (invNo is { } n)
+            await c.ExecuteAsync(new CommandDefinition(finishHeader, new { InvNo = n, Offset = SourceRowIdOffset }, tx,
+                CommandTimeoutSeconds, cancellationToken: ct));
         await tx.CommitAsync(ct);
-        return (at, invNo);
+        return new FinalizedWrite(at, invNo);
     }
 
     public async Task<IReadOnlyList<TransactionRow>> GetReaderTransactionsAsync(string readerId, string periodCode, CancellationToken ct)

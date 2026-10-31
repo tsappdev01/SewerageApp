@@ -5,10 +5,12 @@
    side), amounts = consumption x FloatValue x 1.2 x RateFactor/100, VAT 5%, the irrigation minimum
    (10% of sewerage, at most 500), no-charge plots (mr.IrrigationNoCharge), TenantCode / BaanCode / CompanyName
    from vw_MR_Tenant and TranCode from vw_MR_Property as they are now, VATCode SSD, ChargeType1 sew,
-   ChargeType2 Irri, FromDate / ToDate from vw_MR_ReadingPeriod, one invoice header per property
-   (mr.MaintainFinalizedInvoice, db/033) whose InvNo the meter rows carry, and the sub-tenant (the reading's,
-   else the office's name in mr.PropertySubTenant, db/030). A property finalized before keeps its rows
-   with IsCurrent = 0 when finalized again.
+   ChargeType2 Irri, FromDate / ToDate from vw_MR_ReadingPeriod, one invoice per property in PMS's
+   dbo.MaintainFinalizedInvoices (db/033; InvNo from PMS's IDENTITY, never chosen here) whose InvNo the meter
+   rows carry, and the sub-tenant (the reading's, else the office's name in mr.PropertySubTenant, db/030).
+   A property finalized before keeps its rows with IsCurrent = 0 when finalized again, and its invoice is
+   updated, not doubled, while still untouched (TTBaan 'No', Status 'Ready', nothing from Fusion, nothing
+   received); once in use it is not finalized again (listed as "invoice in use in PMS").
 
    A property is finalized only when every one of its meters has a reading this month (sent, or "can't
    reach"); the others are listed with how many meters are left. When every property is finalized the month
@@ -56,9 +58,10 @@ BEGIN
     RAISERROR(N'There is no OPEN period in vw_MR_ReadingPeriod.', 16, 1);
     RETURN;
 END
-IF OBJECT_ID(N'mr.MaintainFinalizedInvoice', N'U') IS NULL
+IF OBJECT_ID(N'dbo.MaintainFinalizedInvoices', N'U') IS NULL
+   OR NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_MaintainFinalizedMeter_Invoice')
 BEGIN
-    RAISERROR(N'Run db/033_finalized_invoice_header.sql first (the invoice header table).', 16, 1);
+    RAISERROR(N'Run db/033_finalized_invoice_header.sql first (invoice header in dbo.MaintainFinalizedInvoices).', 16, 1);
     RETURN;
 END
 IF COL_LENGTH(N'mr.MaintainFinalizedMeter', N'SewAmount') IS NULL OR COL_LENGTH(N'mr.MaintainFinalizedMeter', N'DimensionCode') IS NULL
@@ -131,6 +134,21 @@ SELECT PropertyCode INTO #todo FROM #p
 WHERE ReadMeters = Meters
   AND (@Refinalize = 1 OR AlreadyFinalized = 0)
   AND (@OnlyProperty IS NULL OR PropertyCode = @OnlyProperty);
+
+-- A property already finalized this month keeps its invoice; one already in use in PMS is not finalized again.
+DROP TABLE IF EXISTS #old;
+SELECT d.PropertyCode, f.InvNo,
+       CASE WHEN i.InvNo IS NULL THEN 0                                   -- invoice gone: a new one is made
+            WHEN i.TTBaan = 'No' AND i.Status = 'Ready' AND ISNULL(i.RecAmount, 0) = 0 AND i.FusionPosted IS NULL
+                 AND ISNULL(i.FusionReferenceNumber, '') = '' AND ISNULL(i.ReceiptNumber, '') = '' THEN 1
+            ELSE 2 END AS State                                           -- 1: update it; 2: in use
+INTO #old
+FROM #todo d
+CROSS APPLY (SELECT TOP (1) x.InvNo FROM mr.MaintainFinalizedMeter x
+             WHERE x.PeriodCode = @Period AND x.PropertyCode = d.PropertyCode AND x.IsCurrent = 1 AND x.InvNo IS NOT NULL
+             ORDER BY x.RowId DESC) f
+LEFT JOIN dbo.MaintainFinalizedInvoices i ON i.InvNo = f.InvNo;
+DELETE FROM #todo WHERE PropertyCode IN (SELECT PropertyCode FROM #old WHERE State = 2);
 
 /* 5. The tenants of those properties, as vw_MR_Tenant has them now. */
 DROP TABLE IF EXISTS #ten;
@@ -213,9 +231,10 @@ FROM #rows ORDER BY PropertyCode, SNumber, INumber;
 SELECT p.PropertyCode, p.Meters, p.ReadMeters, p.Meters - p.ReadMeters AS MetersLeft,
        CASE WHEN d.PropertyCode IS NOT NULL THEN CASE WHEN @Preview = 1 THEN 'would be finalized' ELSE 'finalized now' END
             WHEN p.ReadMeters < p.Meters THEN 'not finalized: meters left to read'
+            WHEN o.State = 2 THEN CONCAT('not finalized: invoice ', o.InvNo, ' in use in PMS')
             WHEN p.AlreadyFinalized = 1 THEN 'already finalized (set @Refinalize = 1 to redo)'
             ELSE 'not selected' END AS Result
-FROM #p p LEFT JOIN #todo d ON d.PropertyCode = p.PropertyCode
+FROM #p p LEFT JOIN #todo d ON d.PropertyCode = p.PropertyCode LEFT JOIN #old o ON o.PropertyCode = p.PropertyCode
 WHERE p.ReadMeters > 0 OR d.PropertyCode IS NOT NULL
 ORDER BY CASE WHEN d.PropertyCode IS NOT NULL THEN 0 ELSE 1 END, p.PropertyCode;
 
@@ -228,16 +247,6 @@ BEGIN
 END
 
 /* 9. Write: earlier rows of these properties stay with IsCurrent = 0; the new set is current. */
-BEGIN TRANSACTION;
-DECLARE @At datetime2(0) = SYSUTCDATETIME();
-
-UPDATE f SET IsCurrent = 0
-FROM mr.MaintainFinalizedMeter f WITH (UPDLOCK, HOLDLOCK)
-WHERE f.PeriodCode = @Period AND f.IsCurrent = 1 AND f.PropertyCode IN (SELECT PropertyCode FROM #todo);
-UPDATE i SET IsCurrent = 0
-FROM mr.MaintainFinalizedInvoice i WITH (UPDLOCK, HOLDLOCK)
-WHERE i.PeriodCode = @Period AND i.IsCurrent = 1 AND i.PropertyCode IN (SELECT PropertyCode FROM #todo);
-
 -- Area, Rate and DimensionCode (BaanDimensionCode) from vw_MR_Property, the tenant's row first (db/032).
 DROP TABLE IF EXISTS #pb;
 SELECT d.PropertyCode, pb.Area, pb.Rate, pb.DimensionCode
@@ -251,21 +260,52 @@ OUTER APPLY (SELECT TOP (1) TRY_CAST(p.Area AS decimal(18,2)) AS Area, TRY_CAST(
                            (SELECT TOP (1) r.TenantCode FROM #rows r WHERE r.PropertyCode = d.PropertyCode AND r.TenantCode IS NOT NULL)
                            THEN 0 ELSE 1 END) pb;
 
--- The invoice headers (db/033): one per property with its totals; InvNo comes from the IDENTITY.
-DECLARE @inv TABLE (InvNo bigint, PropertyCode varchar(50));
-INSERT mr.MaintainFinalizedInvoice (PeriodCode, PropertyId, PropertyCode, TranCode, TenantCode, TenantsName, BaanCode, SubTenant,
-    Area, Rate, DimensionCode, FromDate, ToDate, ConsumptionSewerage, ConsumptionIrrigation, SewAmount, IrrAmount,
-    SewerageVat, IrrigationVat, TotalAmount, FinalizedByReaderId, DeviceId, CreatedDate, IsCurrent)
-OUTPUT inserted.InvNo, inserted.PropertyCode INTO @inv
-SELECT @Period, (SELECT TOP (1) v.PropertyId FROM #mv v WHERE v.PropertyCode = r.PropertyCode AND v.PropertyId IS NOT NULL), r.PropertyCode,
-       MAX(r.TranCode), MAX(r.TenantCode), MAX(r.CompanyName), MAX(r.BaanCode), MAX(r.SubTenant),
-       MAX(pb.Area), MAX(pb.Rate), MAX(pb.DimensionCode), @From, @End,
-       SUM(ISNULL(r.SCons, 0)), SUM(ISNULL(r.ICons, 0)), SUM(r.SewerageAmount), SUM(r.IrrigationAmount),
-       SUM(r.SewerageVat), SUM(r.IrrigationVat), SUM(r.TotalAmount), @FinalizedBy, NULL, @At, 1
+-- The invoice of each property: its totals and codes (as the API: Area 0.##, Rate 0.####).
+DROP TABLE IF EXISTS #h;
+SELECT r.PropertyCode, MAX(r.TranCode) AS TranCode, MAX(r.CompanyName) AS TenantsName, MAX(r.BaanCode) AS BaanCode,
+       FORMAT(MAX(pb.Area), '0.##', 'en-US') AS Area, FORMAT(MAX(pb.Rate), '0.####', 'en-US') AS Rate, MAX(pb.DimensionCode) AS DimensionCode,
+       SUM(r.SewerageAmount + r.IrrigationAmount) AS TaxableAmount, SUM(r.SewerageVat + r.IrrigationVat) AS VATAmount,
+       SUM(r.SewerageAmount + r.IrrigationAmount + r.SewerageVat + r.IrrigationVat) AS InvAmount
+INTO #h
 FROM #rows r
 LEFT JOIN #pb pb ON pb.PropertyCode = r.PropertyCode
 GROUP BY r.PropertyCode;
+
+BEGIN TRANSACTION;
+DECLARE @At datetime2(0) = SYSUTCDATETIME();
+DECLARE @inv TABLE (InvNo bigint, PropertyCode varchar(200));
+
+-- Invoices to update: still untouched now (checked again under lock), else stop and change nothing.
+IF EXISTS (SELECT 1 FROM #old o JOIN dbo.MaintainFinalizedInvoices i WITH (UPDLOCK, HOLDLOCK) ON i.InvNo = o.InvNo
+           WHERE o.State = 1 AND NOT (i.TTBaan = 'No' AND i.Status = 'Ready' AND ISNULL(i.RecAmount, 0) = 0 AND i.FusionPosted IS NULL
+                 AND ISNULL(i.FusionReferenceNumber, '') = '' AND ISNULL(i.ReceiptNumber, '') = ''))
+BEGIN
+    ROLLBACK TRANSACTION;
+    RAISERROR(N'An invoice was taken up in PMS while this ran. Nothing written: run again.', 16, 1);
+    RETURN;
+END
+UPDATE i SET TranCode = h.TranCode, TenantsName = h.TenantsName, Area = h.Area, Rate = h.Rate, FromDate = @From, ToDate = @End,
+             InvAmount = h.InvAmount, BaanCode = h.BaanCode, DimensionCode = h.DimensionCode, VATCode = 'SSD',
+             VATAmount = h.VATAmount, TaxableAmount = h.TaxableAmount, UserName = @FinalizedBy
+OUTPUT inserted.InvNo, h.PropertyCode INTO @inv
+FROM dbo.MaintainFinalizedInvoices i
+JOIN #old o ON o.InvNo = i.InvNo AND o.State = 1
+JOIN #h h ON h.PropertyCode = o.PropertyCode;
+PRINT CONCAT(@@ROWCOUNT, N' invoices updated.');
+
+-- New invoices: InvNo from PMS's IDENTITY.
+INSERT dbo.MaintainFinalizedInvoices (TranCode, TenantsName, PropertyCode, Area, Rate, FromDate, ToDate, InvAmount, RecAmount,
+    BaanCode, DimensionCode, TTBaan, Status, Details, VATCode, VATAmount, TaxableAmount, UserName)
+OUTPUT inserted.InvNo, inserted.PropertyCode INTO @inv
+SELECT h.TranCode, h.TenantsName, h.PropertyCode, h.Area, h.Rate, @From, @End, h.InvAmount, 0,
+       h.BaanCode, h.DimensionCode, 'No', 'Ready', 'sew', 'SSD', h.VATAmount, h.TaxableAmount, @FinalizedBy
+FROM #h h
+WHERE h.PropertyCode NOT IN (SELECT PropertyCode FROM @inv);
 PRINT CONCAT(@@ROWCOUNT, N' invoices written.');
+
+UPDATE f SET IsCurrent = 0
+FROM mr.MaintainFinalizedMeter f WITH (UPDLOCK, HOLDLOCK)
+WHERE f.PeriodCode = @Period AND f.IsCurrent = 1 AND f.PropertyCode IN (SELECT PropertyCode FROM #todo);
 
 INSERT mr.MaintainFinalizedMeter (PeriodCode, PropertyId, PropertyCode,
     MeterNumberSewerage, PrevReadingSewerage, CurrentReadingSewerage, ConsumptionSewerage,
@@ -287,6 +327,12 @@ FROM #rows r
 LEFT JOIN #pb pb ON pb.PropertyCode = r.PropertyCode
 JOIN @inv inv ON inv.PropertyCode = r.PropertyCode;
 PRINT CONCAT(@@ROWCOUNT, N' billing rows written.');
+
+-- SIMNo = InvNo; SourceRowId = 900000000000 + the invoice's first meter row (kept once set), as the API.
+UPDATE i SET SIMNo = CAST(i.InvNo AS varchar(20)),
+             SourceRowId = ISNULL(i.SourceRowId, 900000000000 + (SELECT MIN(f.RowId) FROM mr.MaintainFinalizedMeter f WHERE f.InvNo = i.InvNo))
+FROM dbo.MaintainFinalizedInvoices i
+WHERE i.InvNo IN (SELECT InvNo FROM @inv);
 
 /* 10. Close the month: when every property is finalized (FR-037.11), or when asked (@Close = 1). */
 DECLARE @All int = (SELECT COUNT(*) FROM #p);

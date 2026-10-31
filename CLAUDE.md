@@ -22,9 +22,13 @@ never run outside development.
   to them** and never hard-code their schema: use `SqlConnectionFactory.Views`. CAST every view
   column to the row type in SQL.
 - The API's own tables are schema `mr`; a new column needs a new numbered script in `db/`.
-- The only write outside `mr` is `PmsTransferService` inserting into `MaintainMeterReading`
+- One write outside `mr` is `PmsTransferService` inserting into `MaintainMeterReading`
   (off unless `PmsTransfer:Enabled`). Keep it insert-only, once per reading, in one transaction
   with the `PmsRowId` update.
+- The other write outside `mr`: finalizing (FR-037.16) inserts the property's invoice into PMS's live
+  `dbo.MaintainFinalizedInvoices` and updates it only while untouched (TTBaan 'No', Status 'Ready', nothing from
+  Fusion). `InvNo` always comes from PMS's IDENTITY via `OUTPUT`, never chosen; `SourceRowId` = 900000000000 +
+  the first `mr.MaintainFinalizedMeter.RowId`. Never delete there except the app's own untouched invoices.
 - Work is not assigned: meter lists are shared by all active readers and narrowed by zone. A
   reader's own submissions ("my readings", "read by you") are scoped to them; test that.
 - A reading is saved only with the tenant the reader checked on site, which must be a current

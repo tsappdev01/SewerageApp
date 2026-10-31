@@ -186,7 +186,11 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
         var endDate = DateOnly.FromDateTime(period.EndDate);
         // db/032: Area, Rate and DimensionCode from vw_MR_Property, for the tenant of the rows.
         var billing = await repo.GetPropertyBillingAsync(code, rows.Select(r => r.TenantCode).FirstOrDefault(t => t is not null), ct);
-        var (at, invNo) = await repo.InsertFinalizedAsync(period.PeriodCode, code, propertyId, rows, reader.ReaderId, deviceId, fromDate, endDate, ct, billing);
+        var (at, invNo, alreadyInvoiced) = await repo.InsertFinalizedAsync(period.PeriodCode, code, propertyId, rows, reader.ReaderId, deviceId, fromDate, endDate, ct, billing);
+        // FR-037.16: the month's invoice was already taken up in PMS (sent to Baan or Fusion, or paid): not changed from here.
+        if (alreadyInvoiced)
+            return new(null, StatusCodes.Status409Conflict, "ALREADY_INVOICED",
+                $"This property's invoice {invNo} for the month is already in use in PMS. Ask the office to change it.");
 
         // FR-037.11: the last property of the period finalized: posting is complete, the period closes.
         var properties = set.Properties.Select(p => p.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();

@@ -156,7 +156,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
     {
         await using var c = new SqlConnection(ApiFactory.ConnectionString);
         await c.OpenAsync();
-        await using var cmd = new SqlCommand("DELETE FROM mr.MaintainFinalizedMeter WHERE PropertyCode IN ('1497', '3010', '1101'); DELETE FROM mr.MaintainFinalizedInvoice WHERE PropertyCode IN ('1497', '3010', '1101'); DELETE FROM mr.IrrigationNoCharge WHERE PropertyCode = '3010'; DELETE FROM mr.ReadingPeriodStatus WHERE PeriodCode = '2026-10'; DELETE FROM mr.PropertySubTenant WHERE PropertyCode = '1497'", c);
+        await using var cmd = new SqlCommand("DELETE FROM mr.MaintainFinalizedMeter WHERE PropertyCode IN ('1497', '3010', '1101'); DELETE FROM dbo.MaintainFinalizedInvoices WHERE PropertyCode IN ('1497', '3010', '1101'); DELETE FROM mr.IrrigationNoCharge WHERE PropertyCode = '3010'; DELETE FROM mr.ReadingPeriodStatus WHERE PeriodCode = '2026-10'; DELETE FROM mr.PropertySubTenant WHERE PropertyCode = '1497'", c);
         await cmd.ExecuteNonQueryAsync();
     }
 
@@ -225,7 +225,7 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
             // db/032: Area, Rate and DimensionCode from vw_MR_Property (dev: an area, "D" + code, rate 0), and PMS's defaults.
             Assert.True(r.GetDecimal(4) > 0);
             Assert.Equal((0m, "D1497", "No", "Ready", 0L), (r.GetDecimal(5), r.GetString(6), r.GetString(7), r.GetString(8), r.GetInt64(9)));
-            Assert.True(r.IsDBNull(10)); // InvNo: not set by the app
+            Assert.False(r.IsDBNull(10)); // InvNo: the invoice header's (db/033)
         }
         Assert.Equal(2, body.GetProperty("rows").GetArrayLength());
         Assert.Equal(
@@ -315,68 +315,88 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task FR037_4_finalizing_again_keeps_the_earlier_rows_as_not_current()
+    public async Task FR037_4_finalizing_again_keeps_the_earlier_rows_as_not_current_and_the_same_invoice()
     {
-        Assert.Equal(HttpStatusCode.OK, (await FinalizeProperty("1497")).Status);
-        Assert.Equal(HttpStatusCode.OK, (await FinalizeProperty("1497")).Status);
+        var first = (await FinalizeProperty("1497")).Body.GetProperty("invNo").GetInt64();
+        var (status, body) = await FinalizeProperty("1497");
+        Assert.Equal(HttpStatusCode.OK, status);
 
         var rows = await Rows("1497");
         Assert.Equal(4, rows.Count);
         Assert.Equal([false, false, true, true], rows.Select(r => r.Current));
-        // The earlier invoice stays too, not current; each set of rows keeps its own invoice number.
-        Assert.Equal([(false, 2), (true, 2)], await Invoices("1497"));
+        // FR-037.16: an untouched invoice is updated, not doubled: one invoice, all four rows carry its number.
+        Assert.Equal(first, body.GetProperty("invNo").GetInt64());
+        Assert.Equal([(first, 4)], await Invoices("1497"));
     }
 
-    private static async Task<List<(bool Current, int Rows)>> Invoices(string property)
+    [Fact]
+    public async Task FR037_16_finalizing_again_is_refused_once_the_invoice_is_in_use_in_PMS()
+    {
+        var invNo = (await FinalizeProperty("1497")).Body.GetProperty("invNo").GetInt64();
+        await using (var c = new SqlConnection(ApiFactory.ConnectionString))
+        {
+            await c.OpenAsync();
+            await using var cmd = new SqlCommand("UPDATE dbo.MaintainFinalizedInvoices SET TTBaan = 'Yes' WHERE InvNo = @n", c);
+            cmd.Parameters.AddWithValue("@n", invNo);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var (status, body) = await FinalizeProperty("1497");
+        Assert.Equal(HttpStatusCode.Conflict, status);
+        Assert.Equal("ALREADY_INVOICED", body.GetProperty("code").GetString());
+        // Nothing changed: the first rows are still the current ones.
+        Assert.Equal([true, true], (await Rows("1497")).Select(r => r.Current));
+        Assert.Equal([(invNo, 2)], await Invoices("1497"));
+    }
+
+    private static async Task<List<(long InvNo, int Rows)>> Invoices(string property)
     {
         await using var c = new SqlConnection(ApiFactory.ConnectionString);
         await c.OpenAsync();
         await using var cmd = new SqlCommand("""
-            SELECT i.IsCurrent, (SELECT COUNT(*) FROM mr.MaintainFinalizedMeter f WHERE f.InvNo = i.InvNo AND f.IsCurrent = i.IsCurrent)
-            FROM mr.MaintainFinalizedInvoice i WHERE i.PropertyCode = @p ORDER BY i.InvNo
+            SELECT i.InvNo, (SELECT COUNT(*) FROM mr.MaintainFinalizedMeter f WHERE f.InvNo = i.InvNo)
+            FROM dbo.MaintainFinalizedInvoices i WHERE i.PropertyCode = @p ORDER BY i.InvNo
             """, c);
         cmd.Parameters.AddWithValue("@p", property);
-        var list = new List<(bool, int)>();
+        var list = new List<(long, int)>();
         await using var r = await cmd.ExecuteReaderAsync();
-        while (await r.ReadAsync()) list.Add((r.GetBoolean(0), r.GetInt32(1)));
+        while (await r.ReadAsync()) list.Add((r.GetInt64(0), r.GetInt32(1)));
         return list;
     }
 
     [Fact]
-    public async Task The_invoice_header_holds_the_totals_and_its_number_links_the_meter_rows()
+    public async Task FR037_16_the_invoice_header_in_PMS_holds_the_totals_and_its_number_links_the_meter_rows()
     {
         var (status, body) = await FinalizeProperty("1497");
         Assert.Equal(HttpStatusCode.OK, status);
         var invNo = body.GetProperty("invNo").GetInt64();
+        Assert.True(invNo >= 190705); // PMS's IDENTITY (dev stand-in starts after UAT's highest)
 
         await using var c = new SqlConnection(ApiFactory.ConnectionString);
         await c.OpenAsync();
         await using var cmd = new SqlCommand("""
-            SELECT i.SewAmount, i.IrrAmount, i.TotalAmount, i.ConsumptionSewerage, i.ConsumptionIrrigation, i.TenantCode, i.BaanCode,
-                   i.TTBaan, i.Status, i.FusionInvoiceNo, i.DimensionCode,
+            SELECT i.TaxableAmount, i.VATAmount, i.InvAmount, i.RecAmount, i.SIMNo, i.Details, i.TTBaan, i.Status, i.VATCode,
+                   i.TranCode, i.TenantsName, i.BaanCode, i.DimensionCode, i.Rate, i.Area, i.FromDate, i.ToDate, i.UserName,
+                   i.SourceRowId, i.CreatedDate,
                    (SELECT COUNT(*) FROM mr.MaintainFinalizedMeter f WHERE f.InvNo = i.InvNo),
-                   (SELECT SUM(f.TotalAmount) FROM mr.MaintainFinalizedMeter f WHERE f.InvNo = i.InvNo)
-            FROM mr.MaintainFinalizedInvoice i WHERE i.InvNo = @n AND i.PropertyCode = '1497' AND i.IsCurrent = 1
+                   (SELECT SUM(f.TotalAmount) FROM mr.MaintainFinalizedMeter f WHERE f.InvNo = i.InvNo),
+                   (SELECT MIN(f.RowId) FROM mr.MaintainFinalizedMeter f WHERE f.InvNo = i.InvNo)
+            FROM dbo.MaintainFinalizedInvoices i WHERE i.InvNo = @n AND i.PropertyCode = '1497'
             """, c);
         cmd.Parameters.AddWithValue("@n", invNo);
         await using var r = await cmd.ExecuteReaderAsync();
         Assert.True(await r.ReadAsync());
-        // 1497: sewerage 290 used -> 1148.40, irrigation 990 used -> 3920.40; with VAT 5322.24 (FR037_1).
-        Assert.Equal((1148.40m, 3920.40m, 5322.24m, 290m, 990m), (r.GetDecimal(0), r.GetDecimal(1), r.GetDecimal(2), r.GetDecimal(3), r.GetDecimal(4)));
-        Assert.Equal(("T-0203", "BT-0203", "No", "Ready", 0L, "D1497"),
-            (r.GetString(5), r.GetString(6), r.GetString(7), r.GetString(8), r.GetInt64(9), r.GetString(10)));
-        Assert.Equal(2, r.GetInt32(11));                 // both meter rows carry the invoice number
-        Assert.Equal(r.GetDecimal(2), r.GetDecimal(12)); // and add up to the header's total
-        r.Close();
-
-        // DIP's invoice fields: taxable (excl. VAT), VAT, invoice amount (incl. VAT), SIMNo = InvNo, defaults.
-        await using var more = new SqlCommand(
-            "SELECT TaxableAmount, VATAmount, InvAmount, SIMNo, RecAmount, Details FROM mr.MaintainFinalizedInvoice WHERE InvNo = @n", c);
-        more.Parameters.AddWithValue("@n", invNo);
-        await using var m = await more.ExecuteReaderAsync();
-        Assert.True(await m.ReadAsync());
-        Assert.Equal((5068.80m, 253.44m, 5322.24m, invNo, 0m, "sew"),
-            (m.GetDecimal(0), m.GetDecimal(1), m.GetDecimal(2), m.GetInt64(3), m.GetDecimal(4), m.GetString(5)));
+        // 1497: sewerage 290 used -> 1148.40, irrigation 990 used -> 3920.40; taxable 5068.80, VAT 253.44, with VAT 5322.24.
+        Assert.Equal((5068.80m, 253.44m, 5322.24m, 0m), (r.GetDecimal(0), r.GetDecimal(1), r.GetDecimal(2), r.GetDecimal(3)));
+        Assert.Equal((invNo.ToString(), "sew", "No", "Ready", "SSD"), (r.GetString(4), r.GetString(5), r.GetString(6), r.GetString(7), r.GetString(8)));
+        Assert.Equal(("TR", "Oasis Cold Store", "BT-0203", "D1497", "0"), (r.GetString(9), r.GetString(10), r.GetString(11), r.GetString(12), r.GetString(13)));
+        Assert.True(decimal.Parse(r.GetString(14), System.Globalization.CultureInfo.InvariantCulture) > 0);
+        Assert.Equal((new DateTime(2026, 10, 1), new DateTime(2026, 10, 31)), (r.GetDateTime(15), r.GetDateTime(16)));
+        Assert.False(string.IsNullOrEmpty(r.GetString(17)));                  // UserName: the reader
+        Assert.False(r.IsDBNull(19));                                         // CreatedDate: PMS's default
+        Assert.Equal(2, r.GetInt32(20));                                       // both meter rows carry the invoice number
+        Assert.Equal(r.GetDecimal(2), r.GetDecimal(21));                       // and add up to the invoice amount
+        Assert.Equal(Data.MeterReadingRepository.SourceRowIdOffset + Convert.ToInt64(r.GetValue(22)), r.GetInt64(18)); // SourceRowId
     }
 
     [Fact]
