@@ -192,6 +192,7 @@ private fun FinalizeBar(propertyCode: String, meters: List<Meter>) {
     var sending by remember { mutableStateOf(false) }
     val left = FinalizeRules.left(meters)
     val noSignal = stringResource(Res.string.finalize_no_signal)
+    if (sending) WorkingDialog(stringResource(Res.string.finalize_working))
     if (asking) {
         AlertDialog(
             onDismissRequest = { asking = false },

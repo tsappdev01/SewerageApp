@@ -29,6 +29,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.meterreading.reader.resources.*
 import com.meterreading.reader.data.MeterType
 import com.meterreading.reader.data.ReadingState
@@ -346,5 +348,26 @@ fun Banner(text: String, icon: ImageVector, foreground: Color, background: Color
     ) {
         Icon(icon, contentDescription = null, tint = foreground, modifier = Modifier.size(36.dp))
         Text(text, color = foreground, style = MaterialTheme.typography.titleMedium)
+    }
+}
+
+/**
+ * A wait while the server works (finalizing): a spinner and what is happening, over the screen, so nothing is
+ * pressed twice. It cannot be closed; it goes when the work is done.
+ */
+@Composable
+fun WorkingDialog(text: String) {
+    Dialog(onDismissRequest = {}, properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)) {
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(AppColors.Card)
+                .padding(horizontal = 24.dp, vertical = 22.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            CircularProgressIndicator(Modifier.size(36.dp), color = AppColors.Navy, strokeWidth = 4.dp)
+            Text(text, style = MaterialTheme.typography.titleMedium, color = AppColors.Ink)
+        }
     }
 }

@@ -235,6 +235,7 @@ fun SummaryScreen(onBack: () -> Unit) {
         }
     }
 
+    if (closing) WorkingDialog(stringResource(Res.string.finalize_month_working))
     if (askPin) {
         SupervisorPinDialog(onVerified = { askPin = false; askConfirm = true }, onDismiss = { askPin = false })
     }
