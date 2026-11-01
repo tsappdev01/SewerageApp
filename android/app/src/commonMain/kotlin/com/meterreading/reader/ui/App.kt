@@ -1,6 +1,7 @@
 package com.meterreading.reader.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -20,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.meterreading.reader.platform.Messages
+import kotlinx.coroutines.launch
 import com.meterreading.reader.ui.nav.AppNavHost
 import com.meterreading.reader.ui.theme.AppColors
 import com.meterreading.reader.ui.theme.MeterReaderTheme
@@ -32,7 +35,14 @@ fun App(speaker: Speaker?) {
     MeterReaderTheme {
         CompositionLocalProvider(LocalSpeaker provides speaker) {
             val messages = remember { SnackbarHostState() }
-            LaunchedEffect(Unit) { Messages.shown.collect { messages.showSnackbar(it, duration = SnackbarDuration.Long) } }
+            // Every message has an X to close it, and closes on a tap too; a new message replaces the one on screen
+            // rather than waiting behind it.
+            LaunchedEffect(Unit) {
+                Messages.shown.collect { text ->
+                    messages.currentSnackbarData?.dismiss()
+                    launch { messages.showSnackbar(text, withDismissAction = true, duration = SnackbarDuration.Long) }
+                }
+            }
             Box(
                 Modifier
                     .fillMaxSize()
@@ -44,7 +54,9 @@ fun App(speaker: Speaker?) {
                 Box(Modifier.fillMaxHeight().widthIn(max = MAX_CONTENT_WIDTH).align(Alignment.TopCenter)) {
                     AppNavHost()
                 }
-                SnackbarHost(messages, Modifier.align(Alignment.BottomCenter).widthIn(max = MAX_CONTENT_WIDTH).padding(16.dp))
+                SnackbarHost(messages, Modifier.align(Alignment.BottomCenter).widthIn(max = MAX_CONTENT_WIDTH).padding(16.dp)) { data ->
+                    Snackbar(data, Modifier.clickable { data.dismiss() })
+                }
             }
         }
     }
