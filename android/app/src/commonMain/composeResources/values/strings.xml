@@ -29,6 +29,8 @@
     <string name="zone_done">All %1$d done</string>
     <string name="irrigation">Irrigation</string>
     <string name="sewerage">Sewerage</string>
+    <string name="meter_banner_sewerage">SEWERAGE METER</string>
+    <string name="meter_banner_irrigation">IRRIGATION METER</string>
     <string name="last_reading">Last %1$s</string>
     <string name="new_meter_first">New meter</string>
 

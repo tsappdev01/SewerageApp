@@ -30,6 +30,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.focus.FocusRequester
@@ -262,6 +264,7 @@ private fun StepScaffold(
 @Composable
 private fun MeterContext(meter: Meter, property: Property) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        MeterTypeBanner(meter.type)
         Row(
             Modifier
                 .fillMaxWidth()
@@ -786,5 +789,33 @@ private fun ResultStep(vm: CaptureViewModel, outcome: SubmitOutcome, onNextMeter
             }
             BigButton(stringResource(Res.string.home), onHome, kind = BigButtonKind.Secondary, minHeight = 56.dp, icon = Icons.Rounded.Home)
         }
+    }
+}
+
+/**
+ * Which meter this is, in large words across the screen: SEWERAGE METER or IRRIGATION METER (DIP 2026-11-01),
+ * on every step of a reading. The word says it; the colour and the icon only help.
+ */
+@Composable
+private fun MeterTypeBanner(type: MeterType) {
+    val (fg, bg) = when (type) {
+        MeterType.SEWERAGE -> AppColors.Sewerage to AppColors.SewerageTint
+        MeterType.IRRIGATION -> AppColors.Irrigation to AppColors.IrrigationTint
+    }
+    val text = stringResource(if (type == MeterType.SEWERAGE) Res.string.meter_banner_sewerage else Res.string.meter_banner_irrigation)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(bg)
+            .border(2.dp, fg, RoundedCornerShape(14.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .semantics(mergeDescendants = true) { heading() },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(meterTypeIcon(type), contentDescription = null, tint = fg, modifier = Modifier.size(30.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(text, color = fg, fontWeight = FontWeight.Bold, fontSize = 22.sp, letterSpacing = 1.sp)
     }
 }
