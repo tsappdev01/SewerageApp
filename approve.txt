@@ -1,0 +1,4 @@
+Waiting phone f2a64e5467a90cde, check code 99EZTG: approving for rashid@dip.example
+Result DeviceId AndroidId CheckCode Label BoundReaderLogin Model
+------ -------- --------- --------- ----- ---------------- -----
+Registered 95CB7C68-98D8-4C41-A2EE-65A7F6790230 f2a64e5467a90cde 99EZTG E2E emulator rashid@dip.example Google sdk_gphone64_x86_64
