@@ -74,6 +74,13 @@ SELECT a.Line, a.PropertyCode, CASE a.MeterType WHEN 'S' THEN 'Sewerage' ELSE 'I
                  WHEN a.AmountCalculated > s.TenPercent OR a.AmountCalculated > 500 THEN a.AmountCalculated
                  WHEN s.TenPercent <= 500 THEN s.TenPercent
                  ELSE 500 END AS decimal(18,2)) AS [Amount billed (excl. VAT)],
+       CASE WHEN a.MeterType = 'S' THEN NULL
+            WHEN a.NoCharge = 1 THEN 'No-charge plot: 0'
+            WHEN ISNULL(s.TenPercent, 0) = 0 THEN 'No sewerage on the row: as calculated'
+            WHEN a.AmountCalculated > s.TenPercent THEN 'Calculated above 10% of sewerage: as calculated'
+            WHEN a.AmountCalculated > 500 THEN 'Calculated above 500: as calculated'
+            WHEN s.TenPercent <= 500 THEN 'Calculated <= 10% and 10% <= 500: 10% of sewerage'
+            ELSE 'Calculated <= 10% and 10% > 500: 500' END AS [Irrigation rule],
        CONCAT(
            CASE WHEN a.MeterId IS NULL THEN 'No such meter at this property (check code, type, number). ' END,
            CASE WHEN a.Found > 1 AND a.MeterNumber IS NULL THEN CONCAT('Property has ', a.Found, ' meters of this type: give MeterNumber. ') END,
