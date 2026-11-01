@@ -395,7 +395,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                 UPDATE dbo.MaintainFinalizedInvoices
                 SET TranCode = @TranCode, TenantsName = @TenantsName, Area = @Area, Rate = @Rate, FromDate = @FromDate,
                     ToDate = @ToDate, InvAmount = @InvAmount, BaanCode = @BaanCode, DimensionCode = @DimensionCode,
-                    VATCode = @VATCode, VATAmount = @VATAmount, TaxableAmount = @TaxableAmount, UserName = @UserName
+                    Details = @Details, VATCode = @VATCode, VATAmount = @VATAmount, TaxableAmount = @TaxableAmount, UserName = @UserName
                 WHERE InvNo = @InvNo AND TTBaan = 'No' AND Status = 'Ready' AND ISNULL(RecAmount, 0) = 0
                   AND FusionPosted IS NULL AND ISNULL(FusionReferenceNumber, '') = '' AND ISNULL(ReceiptNumber, '') = '';
                 SET @state = CASE WHEN @@ROWCOUNT = 1 THEN 1 ELSE 2 END;
@@ -407,7 +407,7 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                 InvAmount, RecAmount, BaanCode, DimensionCode, TTBaan, Status, Details, VATCode, VATAmount, TaxableAmount, UserName)
             OUTPUT inserted.InvNo
             VALUES (@TranCode, @TenantsName, @PropertyCode, @Area, @Rate, @FromDate, @ToDate,
-                @InvAmount, 0, @BaanCode, @DimensionCode, 'No', 'Ready', 'sew', @VATCode, @VATAmount, @TaxableAmount, @UserName);
+                @InvAmount, 0, @BaanCode, @DimensionCode, 'No', 'Ready', @Details, @VATCode, @VATAmount, @TaxableAmount, @UserName);
             """;
         // SIMNo = InvNo; SourceRowId = offset + the first detail row's RowId, kept once set.
         const string finishHeader = """
@@ -466,6 +466,8 @@ public sealed class MeterReadingRepository(SqlConnectionFactory db, IOptions<Sou
                 FromDate = fromDate.ToDateTime(TimeOnly.MinValue), ToDate = endDate.ToDateTime(TimeOnly.MinValue),
                 InvAmount = taxable + vat, TaxableAmount = taxable, VATAmount = vat,
                 VATCode = Domain.FinalizeService.VatCode, UserName = readerId,
+                Details = Domain.FinalizeService.InvoiceDetails(
+                    rows.Sum(r => r.Sewerage?.Consumption ?? 0m), rows.Sum(r => r.Irrigation?.Consumption ?? 0m)),
             };
             var state = earlier is null ? 0 : await c.ExecuteScalarAsync<int>(new CommandDefinition(updateHeader, head, tx,
                 CommandTimeoutSeconds, cancellationToken: ct));

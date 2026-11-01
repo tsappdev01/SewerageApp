@@ -68,6 +68,16 @@ public sealed class FinalizeService(MeterReadingRepository repo, ReaderService r
     /// <summary>FR-037.12: fixed values on every finalized row (DIP 2026-10-18).</summary>
     public const string VatCode = "SSD", ChargeTypeSewerage = "sew", ChargeTypeIrrigation = "Irri";
 
+    /// <summary>FR-037.16: the invoice's Details: 'sew', or 'Irr' when only irrigation was used (DIP 2026-11-01).</summary>
+    public const string DetailsSewerage = "sew", DetailsIrrigation = "Irr";
+
+    /// <summary>
+    /// FR-037.16 (DIP 2026-11-01): an invoice with no sewerage consumption and only irrigation consumption is
+    /// Details 'Irr'; every other invoice 'sew'.
+    /// </summary>
+    public static string InvoiceDetails(decimal sewerageConsumption, decimal irrigationConsumption) =>
+        sewerageConsumption == 0m && irrigationConsumption != 0m ? DetailsIrrigation : DetailsSewerage;
+
     /// <summary>FR-037.11: posting is complete when every property of the period has been finalized.</summary>
     public static bool PostingComplete(int properties, int finalized) => properties > 0 && finalized >= properties;
 

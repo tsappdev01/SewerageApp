@@ -267,7 +267,9 @@ DROP TABLE IF EXISTS #h;
 SELECT r.PropertyCode, MAX(r.TranCode) AS TranCode, MAX(r.CompanyName) AS TenantsName, MAX(r.BaanCode) AS BaanCode,
        FORMAT(MAX(pb.Area), '0.##', 'en-US') AS Area, FORMAT(MAX(pb.Rate), '0.####', 'en-US') AS Rate, MAX(pb.DimensionCode) AS DimensionCode,
        SUM(r.SewerageAmount + r.IrrigationAmount) AS TaxableAmount, SUM(r.SewerageVat + r.IrrigationVat) AS VATAmount,
-       SUM(r.SewerageAmount + r.IrrigationAmount + r.SewerageVat + r.IrrigationVat) AS InvAmount
+       SUM(r.SewerageAmount + r.IrrigationAmount + r.SewerageVat + r.IrrigationVat) AS InvAmount,
+       -- Details: 'Irr' when only irrigation was used (no sewerage consumption), else 'sew' (DIP 2026-11-01).
+       CASE WHEN SUM(ISNULL(r.SCons, 0)) = 0 AND SUM(ISNULL(r.ICons, 0)) <> 0 THEN 'Irr' ELSE 'sew' END AS Details
 INTO #h
 FROM #rows r
 LEFT JOIN #pb pb ON pb.PropertyCode = r.PropertyCode
@@ -287,7 +289,7 @@ BEGIN
     RETURN;
 END
 UPDATE i SET TranCode = h.TranCode, TenantsName = h.TenantsName, Area = h.Area, Rate = h.Rate, FromDate = @From, ToDate = @End,
-             InvAmount = h.InvAmount, BaanCode = h.BaanCode, DimensionCode = h.DimensionCode, VATCode = 'SSD',
+             InvAmount = h.InvAmount, BaanCode = h.BaanCode, DimensionCode = h.DimensionCode, Details = h.Details, VATCode = 'SSD',
              VATAmount = h.VATAmount, TaxableAmount = h.TaxableAmount, UserName = @FinalizedBy
 OUTPUT inserted.InvNo, h.PropertyCode INTO @inv
 FROM dbo.MaintainFinalizedInvoices i
@@ -300,7 +302,7 @@ INSERT dbo.MaintainFinalizedInvoices (TranCode, TenantsName, PropertyCode, Area,
     BaanCode, DimensionCode, TTBaan, Status, Details, VATCode, VATAmount, TaxableAmount, UserName)
 OUTPUT inserted.InvNo, inserted.PropertyCode INTO @inv
 SELECT h.TranCode, h.TenantsName, h.PropertyCode, h.Area, h.Rate, @From, @End, h.InvAmount, 0,
-       h.BaanCode, h.DimensionCode, 'No', 'Ready', 'sew', 'SSD', h.VATAmount, h.TaxableAmount, @FinalizedBy
+       h.BaanCode, h.DimensionCode, 'No', 'Ready', h.Details, 'SSD', h.VATAmount, h.TaxableAmount, @FinalizedBy
 FROM #h h
 WHERE h.PropertyCode NOT IN (SELECT PropertyCode FROM @inv);
 PRINT CONCAT(@@ROWCOUNT, N' invoices written.');

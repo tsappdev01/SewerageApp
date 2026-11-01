@@ -500,6 +500,28 @@ public sealed class FinalizeTests(ApiFactory factory) : IAsyncLifetime
         Assert.Contains("differs", r.GetString(r.GetOrdinal("ValidationNote")));
     }
 
+    [Theory]
+    [InlineData(290, 990, "sew")]
+    [InlineData(0, 1010, "Irr")]   // only irrigation used
+    [InlineData(0, 0, "sew")]
+    [InlineData(10, 0, "sew")]
+    public void FR037_16_invoice_details_is_Irr_when_only_irrigation_was_used(decimal sewerage, decimal irrigation, string details) =>
+        Assert.Equal(details, FinalizeService.InvoiceDetails(sewerage, irrigation));
+
+    [Fact]
+    public async Task FR037_16_an_invoice_with_only_irrigation_used_has_Details_Irr()
+    {
+        // 3010: the irrigation meter used 1010 (db/dev/010); the sewerage meter was not accessible (0 used).
+        var (status, body) = await FinalizeProperty("3010");
+        Assert.Equal(HttpStatusCode.OK, status);
+        var invNo = body.GetProperty("invNo").GetInt64();
+        await using var c = new SqlConnection(ApiFactory.ConnectionString);
+        await c.OpenAsync();
+        await using var cmd = new SqlCommand("SELECT Details FROM dbo.MaintainFinalizedInvoices WHERE InvNo = @n", c);
+        cmd.Parameters.AddWithValue("@n", invNo);
+        Assert.Equal("Irr", (string?)await cmd.ExecuteScalarAsync());
+    }
+
     [Fact]
     public async Task Unknown_property_is_404()
     {
