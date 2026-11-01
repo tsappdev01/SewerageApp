@@ -112,6 +112,22 @@ abstract class MeterRepository {
     fun metersAt(propertyCode: String, meters: List<Meter>): List<Meter> =
         meters.filter { it.propertyCode == propertyCode }.sortedBy { it.route }
 
+    /**
+     * "Skip property" (DIP 2026-11-01): the first meter still to read at the next property in route order after
+     * [propertyCode] (zone, then route), going round to the start; never [propertyCode] itself, revisits last.
+     * Null when no other property has a meter left to read. Skipping records nothing: the meters stay to read.
+     */
+    fun nextPropertyMeter(meters: List<Meter>, propertyCode: String): Meter? {
+        val routes = properties.value.associate { it.code to it.route }
+        val byPlace = compareBy<Meter>({ it.zoneCode }, { routes[it.propertyCode] ?: Int.MAX_VALUE }, { it.propertyCode })
+        val candidates = meters
+            .filter { it.state.canCapture && it.propertyCode != propertyCode }
+            .sortedWith(compareBy<Meter> { it.state == ReadingState.REVISIT }.then(byPlace).thenBy { it.route })
+        val here = meters.firstOrNull { it.propertyCode == propertyCode } ?: return candidates.firstOrNull()
+        return candidates.firstOrNull { it.state != ReadingState.REVISIT && byPlace.compare(it, here) > 0 }
+            ?: candidates.firstOrNull()
+    }
+
     /** Next meter in route order; stays in the same building when it can, revisits last. */
     fun nextMeter(meters: List<Meter>, after: String? = null): Meter? {
         val routes = properties.value.associate { it.code to it.route }

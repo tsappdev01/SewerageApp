@@ -50,6 +50,7 @@ import com.meterreading.reader.data.*
 import com.meterreading.reader.ui.components.*
 import com.meterreading.reader.ui.theme.AppColors
 import com.meterreading.reader.ui.theme.NumberFont
+import com.meterreading.reader.util.fill
 import com.meterreading.reader.util.formatReading
 import kotlinx.coroutines.delay
 import com.meterreading.reader.platform.File
@@ -83,12 +84,23 @@ fun CaptureScreen(meterId: String, onNextMeter: (String) -> Unit, onHome: () -> 
     // "Next meter" at the same property switches here, so the other meter's typed number is kept.
     val next: (String) -> Unit = { id -> if (id != activeId && options.any { it.id == id }) activeId = id else onNextMeter(id) }
 
+    // "Skip property" (DIP 2026-11-01): leave this property unread for now and go to the next one in route
+    // order. Nothing is recorded; its meters stay to read.
+    val skippedText = stringResource(Res.string.skip_property_done)
+    val noneLeftText = stringResource(Res.string.skip_property_none)
+    val skipProperty: () -> Unit = {
+        val here = vm.meter.propertyCode
+        val target = AppGraph.repository.nextPropertyMeter(AppGraph.repository.meters.value, here)
+        if (target == null) Messages.show(noneLeftText)
+        else { Messages.show(skippedText.fill(here, target.propertyCode)); onNextMeter(target.id) }
+    }
+
     val outcome = vm.outcome
     CompositionLocalProvider(LocalMeterSwitch provides switch.takeIf { options.size > 1 && !vm.sending }) {
     when {
         outcome == SubmitOutcome.REJECTED -> ResultStep(vm, outcome, next, onHome)
         outcome != null -> AfterSend(vm, outcome, next, onHome)
-        vm.stepIndex < 0 -> ConditionStep(vm, onBack = onExit)
+        vm.stepIndex < 0 -> ConditionStep(vm, onBack = onExit, onSkip = skipProperty)
         else -> when (val step = vm.currentStep!!) {
             is Step.Reason -> ReasonStep(vm, step.category)
             is Step.Photo -> PhotoStep(vm, step.role)
@@ -295,7 +307,7 @@ private fun MeterContext(meter: Meter, property: Property) {
 }
 
 @Composable
-private fun ConditionStep(vm: CaptureViewModel, onBack: () -> Unit) {
+private fun ConditionStep(vm: CaptureViewModel, onBack: () -> Unit, onSkip: () -> Unit) {
     val nextIsPhoto = vm.steps.firstOrNull() is Step.Photo
     StepScaffold(
         vm, stringResource(Res.string.q_condition), stringResource(Res.string.speak_condition), onBack,
@@ -304,6 +316,12 @@ private fun ConditionStep(vm: CaptureViewModel, onBack: () -> Unit) {
                 stringResource(if (nextIsPhoto) Res.string.next_photo else Res.string.next),
                 vm::next,
                 icon = if (nextIsPhoto) Icons.Rounded.PhotoCamera else Icons.AutoMirrored.Rounded.ArrowForward,
+            )
+            BigButton(
+                stringResource(Res.string.skip_property),
+                onSkip,
+                icon = Icons.Rounded.SkipNext,
+                kind = BigButtonKind.Secondary,
             )
         },
     ) {

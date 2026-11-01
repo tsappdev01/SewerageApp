@@ -31,6 +31,9 @@
     <string name="sewerage">Sewerage</string>
     <string name="meter_banner_sewerage">SEWERAGE METER</string>
     <string name="meter_banner_irrigation">IRRIGATION METER</string>
+    <string name="skip_property">Skip property, go to the next</string>
+    <string name="skip_property_done">%1$s skipped: its meters are still to read. Now %2$s.</string>
+    <string name="skip_property_none">No other property has meters left to read.</string>
     <string name="last_reading">Last %1$s</string>
     <string name="new_meter_first">New meter</string>
 
@@ -311,7 +314,7 @@
     <string name="speak_zones">Pick a zone. Green means it is finished.</string>
     <string name="speak_properties">Pick a building. Each small picture is one meter. A green border means it is read.</string>
     <string name="speak_meters">Pick the meter with the blue border. When all meters are read, press Finalize property.</string>
-    <string name="speak_condition">Look at the meter. If it is working, press the blue button. If not, press the picture that matches.</string>
+    <string name="speak_condition">Look at the meter. If it is working, press the blue button. If not, press the picture that matches. To come back to this property later, press Skip property.</string>
     <string name="speak_photo">Hold the phone still. Put the numbers inside the white box. Press the big white button.</string>
     <string name="speak_photo_context">Hold the phone still. Take a photo of the meter. Press the big white button.</string>
     <string name="speak_photo_review">Is the photo clear? If it is good, press the green button.</string>
